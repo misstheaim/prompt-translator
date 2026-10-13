@@ -3,6 +3,7 @@
 > Status: Tickets created
 > Last updated: 2026-10-14
 > Root issue: n/a (new project, top-level epics #1–#9; S6.3 added later as #76–#79). Repo: https://github.com/misstheaim/prompt-translator · Board: https://github.com/users/misstheaim/projects/2
+> Workflow: `docs/development.md` (Git Flow: base branch `develop`, milestone `v0.1.0`)
 > Source spec: `claude_prompt_translator_implementation (1).md` (project root). This plan supersedes it where they differ.
 
 ## 1. Context and goal
@@ -113,6 +114,7 @@ The owner's machine below is the **development** machine. Target machines vary, 
 | D36 | Keyboard layout fix | A **stand-alone tool** with its own hotkey, outside the translate flow. A fixed key-position mapping between the Windows Russian (ЙЦУКЕН) and US (QWERTY) layouts: no LLM, instant, offline. Direction by majority of Cyrillic vs Latin letters in the text. Only characters of the source layout change, so correctly typed words in the other script stay as they are. No history, no window. Only ru ↔ en in v1; the tables are data so other pairs (e.g. Ukrainian) can be added later | Convert through the LLM; per-word direction | Deterministic and instant; per-word direction is ambiguous for short words |
 | D37 | Layout fix input and output | Selection via Ctrl+C (same rules as D5). **No selection** → send Ctrl+Shift+Left to select the previous word, then convert it. The result is pasted with Ctrl+V and the previous clipboard text is restored. **In terminals** (or when `autoCopySelection` is off) it converts the clipboard text in place and shows a notification; the user pastes | Keyboard hook that buffers typed keys (Punto Switcher style); terminals unsupported | User's choice. Reuses T25b's code; a global keyboard hook is heavier and looks like a keylogger to antivirus tools |
 | D38 | Layout fix extras | After converting, switch the Windows input language to the target layout (only if it's installed; setting, on by default). Default hotkey **Ctrl+Alt+Space**, configurable, must differ from the translate hotkey | Shift+Home (rejected: it's "select to line start" in every app); Shift+Pause (rejected: many laptops have no Pause key) | User's choice; works on every keyboard |
+| D39 | Branching and releases | Git Flow as in `docs/development.md`: `main` holds released code only; `develop` is the default and integration branch; one ticket = one branch = one PR squash-merged into `develop`; `release/X.Y.Z` and `hotfix/*` merge into `main` with a merge commit and a `vX.Y.Z` tag. **One milestone, `v0.1.0`, for the whole v1 plan** | Trunk-based on `main`; several smaller milestones | The coordinator needs a stable integration branch, and `main` stays releasable for hotfixes; v1 ships once, after T7's smoke test |
 
 ## 4. Architecture and design
 
@@ -482,10 +484,10 @@ Totals: **9 epics, 23 stories, 47 tasks.**
 
 ### T1. Install toolchain and document dev setup  `cloud` · parent: S1.1 · issue: #33
 - **Goal:** the machine can build a Tauri 2 app, and the steps are documented.
-- **Details:** install with `winget`: Node.js LTS, Rust via rustup (stable, `x86_64-pc-windows-msvc`), Visual Studio 2022 Build Tools with the "Desktop development with C++" workload. Confirm WebView2 is present. Don't install Ollama here (T13 does). Write `docs/dev-setup.md`: prerequisites, exact commands, how to verify, common errors (MSVC linker missing, PATH not refreshed). Ask the user before running installers that need admin rights.
+- **Details:** install with `winget`: Node.js LTS, Rust via rustup (stable, `x86_64-pc-windows-msvc`), Visual Studio 2022 Build Tools with the "Desktop development with C++" workload. Confirm WebView2 is present. Don't install Ollama here (T13 does). Write `docs/dev-setup.md`: step-by-step install commands, how to verify, common errors (MSVC linker missing, PATH not refreshed). Check the requirements table in `docs/development.md` §1 against what was actually installed and correct the versions there; `dev-setup.md` links to it instead of repeating it. Ask the user before running installers that need admin rights.
 - **Acceptance criteria:**
   - [ ] `node -v`, `npm -v`, `rustc -V`, `cargo -V` work in a new shell.
-  - [ ] `docs/dev-setup.md` exists and a fresh reader can follow it.
+  - [ ] `docs/dev-setup.md` exists and a fresh reader can follow it; `docs/development.md` §1 matches the installed versions.
 - **Depends on:** none. **Can run in parallel with:** T13, T16, T18.
 - **Suggested model:** Sonnet 5.5 (confidence: High). Mechanical installs and a short doc.
 
@@ -499,12 +501,13 @@ Totals: **9 epics, 23 stories, 47 tasks.**
 
 ### T2. Scaffold Tauri 2 + React + TS app  `frontend` · parent: S1.1 · issue: #34
 - **Goal:** an empty app that runs with `npm run tauri dev`, with the frontend tooling configured.
-- **Details:** **The project root already contains files (the spec, `docs/`, possibly `eval/`, `spikes/`). Never delete or overwrite existing files.** Run `npm create tauri-app@latest` (React + TS + Vite) into a **temp subfolder** (e.g. `_scaffold/`), then move its contents into the root, stopping if any file would be overwritten, and delete `_scaffold/`. App name "Prompt Translator", identifier `com.misstheaim.prompttranslator`. Pin exact versions of Tauri CLI/API (no `^`). Add Tailwind CSS v4 (Vite plugin), Zustand, ESLint (typescript-eslint, react-hooks), Prettier, Vitest + React Testing Library + jsdom. npm scripts: `dev`, `build`, `lint`, `typecheck`, `test`, `format`. Add a second Vite entry `popup.html` → `src/popup/main.tsx` (placeholder) for T25a/T26. `.gitignore` for Node, Rust `target/`, `.env`, `eval/reports/`. `git init` if T0 hasn't (no commit unless the user asks).
+- **Details:** **The project root already contains files (the spec, `docs/`, possibly `eval/`, `spikes/`). Never delete or overwrite existing files.** Run `npm create tauri-app@latest` (React + TS + Vite) into a **temp subfolder** (e.g. `_scaffold/`), then move its contents into the root, stopping if any file would be overwritten, and delete `_scaffold/`. App name "Prompt Translator", identifier `com.misstheaim.prompttranslator`. Pin exact versions of Tauri CLI/API (no `^`). Add Tailwind CSS v4 (Vite plugin), Zustand, ESLint (typescript-eslint, react-hooks), Prettier, Vitest + React Testing Library + jsdom. npm scripts: `dev`, `build`, `lint`, `typecheck`, `test`, `format`. Add a second Vite entry `popup.html` → `src/popup/main.tsx` (placeholder) for T25a/T26. `.gitignore` for Node, Rust `target/`, `.env`, `eval/reports/`. The repo already has `README.md`, `LICENSE`, `CLAUDE.md` and `docs/`: keep them. **This is the bootstrap task:** create the npm scripts with the names planned in `docs/development.md` §2, and update that table and `CLAUDE.md` wherever a command ends up different.
 - **Acceptance criteria:**
   - [ ] `npm run tauri dev` opens a window with a Tailwind-styled placeholder.
   - [ ] `npm run lint`, `npm run typecheck`, `npm test` pass (one sample test).
   - [ ] `popup.html` builds as a second entry.
-  - [ ] Every file that existed before the task is unchanged.
+  - [ ] Every file that existed before the task is unchanged, except `docs/development.md` and `CLAUDE.md` where commands differ.
+- [ ] Every frontend command in `docs/development.md` §2 exists and runs.
 - **Depends on:** T1. **Can run in parallel with:** T13, T16, T18.
 - **Suggested model:** Sonnet 5.5 (confidence: High). Standard scaffolding.
 
@@ -533,7 +536,7 @@ Totals: **9 epics, 23 stories, 47 tasks.**
 
 ### T4. GitHub Actions CI for lint and tests  `cloud` · parent: S1.1 · issue: #36
 - **Goal:** every push runs the checks in §4.10.
-- **Details:** `.github/workflows/ci.yml` on `windows-latest`, triggered by push and pull_request, `permissions: contents: read`, actions pinned to commit SHAs. Steps:
+- **Details:** `.github/workflows/ci.yml` on `windows-latest`, triggered by `pull_request` into `develop`, `release/**` and `main` and by `push` to those branches (`docs/development.md` §9), `permissions: contents: read`, actions pinned to commit SHAs. Steps:
   1. checkout;
   2. setup-node (LTS, npm cache);
   3. `dtolnay/rust-toolchain@stable` with clippy and rustfmt;
@@ -545,7 +548,7 @@ Totals: **9 epics, 23 stories, 47 tasks.**
 
   No secrets and no network-dependent tests. Pushing the workflow follows the user's push rule.
 - **Acceptance criteria:**
-  - [ ] The workflow passes when run on a branch (after the user pushes).
+  - [ ] The workflow runs and passes on this task's PR into `develop`.
   - [ ] A deliberately failing test makes CI fail (check locally with `act`, or reason it through and note it in the PR).
 - **Depends on:** T0, T2, T3. **Can run in parallel with:** T8, T9, T10, T27.
 - **Suggested model:** Sonnet 5.5 (confidence: High). Standard workflow.
@@ -592,7 +595,7 @@ Totals: **9 epics, 23 stories, 47 tasks.**
     - updates;
     - uninstall and what it removes (Ollama and models stay; how to remove them with `ollama rm` or Windows Apps);
     - troubleshooting (Ollama not running, model missing, Claude not signed in, hotkey taken);
-    - a developer section linking to `docs/dev-setup.md`, `docs/build.md` and `docs/release.md`.
+    - a developer section linking to `docs/development.md` (workflow and commands), `docs/dev-setup.md`, `docs/build.md` and `docs/release.md`. It replaces the current stub `README.md`.
   - `docs/smoke-test.md`: a step checklist covering:
     - each mode × provider, in a non-Russian language too;
     - the popup flow, token warning, cancel;
@@ -919,9 +922,9 @@ Write `docs/spikes/local-model-eval.md` with:
   - Put the public key in `tauri.conf.json` (`plugins.updater.pubkey`) and set `bundle.createUpdaterArtifacts: true`.
   - `.github/workflows/release.yml`: on tag `v*`, on `windows-latest`, `permissions: contents: write` (nothing else), actions pinned to commit SHAs. Run the CI checks, then `tauri-apps/tauri-action` with `tagName`, `releaseName`, `releaseDraft: true`, `includeUpdaterJson: true`. The user publishes the draft after checking it.
   - Version bump procedure: one source of truth (`package.json` version synced to `tauri.conf.json` and `Cargo.toml` by a small `scripts/bump-version.mjs`).
-  - `docs/release.md`: bump, tag, push, check the draft, run the smoke test (T7) on the draft's installer, publish.
+  - `docs/release.md`: the signing key (generation, offline backup, repo secrets), the bump script, and what to do when `release.yml` fails. The release flow itself (`release/X.Y.Z` from `develop` → PR into `main` → tag `vX.Y.Z` on `main` → draft → publish) is in `docs/development.md` §5: link to it instead of repeating it, and correct §5 if the workflow ends up different.
 - **Acceptance criteria:**
-  - [ ] A test tag (e.g. `v0.0.1-test`, deleted afterwards with the user's approval) produces a draft release with the `-setup.exe`, its `.sig` and `latest.json`.
+  - [ ] A test tag (e.g. `v0.0.1-test`, on a commit of this task's branch, never on `main`; deleted afterwards with the user's approval) produces a draft release with the `-setup.exe`, its `.sig` and `latest.json`.
   - [ ] `latest.json` points to the release asset URLs.
   - [ ] No secrets in the repo or logs.
 - **Depends on:** T4, T6. **Can run in parallel with:** T34–T36.
@@ -1146,7 +1149,7 @@ Write `docs/spikes/local-model-eval.md` with:
 
 Critical path: T1 → T2 → T3 → T11 (needs T13) → T12 → T20 → T21 → T26 → T7. The distribution chain is T24 → T6 → T31 → T32 → T33 → T7.
 
-**First public release** (`v0.1.0`) only after T7's smoke test passes. A test tag in T31 is fine before that, but it must stay a draft.
+**First public release** (`v0.1.0`) only after T7's smoke test passes. A test tag in T31 is fine before that, but it must stay a draft. The release follows `docs/development.md` §5: `release/0.1.0` is cut from `develop`, merged into `main` and tagged there.
 
 ## 7. Risks and open questions
 
@@ -1187,6 +1190,7 @@ Critical path: T1 → T2 → T3 → T11 (needs T13) → T12 → T20 → T21 → 
 
 ## 8. Review notes
 
+- **Added 2026-10-14:** the Git Flow workflow (D39, `docs/development.md`, project `CLAUDE.md`) and milestone `v0.1.0`; T1, T2, T4, T7 and T31 were aligned with it. No test cases were backfilled into the tickets (owner's choice).
 - **Added 2026-10-14:** story S6.3 (keyboard layout fix, T41–T43, D36–D38) was added through the skill's light path after the plan was approved, so it had no independent review.
 
 An independent review (Opus, 2026-10-13) found 28 issues and 7 improvements. It verified CLI claims by running `claude --help`, `claude agents --help` and `claude agents --json` on 2.1.296. The owner accepted all of them, applied as follows:
