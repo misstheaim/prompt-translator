@@ -34,7 +34,7 @@
   - sending accepted prompts into a bound, open Claude Code session (if spike T37 passes);
   - keyboard layout fix hotkey (Russian ↔ English).
 - **Hard requirement:** the main Claude Code session never receives the native-language text or the translator's instructions. Only the final English text the user accepted is copied to the clipboard or written into the bound session.
-- **In scope (v1):** everything in the goal above, plus CI that runs the tests and a release workflow.
+- **In scope (v1):** everything in the goal above, plus CI that runs build and lint, and a release workflow.
 - **Out of scope (v1):** focus-and-paste UI automation into terminals; Claude Code channels as a delivery method; a persistent Claude translation session; stopping Ollama when the app exits (the wizard may install and start it); bundling Ollama or models into the installer; streaming output; spaced-repetition quizzes; Authenticode code signing (installer is unsigned, so SmartScreen warns); macOS/Linux builds; translating Claude's replies back; UI localisation (UI is English).
 
 ## 2. Current state
@@ -61,7 +61,7 @@ The owner's machine below is the **development** machine. Target machines vary, 
   - Prefer the native `claude.exe` (`%USERPROFILE%\.local\bin\claude.exe`) over an npm `claude.cmd` shim: Rust refuses or mangles batch-file arguments with quotes/newlines. Long prompts go through files or stdin, never the command line.
   - `claude agents --json` lists running sessions (`pid` = `claude.exe` itself, `cwd`, `kind`, `startedAt`, `sessionId`, `name`, `status` idle/busy); verified by running it.
   - Spike T16 settles the exact invocation.
-- Rust: `rusqlite` (bundled) + `rusqlite_migration`, `reqwest`, `tokio`, `serde`, `thiserror`, `ts-rs` for TS bindings; `mockito` for HTTP tests; `whatlang` for language detection; `windows` crate (DXGI) for GPU memory detection.
+- Rust: `rusqlite` (bundled) + `rusqlite_migration`, `reqwest`, `tokio`, `serde`, `thiserror`, `ts-rs` for TS bindings; `whatlang` for language detection; `windows` crate (DXGI) for GPU memory detection.
 - **Distribution:**
   - Tauri NSIS bundler, per-user install (no admin).
   - NSIS installer hooks (`bundle.windows.nsis.installerHooks`, e.g. `NSIS_HOOK_POSTUNINSTALL`) for extra uninstall cleanup. The uninstaller's "delete app data" option must be skipped in update mode (`$UpdateMode`).
@@ -70,7 +70,7 @@ The owner's machine below is the **development** machine. Target machines vary, 
 - **Clean-machine testing:** Windows Sandbox (available on Windows 11 Pro) gives a throwaway Windows for testing install, setup wizard, update and uninstall. Two caveats:
   - Sandbox ships **without winget**, so test the "no winget" fallback there; when the winget path itself needs testing, install App Installer in the Sandbox first.
   - Its vGPU is on by default and can expose the host GPU, so use `docs/sandbox/no-gpu.wsb` (`<vGPU>Disable</vGPU>`, mapped read-only folder with the installer) to simulate a machine without a GPU.
-- Frontend: Vitest + React Testing Library; ESLint + Prettier. Rust: `cargo test`, `clippy`, `rustfmt`.
+- Frontend: ESLint + Prettier. Rust: `clippy`, `rustfmt`. No automated tests (§4.10); `cargo test` is used only by ts-rs to export the bindings.
 
 ## 3. Decisions
 
@@ -78,7 +78,7 @@ The owner's machine below is the **development** machine. Target machines vary, 
 |---|---|---|---|---|
 | D1 | Purpose | English practice: translation **and** learning (corrections, explanations, mistakes log) | Pure translator (spec) | The user's stated motivation; a translator alone teaches little |
 | D2 | Stack | Tauri 2 + React + TS + Vite + Tailwind | Python/tkinter (like prompt-analyzer); .NET WPF | User's choice; modern UI, small footprint. Cost: installing Node + Rust + MSVC (T1) |
-| D3 | Where logic lives | **Rust core** owns all I/O (Ollama, claude.exe, SQLite, clipboard, files); React is UI only | Providers in TS via shell/http/sql plugins | Smaller webview permissions, one place for logic, testable with `cargo test` |
+| D3 | Where logic lives | **Rust core** owns all I/O (Ollama, claude.exe, SQLite, clipboard, files); React is UI only | Providers in TS via shell/http/sql plugins | Smaller webview permissions, one place for logic |
 | D4 | Interaction model | Tray app with **both** a main window and a hotkey popup | Main window only; popup only | Popup for speed, main window for presets, settings, history and mistakes |
 | D5 | Hotkey behaviour | **Auto-copy except in terminals:** if the foreground window isn't a terminal, the app sends Ctrl+C itself, reads the clipboard, then restores the previous clipboard text. In terminals (Windows Terminal, conhost) the user copies by hand first. Setting `autoCopySelection` (on by default). Enter in the popup = Accept (D13) | Clipboard only; always simulate Ctrl+C | "Select + hotkey" in most apps; Ctrl+C means interrupt in terminals, so those are excluded |
 | D6 | Modes | **Translate, Improve, Correct** in v1 | Translate + Improve (spec); Translate + Correct | User's choice |
@@ -179,7 +179,6 @@ target/                   mod.rs (ClaudeTarget trait, accept routing), clipboard
 <module>/commands.rs      each module owns its #[tauri::command] fns (thin); lib.rs only adds one registration line per module
 logging                   tauri-plugin-log → %LOCALAPPDATA%\<id>\logs (T3)
 bin/eval.rs               quality regression harness (T15); Cargo.toml sets `default-run` to the app binary
-bin/fake_claude.rs        test-only fake claude executable (T17b), explicit [[bin]] so tests can use CARGO_BIN_EXE_fake_claude
 ```
 
 **Conventions to avoid merge conflicts between parallel tasks:**
@@ -384,26 +383,25 @@ Migrations via `rusqlite_migration`; `PRAGMA foreign_keys = ON`. Stored at `app_
 - **Updates and data:** an update never deletes or breaks user data. Settings, presets and DB migrations are forward-compatible (`serde(default)`, ordered migrations).
 - **Uninstall:** removes everything the app created (D24, D27). The only things left are Ollama and its models, which the user manages separately.
 
-### 4.10 Testing strategy
+### 4.10 Verification
 
-- **Rust unit tests:** token checker, mode detection, layout conversion tables and direction (T41), prompt builder (snapshot of the built prompt), output parser (valid, fenced, malformed, unknown category), settings/preset stores (temp dirs), history repo (in-memory SQLite), service with `MockProvider` (cancel, timeout, history on/off).
-- **Rust integration tests:** Ollama provider against a `mockito` server; Claude provider against a small fake executable (`src-tauri/src/bin/fake_claude.rs`, an explicit `[[bin]]`, located in tests via `CARGO_BIN_EXE_fake_claude`) that echoes canned JSON, sleeps, or exits non-zero.
-- **Frontend:** Vitest + React Testing Library with `invoke` mocked: Translate screen states, diff rendering, settings validation, preset editor, popup keyboard handling.
+No automated tests (owner's decision, 2026-10-15). A ticket is done when build and lint pass and its acceptance criteria are met; behaviour criteria with example inputs and outputs are checked by hand (dev mode, the dev mock provider, or a scratch `main`).
+
 - **Quality regression:** `cargo run --bin eval` (T15) runs `eval/cases.jsonl` through the real providers and writes a Markdown report. Run it manually when prompts or models change.
 - **Manual smoke test:** `docs/smoke-test.md` checklist (T7), run before each release, on the dev machine **and in Windows Sandbox** using `docs/sandbox/no-gpu.wsb` (clean machine without winget or GPU: install, setup wizard, translate, update from the previous version, uninstall with and without data deletion, check that the folders and autostart entries are gone).
-- **CI:** GitHub Actions on `windows-latest`: `npm ci`, lint, typecheck, `vitest run`, **`npm run build`** (Tauri's `generate_context!` needs `frontendDist` to exist), then in `src-tauri`: `cargo fmt --check`, `cargo clippy --all-targets --locked -- -D warnings`, `cargo test --locked`, and `git diff --exit-code src/bindings` (generated bindings must be committed). No network or LLM tests in CI.
+- **CI:** GitHub Actions on `windows-latest`: `npm ci`, lint, typecheck, **`npm run build`** (Tauri's `generate_context!` needs `frontendDist` to exist), then in `src-tauri`: `cargo fmt --check`, `cargo clippy --all-targets --locked -- -D warnings`, then `npm run bindings` and `git diff --exit-code src/bindings` (generated bindings must be committed). No automated tests, and no network or LLM calls in CI.
 - **Release:** `release.yml` runs on tag `v*`: the same checks, then `tauri-action` builds and publishes the release (T31).
 
 ## 5. Work breakdown
 
 ```
 [Epic] E1 Project setup and delivery (#1)
-├── [Story] S1.1 Developers can build and test the app (#10)
+├── [Story] S1.1 Developers can build and check the app (#10)
 │   ├── [Task][cloud]    T0 Create the GitHub repo and license (#32)
 │   ├── [Task][cloud]    T1 Install toolchain and document dev setup (#33)
 │   ├── [Task][frontend] T2 Scaffold Tauri 2 + React + TS app (#34)
 │   ├── [Task][backend]  T3 Rust core skeleton, AppError, ts-rs bindings (#35)
-│   └── [Task][cloud]    T4 GitHub Actions CI for lint and tests (#36)
+│   └── [Task][cloud]    T4 GitHub Actions CI for build and lint (#36)
 └── [Story] S1.2 Users install, update and cleanly uninstall the app (#11)
     ├── [Task][assets]   T5 App icon set (#37)
     ├── [Task][cloud]    T6 NSIS installer and uninstall data cleanup (#38)
@@ -501,10 +499,10 @@ Totals: **9 epics, 23 stories, 47 tasks.**
 
 ### T2. Scaffold Tauri 2 + React + TS app  `frontend` · parent: S1.1 · issue: #34
 - **Goal:** an empty app that runs with `npm run tauri dev`, with the frontend tooling configured.
-- **Details:** **The project root already contains files (the spec, `docs/`, possibly `eval/`, `spikes/`). Never delete or overwrite existing files.** Run `npm create tauri-app@latest` (React + TS + Vite) into a **temp subfolder** (e.g. `_scaffold/`), then move its contents into the root, stopping if any file would be overwritten, and delete `_scaffold/`. App name "Prompt Translator", identifier `com.misstheaim.prompttranslator`. Pin exact versions of Tauri CLI/API (no `^`). Add Tailwind CSS v4 (Vite plugin), Zustand, ESLint (typescript-eslint, react-hooks), Prettier, Vitest + React Testing Library + jsdom. npm scripts: `dev`, `build`, `lint`, `typecheck`, `test`, `format`. Add a second Vite entry `popup.html` → `src/popup/main.tsx` (placeholder) for T25a/T26. `.gitignore` for Node, Rust `target/`, `.env`, `eval/reports/`. The repo already has `README.md`, `LICENSE`, `CLAUDE.md` and `docs/`: keep them. **This is the bootstrap task:** create the npm scripts with the names planned in `docs/development.md` §2, and update that table and `CLAUDE.md` wherever a command ends up different.
+- **Details:** **The project root already contains files (the spec, `docs/`, possibly `eval/`, `spikes/`). Never delete or overwrite existing files.** Run `npm create tauri-app@latest` (React + TS + Vite) into a **temp subfolder** (e.g. `_scaffold/`), then move its contents into the root, stopping if any file would be overwritten, and delete `_scaffold/`. App name "Prompt Translator", identifier `com.misstheaim.prompttranslator`. Pin exact versions of Tauri CLI/API (no `^`). Add Tailwind CSS v4 (Vite plugin), Zustand, ESLint (typescript-eslint, react-hooks), Prettier. npm scripts: `dev`, `build`, `lint`, `typecheck`, `format`. Add a second Vite entry `popup.html` → `src/popup/main.tsx` (placeholder) for T25a/T26. `.gitignore` for Node, Rust `target/`, `.env`, `eval/reports/`. The repo already has `README.md`, `LICENSE`, `CLAUDE.md` and `docs/`: keep them. **This is the bootstrap task:** create the npm scripts with the names planned in `docs/development.md` §2, and update that table and `CLAUDE.md` wherever a command ends up different.
 - **Acceptance criteria:**
   - [ ] `npm run tauri dev` opens a window with a Tailwind-styled placeholder.
-  - [ ] `npm run lint`, `npm run typecheck`, `npm test` pass (one sample test).
+  - [ ] `npm run lint`, `npm run typecheck` and `npm run build` pass.
   - [ ] `popup.html` builds as a second entry.
   - [ ] Every file that existed before the task is unchanged, except `docs/development.md` and `CLAUDE.md` where commands differ.
 - [ ] Every frontend command in `docs/development.md` §2 exists and runs.
@@ -522,34 +520,34 @@ Totals: **9 epics, 23 stories, 47 tasks.**
   - **Logging**: `tauri-plugin-log` writing to `logs_dir()` (rotating, max 5 × 1 MB) and stdout in dev.
   - **Capabilities**: `src-tauri/capabilities/default.json` for windows `["main", "popup"]` with only `core:default`/`core:event` and the window permissions each window needs. Set a strict `app.security.csp` in `tauri.conf.json` (`default-src 'self'; style-src 'self' 'unsafe-inline'` as needed by Tailwind; `connect-src ipc: http://ipc.localhost`).
   - Add a `ping` command and call it from the frontend placeholder to prove the round trip.
-  - `cargo test` exports the bindings; add an npm script `bindings` that runs it.
+  - ts-rs exports the bindings through the `export_bindings_*` tests it generates; add an npm script `bindings` that runs `cargo test export_bindings` (the only use of `cargo test`; no hand-written tests).
   - Configure `rustfmt.toml` and clippy.
 - **Acceptance criteria:**
-  - [ ] `cargo test` passes and writes `src/bindings/*.ts`.
-  - [ ] An `AppError` serialization unit test shows the `{kind,message,hint}` shape.
-  - [ ] Unit test: every `paths.rs` path is under the config or local dir; `u64` fields generate `number` in TS.
+  - [ ] `npm run bindings` writes `src/bindings/*.ts`; `u64` fields come out as `number`.
+  - [ ] `AppError` serializes to the `{kind,message,hint}` shape.
+  - [ ] Every `paths.rs` path is under the config or local dir.
   - [ ] A log line from startup appears in the log file.
   - [ ] `cargo clippy -- -D warnings` is clean.
   - [ ] The placeholder UI shows the `ping` result.
 - **Depends on:** T2. **Can run in parallel with:** T5.
 - **Suggested model:** Sonnet 5.5 (confidence: High). Clear contract, boilerplate.
 
-### T4. GitHub Actions CI for lint and tests  `cloud` · parent: S1.1 · issue: #36
+### T4. GitHub Actions CI for build and lint  `cloud` · parent: S1.1 · issue: #36
 - **Goal:** every push runs the checks in §4.10.
 - **Details:** `.github/workflows/ci.yml` on `windows-latest`, triggered by `pull_request` into `develop`, `release/**` and `main` and by `push` to those branches (`docs/development.md` §9), `permissions: contents: read`, actions pinned to commit SHAs. Steps:
   1. checkout;
   2. setup-node (LTS, npm cache);
   3. `dtolnay/rust-toolchain@stable` with clippy and rustfmt;
   4. `Swatinem/rust-cache` (workspace `src-tauri`);
-  5. `npm ci`; `npm run lint`; `npm run typecheck`; `npm test -- --run`;
+  5. `npm ci`; `npm run lint`; `npm run typecheck`;
   6. **`npm run build`**, because `generate_context!` needs `frontendDist` to exist before any cargo step compiles;
-  7. with `working-directory: src-tauri`: `cargo fmt --check`; `cargo clippy --all-targets --locked -- -D warnings`; `cargo test --locked`;
-  8. `git diff --exit-code src/bindings` (bindings must be committed).
+  7. with `working-directory: src-tauri`: `cargo fmt --check`; `cargo clippy --all-targets --locked -- -D warnings`;
+  8. `npm run bindings`, then `git diff --exit-code src/bindings` (bindings must be committed).
 
-  No secrets and no network-dependent tests. Pushing the workflow follows the user's push rule.
+  No secrets, no automated tests and no network calls. Pushing the workflow follows the user's push rule.
 - **Acceptance criteria:**
   - [ ] The workflow runs and passes on this task's PR into `develop`.
-  - [ ] A deliberately failing test makes CI fail (check locally with `act`, or reason it through and note it in the PR).
+  - [ ] A deliberate lint error makes CI fail (check locally with `act`, or reason it through and note it in the PR).
 - **Depends on:** T0, T2, T3. **Can run in parallel with:** T8, T9, T10, T27.
 - **Suggested model:** Sonnet 5.5 (confidence: High). Standard workflow.
 
@@ -616,7 +614,7 @@ Totals: **9 epics, 23 stories, 47 tasks.**
 - **Goal:** settings load and save as `settings.json` with safe defaults.
 - **Details:** `settings/` module: `Settings` struct exactly as in §4.3, `#[serde(default)]` on every field, exported via ts-rs. `SettingsStore` in Tauri managed state (`RwLock<Settings>`), path = `paths::config_dir()/settings.json`. It must also be constructible without a Tauri `AppHandle` (from a plain path) so T12/T15 can use it. Load on startup: missing → defaults; corrupt → rename to `settings.json.bak`, log, use defaults. Save writes atomically (temp file + rename). Validate on save: endpoint is a URL, timeouts 5–600 s, `numCtx` 2048–32768, hotkey non-empty. Commands `get_settings`, `save_settings`. Emit a `settings://changed` event after save so T24/T25a can react.
 - **Acceptance criteria:**
-  - [ ] Unit tests: defaults when the file is missing, partial file merges with defaults, corrupt file backed up, validation errors map to `AppError::InvalidInput`.
+  - [ ] Defaults when the file is missing; a partial file merges with defaults; a corrupt file is backed up; validation errors map to `AppError::InvalidInput`.
   - [ ] Values round-trip through the commands from the UI placeholder (manual).
 - **Depends on:** T3. **Can run in parallel with:** T9, T10, T27.
 - **Suggested model:** Sonnet 5.5 (confidence: High). Self-contained.
@@ -625,7 +623,7 @@ Totals: **9 epics, 23 stories, 47 tasks.**
 - **Goal:** presets live as editable JSON files with four built-ins.
 - **Details:** `Preset` struct per §4.3 (ts-rs). Write the 4 built-in files in `src-tauri/resources/presets/` (`general`, `technical-development`, `code-review`, `work-communication`), each with 4–8 sensible rules and a `defaultMode` (technical-development: improve; code-review: improve; work-communication: correct; general: translate). `PresetStore` (constructible from plain paths, without an `AppHandle`): on startup, if `paths::presets_dir()` is missing, copy the bundled ones in. `list` (sorted by name), `get(id)`, `save` (validate id slug `^[a-z0-9-]+$`, name non-empty, ≤ 30 rules, each ≤ 500 chars), `delete` (refuses the last remaining preset), `reset` (restores built-ins and keeps user-created ones). Commands per §4.6.
 - **Acceptance criteria:**
-  - [ ] Unit tests with a temp dir: seeding, list, save new, edit built-in, delete, delete-last refused, reset, invalid file skipped with a logged warning.
+  - [ ] Seeding, list, save new, edit built-in, delete, delete-last refused and reset work; an invalid file is skipped with a logged warning.
   - [ ] Built-in rule texts don't contradict the mode templates in §4.4.
 - **Depends on:** T3. **Can run in parallel with:** T8, T10, T27.
 - **Suggested model:** Sonnet 5.5 (confidence: High). Clear CRUD.
@@ -634,16 +632,16 @@ Totals: **9 epics, 23 stories, 47 tasks.**
 - **Goal:** a pure function finds technical tokens in the source that are missing from the output.
 - **Details:** `translation/token_check.rs`: `fn check_tokens(source: &str, output: &str) -> Vec<TokenWarning>`, rules in §4.5. Deduplicate tokens. Use the `regex` crate with patterns compiled once (`LazyLock`). Must not flag plain words, misspellings, or Russian words.
 - **Acceptance criteria:**
-  - [ ] Unit tests: `PD-3693`, `#42`, `MigrationQueue`, `GetStudentData`, `get_student_data`, `MAX_RETRIES`, `appsettings.json`, `src/app/main.rs`, `C:\Users\x\file.txt`, `https://x.y/z?q=1`, `` `foo()` `` are detected; `MigrationQueue → Migration Queue` gives a warning; "undesrand", "Hello", "проверь" are not tokens; tokens kept verbatim give no warnings.
+  - [ ] `PD-3693`, `#42`, `MigrationQueue`, `GetStudentData`, `get_student_data`, `MAX_RETRIES`, `appsettings.json`, `src/app/main.rs`, `C:\Users\x\file.txt`, `https://x.y/z?q=1`, `` `foo()` `` are detected; `MigrationQueue → Migration Queue` gives a warning; "undesrand", "Hello", "проверь" are not tokens; tokens kept verbatim give no warnings.
 - **Depends on:** T3. **Can run in parallel with:** T8, T9, T27.
 - **Suggested model:** Sonnet 5.5 (confidence: High). Pure function with a clear spec.
 
 ### T11. Prompt templates, builder and output parser  `backend` · parent: S2.3 · issue: #43
-- **Goal:** each mode has a tested system prompt, and model output parses into `output` + `issues`.
+- **Goal:** each mode has a defined system prompt, and model output parses into `output` + `issues`.
 - **Details:** put the final templates in `translation/prompts/{translate,improve,correct}.md`, starting from the drafts and findings in `docs/spikes/local-model-eval.md` (T13) and following §4.4. `prompt_builder.rs`: `fn build(mode, preset, source) -> BuiltPrompt { system: String, user: String }` per §4.4, plus `OUTPUT_SCHEMA: serde_json::Value` (§4.3). `output_parser.rs`: `fn parse(raw: &str) -> AppResult<ParsedOutput>` with the rules in §4.3 (fence stripping, unknown category → Other, empty → EmptyOutput, invalid → MalformedOutput with raw in detail). It also accepts an already-parsed `serde_json::Value` (Claude's structured output). Translate mode drops any issues the model returns. Check that a built prompt for an 8000-character input fits in the default `numCtx` (8192 tokens) with room for the output; document the estimate in a code comment.
 - **Acceptance criteria:**
-  - [ ] Snapshot tests (`insta`) of the built prompt for each mode with a sample preset.
-  - [ ] Parser tests: valid JSON, fenced JSON, leading prose before JSON, unknown category, empty output, garbage.
+  - [ ] The built prompt for each mode with a sample preset is pasted into the PR for review.
+  - [ ] The parser handles valid JSON, fenced JSON, leading prose before JSON, unknown category, empty output and garbage as §4.3 describes.
   - [ ] Templates include the "data, not a request" rule and the shared rules.
 - **Depends on:** T3, T9, T13. **Can run in parallel with:** T10.
 - **Suggested model:** Opus 5.5 (confidence: Medium). Prompt wording drives quality; the spike provides evidence, but judgment is needed.
@@ -657,10 +655,10 @@ Totals: **9 epics, 23 stories, 47 tasks.**
       async fn complete(&self, prompt: &BuiltPrompt, cancel: CancellationToken) -> AppResult<ProviderOutput /* { raw: String, model: String } */>;
   }
   ```
-  `TranslationService::translate(req)`: validate (non-empty, ≤ 8000 chars) → load preset (T9) and settings (T8) → `PromptBuilder::build` → provider by kind (registry in managed state) → `tokio::time::timeout` with the provider's timeout setting → `output_parser::parse` → `check_tokens` → result with `duration_ms`. A cancellation registry `Mutex<HashMap<request_id, CancellationToken>>`: `cancel_translation` triggers it, and the token is always removed when the request finishes. `providers/mock.rs`: returns canned output per mode after 800 ms; only used when `ProviderKind::Mock` and (`cfg!(debug_assertions)` or `settings.devMockProvider`). Leave a clearly marked hook point `on_result` for history (T28). **The service must be constructible without a Tauri `AppHandle`** (plain settings + preset dir + providers), so the eval binary (T15) and tests can use it; Tauri state only wraps it. Commands `translate`, `cancel_translation`, and **`copy_result`**: writes the text to the clipboard with `tauri-plugin-clipboard-manager` from Rust (register the plugin here); T28 adds the history marking.
+  `TranslationService::translate(req)`: validate (non-empty, ≤ 8000 chars) → load preset (T9) and settings (T8) → `PromptBuilder::build` → provider by kind (registry in managed state) → `tokio::time::timeout` with the provider's timeout setting → `output_parser::parse` → `check_tokens` → result with `duration_ms`. A cancellation registry `Mutex<HashMap<request_id, CancellationToken>>`: `cancel_translation` triggers it, and the token is always removed when the request finishes. `providers/mock.rs`: returns canned output per mode after 800 ms; only used when `ProviderKind::Mock` and (`cfg!(debug_assertions)` or `settings.devMockProvider`). Leave a clearly marked hook point `on_result` for history (T28). **The service must be constructible without a Tauri `AppHandle`** (plain settings + preset dir + providers), so the eval binary (T15) can use it; Tauri state only wraps it. Commands `translate`, `cancel_translation`, and **`copy_result`**: writes the text to the clipboard with `tauri-plugin-clipboard-manager` from Rust (register the plugin here); T28 adds the history marking.
 - **Acceptance criteria:**
-  - [ ] Tests with mock/fake providers: success per mode; cancel returns `Cancelled`; timeout returns `Timeout`; malformed output is mapped; token warnings appear; the registry is empty after completion.
-  - [ ] A test builds the service without an `AppHandle`.
+  - [ ] With the mock provider: success per mode; cancel returns `Cancelled`; timeout returns `Timeout`; malformed output is mapped; token warnings appear; the registry is empty after completion.
+  - [ ] The service builds without an `AppHandle`.
   - [ ] The UI placeholder can call `translate` with the Mock provider, and `copy_result` puts text on the clipboard (manual).
 - **Depends on:** T8, T10, T11. **Can run in parallel with:** T27.
 - **Suggested model:** Opus 5.5 (confidence: High). Core async design with cancellation, which later tasks build on.
@@ -692,7 +690,7 @@ Write `docs/spikes/local-model-eval.md` with:
 - **Goal:** translations run on the configured local Ollama model.
 - **Details:** `providers/ollama.rs` with `reqwest`. `complete`: `POST {endpoint}/api/chat` with `{ model, messages: [system, user], stream: false, format: OUTPUT_SCHEMA, keep_alive, options: { temperature: 0.2, num_ctx: settings.ollama.numCtx } }`. **Always send `num_ctx`**: Ollama's default context is smaller than the input limit plus prompt, and it silently truncates the oldest tokens (the system prompt). Return `message.content` as raw. Cancellation: `tokio::select!` on the request future and `cancel.cancelled()`. Error mapping: connection refused → `OllamaUnreachable`; 404 / "model not found" body → `ModelMissing`; other HTTP errors → `Io` with body excerpt. Status: `GET /api/tags` with a 2 s timeout → `{ reachable, models, selectedModelInstalled }`, used by the `provider_status` command (create the command here with `claude: null`-safe fields; T17a fills the Claude part). The `OllamaUnreachable` error's **Start Ollama** button calls `ollama_start` (T35); until T35 lands, the UI shows only the hint. Default model in `Settings` = the T13 recommendation.
 - **Acceptance criteria:**
-  - [ ] `mockito` tests: success, unreachable, model missing, 500, cancel mid-request; the request body contains `options.num_ctx` and `format`.
+  - [ ] Success, unreachable, model missing, 500 and cancel mid-request map to the right results; the request body contains `options.num_ctx` and `format`.
   - [ ] Manual: real translation via the UI placeholder or the `translate` command with Ollama running.
 - **Depends on:** T12, T13. **Can run in parallel with:** T17a, T17b, T19, T24, T28.
 - **Suggested model:** Sonnet 5.5 (confidence: High). Well-defined HTTP client.
@@ -726,7 +724,7 @@ Write `docs/spikes/local-model-eval.md` with:
 
   Output:
   - `docs/spikes/claude-isolation.md` with a results table, the clutter findings and cleanup recipe, the **recommended invocation** (env vars, args, cwd), whether a separate sign-in is needed (and its procedure if so), and known limits;
-  - **`docs/spikes/claude-invocation.json`**: a machine-checkable contract `{ claudeVersion, exe, args[], env{}, cwd, stdin, envelope: { resultField, errorField, structuredField } }`. T17b's tests assert against it; after a Claude Code upgrade, re-running the spike checks only diff this file.
+  - **`docs/spikes/claude-invocation.json`**: a machine-checkable contract `{ claudeVersion, exe, args[], env{}, cwd, stdin, envelope: { resultField, errorField, structuredField } }`. T17b builds its invocation from it; after a Claude Code upgrade, re-running the spike checks only diff this file.
 - **Acceptance criteria:**
   - [ ] Each candidate has documented results, with canary evidence.
   - [ ] A single recommended invocation is given, or a clear statement that full isolation isn't possible plus the user's options.
@@ -745,7 +743,7 @@ Write `docs/spikes/local-model-eval.md` with:
   - **`claude_open_login`** only if the spike chose a dedicated config dir: opens a new console window running `claude` with that env so the user can sign in. Otherwise don't create the command, and make the UI hide the button.
   - Register `tauri-plugin-dialog` and add a `pick_file` command (§4.6) for the Settings Browse button.
 - **Acceptance criteria:**
-  - [ ] Unit tests: detection order with a temp dir tree (settings path wins, native beats `.cmd`, none found); cleanup recipe on a temp copy deletes only the listed paths.
+  - [ ] Detection order: settings path wins, native beats `.cmd`, none found; the cleanup recipe deletes only the listed paths (checked on a temp copy).
   - [ ] Manual: status shows the right path and version on the dev machine.
 - **Depends on:** T12, T16. **Can run in parallel with:** T14, T19, T24, T28.
 - **Suggested model:** Sonnet 5.5 (confidence: High). Clear rules from the spike.
@@ -758,9 +756,8 @@ Write `docs/spikes/local-model-eval.md` with:
   - Add the PID to `TranslatorPids` while it runs (T17a).
   - Put the process in a Windows Job Object (`JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`) so cancel or timeout kills the whole tree (fallback `taskkill /T /F /PID`).
   - Parse the `--output-format json` envelope using the contract's field names: error flag or auth-failure text → `ClaudeAuth`; non-zero exit → `ProcessCrashed` with a stderr excerpt (≤ 500 chars); the structured field → parsed output, falling back to the text result through `output_parser`.
-  - Tests use the fake executable `src-tauri/src/bin/fake_claude.rs` (explicit `[[bin]]`, located via `CARGO_BIN_EXE_fake_claude`). It reads stdin and, based on an env var, prints a canned envelope, sleeps, prints an auth error, spawns a child and sleeps (to test the tree kill), or exits 1. It also checks that the args it received match `claude-invocation.json`.
 - **Acceptance criteria:**
-  - [ ] Integration tests with the fake executable: success, auth error, crash, timeout (process tree gone, including the child), cancel, args match the contract.
+  - [ ] Success, auth error, crash, timeout (process tree gone, including the child) and cancel map to the right results; the spawned args match the contract.
   - [ ] Manual: a real translation via Claude; no console window flashes; Task Manager shows no leftover `claude`/`node` processes after cancel; nothing appears in `claude --resume`.
 - **Depends on:** T17a. **Can run in parallel with:** T14, T19, T24, T28.
 - **Suggested model:** Opus 5.5 (confidence: Medium). Windows process-tree handling and CLI quirks are easy to get subtly wrong.
@@ -778,7 +775,7 @@ Write `docs/spikes/local-model-eval.md` with:
 - **Goal:** the main window has navigation, typed backend calls and shared building blocks.
 - **Details:** apply the theme from `docs/design/ui.md` to `src/index.css`. Layout with nav: Translate, History, Mistakes, Settings (placeholders for screens not yet built). `src/lib/api.ts`: a shared `call<T>()` helper that converts rejected `invoke` calls into a typed `AppError`, plus typed wrappers for the commands that **already exist** (ping, settings, presets, translate, cancel, copy_result). Later backend tasks add their own wrappers in their own section of the file (§4.2 conventions). Add an `open_url` command (Rust, `tauri-plugin-opener`, allow-listed URLs only; §4.6) for links in the UI. Zustand store `src/store/app.ts`: settings, presets, provider status (loaded on start, refreshed on `settings://changed`). Shared components from the inventory: Button, Select, SegmentedControl, TextArea, Spinner, Banner (variants error/warning/info, with optional actions), ConfirmDialog, Toast. `ErrorBanner` maps `AppError.kind` to message + hint + actions (Retry, Open settings) per §4.6.
 - **Acceptance criteria:**
-  - [ ] Vitest: api wrapper error mapping; ErrorBanner per kind; nav switching.
+  - [ ] The api wrapper maps errors; ErrorBanner renders each kind; nav switching works.
   - [ ] Light and dark themes both render correctly (manual).
 - **Depends on:** T2, T3, T12, T18. **Can run in parallel with:** T14, T17a, T17b, T24, T28.
 - **Suggested model:** Sonnet 5.5 (confidence: High). Standard React work with a spec.
@@ -787,7 +784,7 @@ Write `docs/spikes/local-model-eval.md` with:
 - **Goal:** the user can run any mode and copy the result from the main window.
 - **Details:** `src/screens/Translate/`. Controls per §4.8: mode SegmentedControl, provider Select (Ollama, Claude Code; Mock in dev), preset Select (selecting one sets its `defaultMode`; defaults come from settings). Input TextArea (autofocus; character counter, max 8000). Run (Ctrl+Enter) generates a `requestId` and calls `translate`; Cancel calls `cancel_translation`. Output: an editable TextArea with the result, metadata line (provider · model · duration), an **Accept** button labelled "Copy" (Ctrl+Shift+Enter) → `copy_result({ text: editedOutput, historyId })` + toast "Copied". Name the component and handler `Accept…` so T40 only changes the label and routing. Error → ErrorBanner with Retry. Keep the last input/output in the store when switching screens. Leave a slot below the output for T21.
 - **Acceptance criteria:**
-  - [ ] Vitest with mocked api: run, loading, cancel, success, error + retry, shortcuts, preset sets mode.
+  - [ ] Run, loading, cancel, success, error + retry, shortcuts, and preset sets mode all work.
   - [ ] Manual: works end to end with the Mock and Ollama providers.
 - **Depends on:** T19, T12. **Can run in parallel with:** T22, T23, T25a–c, T29, T30.
 - **Suggested model:** Sonnet 5.5 (confidence: High). Clear spec.
@@ -796,7 +793,7 @@ Write `docs/spikes/local-model-eval.md` with:
 - **Goal:** the user sees what changed and why, which is the core of the learning value.
 - **Details:** `DiffView`: word-level diff between source and output using the `diff` npm package (`diffWords`), with insertions and deletions highlighted. Shown only in Improve and Correct. `IssueList`: each item shows a CategoryChip (colour from the design spec), `original → corrected`, explanation; collapsible when there are more than 5. `TokenWarningBanner`: lists missing tokens with **Ignore** (dismiss) and **Retry** (re-run the same request). Don't call it "Accept", which is the main action (D13). Reusable by the popup (T26), so keep components prop-driven and free of store access.
 - **Acceptance criteria:**
-  - [ ] Vitest: diff rendering for a known pair; issue list rendering and collapse; warning banner actions call handlers.
+  - [ ] The diff renders correctly for a known pair; the issue list renders and collapses; warning banner actions work.
   - [ ] Translate mode shows no diff and no issues section.
 - **Depends on:** T20. **Can run in parallel with:** T22, T23, T29, T30.
 - **Suggested model:** Sonnet 5.5 (confidence: High). Self-contained components.
@@ -805,7 +802,7 @@ Write `docs/spikes/local-model-eval.md` with:
 - **Goal:** the user can configure providers, defaults, history, the hotkey and autostart.
 - **Details:** `src/screens/Settings/` with sections: **Ollama** (endpoint, model Select filled from `provider_status.ollama.models` plus free text, keep-alive, context size `numCtx`, timeout, Test button → status badge); **Claude Code** (executable path with **Browse** → `pick_file`, model, timeout, status: found/version/signed-in, "Sign in translator profile" button → `claude_open_login` only if that command exists); **Translation** (default provider, default preset); **History** (enabled toggle, "Clear all history" with confirm → `history_clear`, hidden until T28 commands exist, or behind a feature check); **System** (hotkey capture input, auto-copy selection toggle, autostart toggle, close-to-tray toggle). Save via `save_settings`; validation errors shown inline. A "Presets" sub-tab hosts T23, and an "About" sub-tab is added by T33 (leave a placeholder tab).
 - **Acceptance criteria:**
-  - [ ] Vitest: form load and save, validation display, Test button states.
+  - [ ] Form load and save, validation display and Test button states work.
   - [ ] Manual: changing the Ollama model takes effect on the next translation.
 - **Depends on:** T19, T8, T14, T17a. **Can run in parallel with:** T20, T21, T23.
 - **Suggested model:** Sonnet 5.5 (confidence: High). Form work.
@@ -814,7 +811,7 @@ Write `docs/spikes/local-model-eval.md` with:
 - **Goal:** the user can view, edit, create, delete and reset presets.
 - **Details:** Settings → Presets sub-tab. List of presets (built-in badge). The editor has name, id (auto slug on create, read-only after), description, default mode, and rules as a list with add/remove/reorder, or one textarea with one rule per line (choose the simpler one; one-per-line textarea is fine). Save → `save_preset`; Delete with confirm; "Reset built-ins" with confirm → `reset_presets`. Validation errors come from the backend.
 - **Acceptance criteria:**
-  - [ ] Vitest: create, edit, delete confirm, reset confirm, backend validation error shown.
+  - [ ] Create, edit, delete confirm and reset confirm work; a backend validation error is shown.
   - [ ] Edited rules take effect in the next translation (manual).
 - **Depends on:** T19, T9. **Can run in parallel with:** T20–T22.
 - **Suggested model:** Sonnet 5.5 (confidence: High). CRUD form.
@@ -854,7 +851,7 @@ Write `docs/spikes/local-model-eval.md` with:
 
   IDE-integrated terminals can't be detected; their Ctrl+C with a selection copies, which is acceptable (documented in the README).
 - **Acceptance criteria:**
-  - [ ] Unit test for the terminal classifier (class name + exe name → terminal or not).
+  - [ ] The terminal classifier (class name + exe name → terminal or not) is a pure function and recognises the terminals in use.
   - [ ] Manual: select text in a browser and an IDE editor, press the hotkey, and the popup gets the selection; the previous clipboard text is restored. In Windows Terminal no Ctrl+C is sent (a running command is **not** interrupted). Holding the modifiers longer than 500 ms falls back to the clipboard without opening DevTools.
 - **Depends on:** T25a. **Can run in parallel with:** T25c, T26.
 - **Suggested model:** Opus 5.5 (confidence: Medium). Win32 input simulation and clipboard timing are easy to get subtly wrong.
@@ -869,7 +866,7 @@ Write `docs/spikes/local-model-eval.md` with:
 
   Save the mode the user finally used to `settings.lastPopupMode` (popup calls `save_settings`, or a small `set_last_popup_mode` command).
 - **Acceptance criteria:**
-  - [ ] Unit tests with expected modes: pure Russian → Translate; Ukrainian → Translate; German → Correct (Latin script; acceptable, the user can switch, and documented); Spanish → Correct (same); pure English → Correct; English with typos → Correct; "Check why метод returns null" → Correct; mostly Russian with one English term → Translate; code-heavy English → Correct; 2 words → last; empty → last.
+  - [ ] Expected modes: pure Russian → Translate; Ukrainian → Translate; German → Correct (Latin script; acceptable, the user can switch, and documented); Spanish → Correct (same); pure English → Correct; English with typos → Correct; "Check why метод returns null" → Correct; mostly Russian with one English term → Translate; code-heavy English → Correct; 2 words → last; empty → last.
 - **Depends on:** T3, T10. **Can run in parallel with:** T25a, T25b.
 - **Suggested model:** Sonnet 5.5 (confidence: High). Pure function with explicit expectations.
 
@@ -877,16 +874,16 @@ Write `docs/spikes/local-model-eval.md` with:
 - **Goal:** a fast keyboard-only review-and-copy flow.
 - **Details:** `src/popup/`. On `popup://source`: show a source excerpt (3 lines, expandable), mode chips (detected mode preselected), and auto-run `translate` with the default provider and preset. While loading: spinner + Esc to cancel and close. Result: output text, compact issue count ("3 fixes") expanding to `IssueList`, and `TokenWarningBanner` (reuse T21 components). Keys: **Enter** → `copy_result` then hide (T40 switches this to `accept_result`); **Esc** → hide (cancels if running); **Ctrl+R** → retry; **Tab** cycles mode and re-runs; link "Open in main window" emits `main://open-entry` with this input and result. Remember the mode the user ended on (`lastPopupMode`, T25c). Errors via ErrorBanner; `OllamaUnreachable` shows a **Start Ollama** button once T35 exists.
 - **Acceptance criteria:**
-  - [ ] Vitest: auto-run on event, keyboard handling, cancel on Esc, error state.
+  - [ ] Auto-run on event, keyboard handling, cancel on Esc and the error state work.
   - [ ] Manual: copy text in a terminal → hotkey → Enter → paste gives the English result; the whole flow works without the mouse.
 - **Depends on:** T25a, T25c, T21. **Can run in parallel with:** T25b, T29, T30.
 - **Suggested model:** Sonnet 5.5 (confidence: High). Clear flow, reuses components.
 
 ### T27. SQLite schema, migrations and repository  `database` · parent: S7.1 · issue: #62
-- **Goal:** a tested data layer for history and mistakes.
+- **Goal:** a data layer for history and mistakes.
 - **Details:** `history/db.rs`: open `paths::history_db()` (= `app_local_data_dir()/history.db`; never `app_data_dir()`, which is Roaming) with `rusqlite` (feature `bundled`), `PRAGMA foreign_keys = ON`, `journal_mode = WAL`; migrations with `rusqlite_migration` using the schema in §4.7. `history/repo.rs` (sync functions; callers use `spawn_blocking`): `insert(result, request) -> id` (translation + issues in one transaction), `mark_accepted(id, target: AcceptedTarget)` (`Clipboard` or `Session { id, name }`, written to the three `accepted_*` columns), `list(query, issue, limit, offset)` (search `LIKE` on source/output; optional `issue {original, corrected}` filter that returns entries containing that mistake, case-insensitive; newest first; summaries with the first 120 chars), `get(id)` (with issues), `delete(id)`, `clear()`, `mistakes_summary(since_days)` per §4.6 (by category; recurring = group by lower(original), lower(corrected) having count ≥ 2, top 50; vocabulary = category 'vocabulary', top 100). Export summary types via ts-rs.
 - **Acceptance criteria:**
-  - [ ] Unit tests on in-memory DB: migrations apply; insert/get round trip; search; issue filter; delete cascades issues; clear; summary counts and the `since_days` filter.
+  - [ ] Migrations apply; insert/get round trip, search, issue filter, delete (cascading issues), clear, summary counts and the `since_days` filter work.
 - **Depends on:** T3. **Can run in parallel with:** T8–T12.
 - **Suggested model:** Sonnet 5.5 (confidence: High). Defined schema and queries.
 
@@ -894,7 +891,7 @@ Write `docs/spikes/local-model-eval.md` with:
 - **Goal:** each successful translation is saved when history is enabled, and the UI can query it.
 - **Details:** use the `on_result` hook from T12: when `settings.historyEnabled`, insert the entry and set `history_id`; a failure to save logs a warning and doesn't fail the translation. `copy_result` marks the entry accepted with target `clipboard` (`accept_result` from T39 reuses this). Commands: `history_list`, `history_get`, `history_delete`, `history_clear`, `mistakes_summary` (§4.6). Turning history off doesn't delete existing data (Clear does).
 - **Acceptance criteria:**
-  - [ ] Tests: saved when enabled; not saved when disabled; a DB error doesn't fail the translation; copy marks the entry accepted.
+  - [ ] Saved when enabled; not saved when disabled; a DB error doesn't fail the translation; copy marks the entry accepted.
 - **Depends on:** T27, T12. **Can run in parallel with:** T14, T17a, T17b, T19, T24.
 - **Suggested model:** Sonnet 5.5 (confidence: High). Glue code.
 
@@ -902,7 +899,7 @@ Write `docs/spikes/local-model-eval.md` with:
 - **Goal:** the user can search and reuse past translations.
 - **Details:** `src/screens/History/`: a search box (debounced 300 ms), a list (date, mode badge, provider, source excerpt → output excerpt) with "Load more" paging (50 per page). Detail panel: full source, output, issues (reuse `IssueList`), token warnings, Copy, Delete (confirm), "Open in Translate" (loads into the Translate screen). Empty state: "No history yet"; history-disabled hint with a link to Settings.
 - **Acceptance criteria:**
-  - [ ] Vitest: search debounce, paging, delete confirm, empty and disabled states.
+  - [ ] Search debounce, paging, delete confirm, and the empty and disabled states work.
 - **Depends on:** T19, T28. **Can run in parallel with:** T20–T26, T30.
 - **Suggested model:** Sonnet 5.5 (confidence: High). List and detail UI.
 
@@ -910,7 +907,7 @@ Write `docs/spikes/local-model-eval.md` with:
 - **Goal:** the user sees their recurring mistakes and the vocabulary they've learned.
 - **Details:** `src/screens/Mistakes/`: period filter (7 days, 30 days, all). Three sections from `mistakes_summary`: **By category** (horizontal bars with counts, category colours from the design spec), **Recurring mistakes** (`original → corrected ×n`, click → History filtered with `history_list({ issue: {original, corrected} })`), **Vocabulary** (native → English, any source language, count, last seen). Empty state explains that data comes from Correct and Improve runs.
 - **Acceptance criteria:**
-  - [ ] Vitest: renders the summary fixture, period switch refetches, empty state.
+  - [ ] The summary renders; the period switch refetches; the empty state shows.
 - **Depends on:** T19, T28. **Can run in parallel with:** T20–T26, T29.
 - **Suggested model:** Sonnet 5.5 (confidence: High). Read-only views.
 
@@ -939,7 +936,7 @@ Write `docs/spikes/local-model-eval.md` with:
   - Network errors are silent at startup and shown when the user checks manually.
   - `app_info` and `open_folder` commands (§4.6); `open_folder` uses `tauri-plugin-opener` from Rust.
 - **Acceptance criteria:**
-  - [ ] Unit test: version comparison/notes mapping (using the plugin's types where possible).
+  - [ ] Version comparison and notes mapping use the plugin's types where possible.
   - [ ] Manual (Sandbox): install release N-1, start it, see the update, install it, and the app restarts on N with history kept.
 - **Depends on:** T3, T8, T31. **Can run in parallel with:** T34–T36.
 - **Suggested model:** Sonnet 5.5 (confidence: Medium). Plugin wiring; end-to-end testing needs two real releases.
@@ -950,7 +947,7 @@ Write `docs/spikes/local-model-eval.md` with:
   - Settings → About tab: version; config and data folder paths with "Open" buttons; "Check for updates" (spinner, "You're up to date" or update card); "Run setup again" (navigates to the wizard from T36, or a placeholder until it exists); "Check for updates on startup" toggle (`autoCheckUpdates`).
   - A global dismissible **update banner** on `update://available`: version, notes (Markdown rendered as plain text), **Install and restart** with a progress bar from `update://progress`.
 - **Acceptance criteria:**
-  - [ ] Vitest: check states (checking, none, available, error), install progress, banner dismiss.
+  - [ ] Check states (checking, none, available, error), install progress and banner dismiss work.
 - **Depends on:** T19, T22, T32. **Can run in parallel with:** T36.
 - **Suggested model:** Sonnet 5.5 (confidence: High). Small UI.
 
@@ -966,7 +963,7 @@ Write `docs/spikes/local-model-eval.md` with:
   - `setup/model_tiers.rs`: the tier table from `docs/spikes/local-model-eval.md` (T13) as data, with `fn recommend(gpus, ram) -> Recommendation { tier, model, downloadMb, preferClaudeForCorrect }`. A usable GPU picks a `gpu-*` tier by VRAM; otherwise system RAM picks `cpu-low` (under 12 GB) or `cpu`.
   - Every check has a short timeout (≤ 3 s) and checks run in parallel.
 - **Acceptance criteria:**
-  - [ ] Unit tests for `recommend`: every tier; integrated-only GPU with 8 GB and 16 GB RAM; integrated + dedicated (dedicated wins); two dedicated GPUs; GPU under 4 GB.
+  - [ ] `recommend` picks correctly for: every tier; integrated-only GPU with 8 GB and 16 GB RAM; integrated + dedicated (dedicated wins); two dedicated GPUs; GPU under 4 GB.
   - [ ] Manual: correct report on the dev machine (RTX 4060 → `gpu-medium`) and in Windows Sandbox started with `docs/sandbox/no-gpu.wsb` (no GPU → a `cpu*` tier by the Sandbox's RAM, Ollama not installed, winget missing).
 - **Depends on:** T3, T8, T13, T17a. **Can run in parallel with:** T14–T30.
 - **Suggested model:** Sonnet 5.5 (confidence: Medium). The DXGI FFI part may need iteration.
@@ -983,7 +980,7 @@ Write `docs/spikes/local-model-eval.md` with:
   - `ollama_benchmark`: run 2 fixed eval prompts (one Translate, one Correct) through `TranslationService` with the new model and the configured `num_ctx`. The first run warms the model and isn't timed. Then read `GET /api/ps` and compute `gpuOffloadPercent = size_vram / size × 100`. Return `{ translateMs, correctMs, gpuOffloadPercent }`. The wizard calls it after the download.
   - `complete_setup`: sets `settings.setupCompleted = true`.
 - **Acceptance criteria:**
-  - [ ] `mockito` tests for the pull stream parsing (progress, success, error line) and the start-poll timeout.
+  - [ ] Pull stream parsing handles progress, success and error lines; the start poll times out.
   - [ ] Manual in Windows Sandbox (`no-gpu.wsb`, no winget): the winget-missing path opens the download page; after installing Ollama manually, start it, pull the `cpu`-tier model, and a translation works with `gpuOffloadPercent = 0`.
 - **Depends on:** T14, T34. **Can run in parallel with:** T31–T33.
 - **Suggested model:** Sonnet 5.5 (confidence: Medium). External installers and process launching on Windows can surprise.
@@ -999,7 +996,7 @@ Write `docs/spikes/local-model-eval.md` with:
 
   Errors use ErrorBanner. The wizard can be left and resumed (step kept in the store).
 - **Acceptance criteria:**
-  - [ ] Vitest with mocked api: each step's states; skip paths; the no-provider warning; resume.
+  - [ ] Each step's states, skip paths, the no-provider warning and resume work.
   - [ ] Manual in Windows Sandbox: full flow from a fresh install to a first translation.
 - **Depends on:** T19, T34, T35, T17a. **Can run in parallel with:** T31–T33.
 - **Suggested model:** Sonnet 5.5 (confidence: High). Multi-step form on top of ready commands.
@@ -1045,8 +1042,8 @@ Write `docs/spikes/local-model-eval.md` with:
   - Binding state in managed state: `bind_session(sessionId)` stores the full `ClaudeSession`. When the bound session disappears from the list (or its PID is gone), `alive = false`. Rebinding or `unbind_session` clears it. Not persisted (D34).
   - Commands `list_sessions`, `bind_session`, `unbind_session`, `get_binding`.
 - **Acceptance criteria:**
-  - [ ] Unit tests: JSON parsing (sample from the T37 spike doc, extra fields, missing optional fields, background sessions filtered out, translator PIDs and the translator cwd excluded); binding transitions (bind → session closes → `alive=false` → rebind/unbind).
-  - [ ] The poller emits events only on change (test with a fake list source).
+  - [ ] JSON parsing (sample from the T37 spike doc, extra fields, missing optional fields, background sessions filtered out, translator PIDs and the translator cwd excluded); binding transitions (bind → session closes → `alive=false` → rebind/unbind).
+  - [ ] The poller emits events only on change.
 - **Depends on:** T3, T17a, T37 (GO). **Can run in parallel with:** none in E9 (T39 depends on it).
 - **Suggested model:** Sonnet 5.5 (confidence: High). Process call + state machine.
 
@@ -1063,7 +1060,7 @@ Write `docs/spikes/local-model-eval.md` with:
     5. return `{ deliveredTo, sessionName, queued: status == busy }`;
     6. mark history accepted with `Session { id, name }` or `Clipboard` (T28).
 - **Acceptance criteria:**
-  - [ ] Unit tests: routing logic with fake targets (unbound, bound alive, bound closed, injection error falls back to clipboard); prefix guard for `!`, `/`, `#` (with and without leading whitespace, with confirmation); exit-code mapping; control-character sanitising; newline encoding.
+  - [ ] Routing logic (unbound, bound alive, bound closed, injection error falls back to clipboard); prefix guard for `!`, `/`, `#` (with and without leading whitespace, with confirmation); exit-code mapping; control-character sanitising; newline encoding.
   - [ ] Manual (using the T37 matrix as a script): send from the app to a session in a Windows Terminal background tab and in conhost; multi-line prompt arrives as one message; busy session queues; elevated terminal shows the `SessionUnreachable` hint.
 - **Depends on:** T37 (GO), T38, T28. **Can run in parallel with:** T40 (UI against mocked commands).
 - **Suggested model:** Opus 5.5 (confidence: Medium). Unsafe Win32 FFI and concurrency.
@@ -1077,13 +1074,13 @@ Write `docs/spikes/local-model-eval.md` with:
   - **Prefix confirmation** (D35): on `PrefixNeedsConfirmation`, show a confirm dialog naming what will happen (shell command / slash command / memory note). On confirm, call `accept_result` again with `confirmedPrefix: true`. In the popup, Enter opens the dialog and a second Enter confirms.
   - **Popup** (T26): footer "Enter: send to <name>" / "Enter: copy". Enter calls `accept_result`. If the session has ended, show the error and keep the popup open, with a "Copy instead" button.
 - **Acceptance criteria:**
-  - [ ] Vitest: picker states (no Claude, no sessions, bound idle, bound busy, ended); Accept label and disabled state; popup footer and Enter behaviour; one-time hint shown once; prefix confirmation flow.
+  - [ ] Picker states (no Claude, no sessions, bound idle, bound busy, ended); Accept label and disabled state; popup footer and Enter behaviour; one-time hint shown once; prefix confirmation flow.
   - [ ] Manual: full flow from the popup and the main window into a live session.
 - **Depends on:** T20, T26, T38, T39. **Can run in parallel with:** none in E9.
 - **Suggested model:** Sonnet 5.5 (confidence: High). UI on top of defined commands.
 
 ### T41. Keyboard layout conversion module  `backend` · parent: S6.3 · issue: #77
-- **Goal:** a pure, tested function that turns text typed with the wrong keyboard layout into what the user meant (D36).
+- **Goal:** a pure function that turns text typed with the wrong keyboard layout into what the user meant (D36).
 - **Details:** new module `src-tauri/src/layout_fix/` with `convert.rs` (and `mod.rs`):
   - **One table of physical keys**, each entry `(us_char, ru_char)`, for the Windows US (QWERTY) and Russian (ЙЦУКЕН) layouts, unshifted and shifted:
     - letters row by row: `q↔й w↔ц e↔у r↔к t↔е y↔н u↔г i↔ш o↔щ p↔з [↔х ]↔ъ`, `a↔ф s↔ы d↔в f↔а g↔п h↔р j↔о k↔л l↔д ;↔ж '↔э`, `z↔я x↔ч c↔с v↔м b↔и n↔т m↔ь ,↔б .↔ю /↔.`, `` ` ``↔`ё`;
@@ -1094,7 +1091,7 @@ Write `docs/spikes/local-model-eval.md` with:
   - `fn convert(text: &str, dir: Direction) -> String`: map each char through the column for that direction. The two directions are separate lookups, not one involution: `ToRussian` maps `.` → `ю` and `/` → `.`, while `ToEnglish` maps `.` → `/` and `ю` → `.`.
   - Keep the table as data in one place (a `const` array), so another layout pair can be added later without changing the logic. v1 ships only ru ↔ en.
 - **Acceptance criteria:**
-  - [ ] Unit tests: `ghbdtn` → `привет`; `Ghbdtn? rfr ltkf/` → `Привет, как дела.`; `руддщ цщкдв` → `hello world`; `Ш тфьу` → `I name` (case kept); digits, spaces and newlines unchanged; mixed `ghbdtn мир` → `привет мир` (Latin majority; Cyrillic letters are not in the source column, so they stay).
+  - [ ] Conversions: `ghbdtn` → `привет`; `Ghbdtn? rfr ltkf/` → `Привет, как дела.`; `руддщ цщкдв` → `hello world`; `Ш тфьу` → `I name` (case kept); digits, spaces and newlines unchanged; mixed `ghbdtn мир` → `привет мир` (Latin majority; Cyrillic letters are not in the source column, so they stay).
   - [ ] Round trip: for every char in the US column, `convert(convert(c, ToRussian), ToEnglish) == c`, and the same the other way for the Russian column. The table has no duplicate characters in either column.
   - [ ] `detect_direction`: Latin majority, Cyrillic majority, tie, empty, punctuation only.
 - **Depends on:** T3. **Can run in parallel with:** T8, T9, T10, T25a–c, and anything in waves 2–5.
@@ -1116,7 +1113,7 @@ Write `docs/spikes/local-model-eval.md` with:
   - Never writes history, never shows the popup or the main window, never calls a provider.
   - Add `tauri-plugin-notification` and only the permissions it needs from Rust; no webview permission.
 - **Acceptance criteria:**
-  - [ ] Unit tests: `layoutFix` defaults, and an old `settings.json` without `layoutFix` loads with defaults; the same-hotkey validation; the decision logic (terminal or auto-copy off → clipboard flow; selection; no selection → word select; no direction → no paste), with the Win32 calls behind a small trait so the logic is testable with fakes.
+  - [ ] `layoutFix` defaults, and an old `settings.json` without `layoutFix` loads with defaults; the same-hotkey validation; the decision logic (terminal or auto-copy off → clipboard flow; selection; no selection → word select; no direction → no paste), with the Win32 calls behind a small trait so the logic stays separate from them.
   - [ ] Manual, in Notepad, a browser text field and the VS Code editor: select `ghbdtn` → hotkey → `привет` and the input language switches to Russian; with the cursor right after a mistyped word and no selection, that word is converted; the app's own Ctrl+Z undoes it; the previous clipboard text is restored afterwards.
   - [ ] Manual, in Windows Terminal: copy `ghbdtn`, press the hotkey → notification, Ctrl+V pastes `привет`; no Ctrl+C is sent to the terminal.
   - [ ] Manual: changing the hotkey takes effect without restart; disabling the tool unregisters it; the translate hotkey keeps working.
@@ -1127,7 +1124,7 @@ Write `docs/spikes/local-model-eval.md` with:
 - **Goal:** the user can turn the layout fix on or off, change its hotkey and choose whether the input language switches.
 - **Details:** in Settings → System (T22), add a "Keyboard layout fix" group: enabled toggle; hotkey capture input (the same component as the translate hotkey); "Switch input language after fixing" toggle; one help line: "Select mistyped text, or put the cursor right after a word, and press the hotkey. In terminals: copy the text first, then paste the result." The duplicate-hotkey validation error from `save_settings` is shown inline. The hotkey and language toggles are disabled while the tool is off.
 - **Acceptance criteria:**
-  - [ ] Vitest: load and save the group, toggles, disabled state, duplicate-hotkey error shown.
+  - [ ] Load and save the group, toggles and the disabled state work; a duplicate-hotkey error is shown.
   - [ ] Manual: changes take effect without restarting the app.
 - **Depends on:** T22, T42. **Can run in parallel with:** T33, T36.
 - **Suggested model:** Haiku 5.5 (confidence: High). A small form section that reuses T22's components.
@@ -1159,7 +1156,7 @@ Critical path: T1 → T2 → T3 → T11 (needs T13) → T12 → T20 → T21 → 
 | Full isolation of `claude -p` isn't possible with subscription auth | Medium: global CLAUDE.md leaks into translation runs | Spike T16 tests a dedicated `CLAUDE_CONFIG_DIR`; fallbacks: API key with `--bare`, or accept documented leakage (user decides) |
 | A dedicated config dir needs a separate Claude sign-in (only if `--safe-mode` fails in T16) | Low: one-time step | `claude_open_login` + README section (T17a, T7) |
 | Small local models give weak Correct-mode explanations in English | Medium: lower learning value | Measured in T13; may recommend Claude for Correct mode; the model is configurable |
-| Claude CLI flags or output change between versions | Medium: provider breaks after an update | Invocation in one place; version shown in Settings; spike doc records the tested version; fake-exe tests keep the contract |
+| Claude CLI flags or output change between versions | Medium: provider breaks after an update | Invocation in one place; version shown in Settings; spike doc records the tested version; the invocation comes from the spike's contract file |
 | Orphan `claude`/`node` processes on cancel or timeout | Medium | Job Object kill-tree (T17b), manual check in acceptance |
 | Hotkey Ctrl+Shift+Space conflicts with another app or IME | Low | Configurable; registration error shown (T25a) |
 | History stores sensitive code in plain SQLite | Low (per-user data folder) | Toggle + Clear all; documented in README |
@@ -1172,9 +1169,9 @@ Critical path: T1 → T2 → T3 → T11 (needs T13) → T12 → T20 → T21 → 
 | Ollama adds Vulkan/iGPU support later, so integrated GPUs become usable | Low (upside) | Usable-GPU rule lives in one function (T34); revisit when Ollama's Windows iGPU support is stable |
 | Other users' Claude subscriptions: a separate translator sign-in per machine | Low | Wizard step + README |
 | Console injection doesn't work under Windows Terminal/ConPTY, or multi-line text submits early | High for E9 | Spike T37 is a hard gate; NO-GO → E9 on hold, v1 ships with Clipboard |
-| Injected text starting with `!`, `/` or `#` runs a shell command, slash command or memory write in Claude Code (e.g. after prompt injection from copied web text) | High | D35: explicit confirmation before sending; unit tests in T39; matrix case in T37 |
+| Injected text starting with `!`, `/` or `#` runs a shell command, slash command or memory write in Claude Code (e.g. after prompt injection from copied web text) | High | D35: explicit confirmation before sending; prefix guard in T39; matrix case in T37 |
 | Attaching to a session's console exposes the injector to that console's Ctrl+C/close events | High (app crash) | D31: injection runs in a short-lived helper process that ignores console control events |
-| Ollama silently truncates long prompts when `num_ctx` is too small, dropping the system prompt | High (wrong output) | `num_ctx` always sent (default 8192, setting); measured in T13; tested in T14 |
+| Ollama silently truncates long prompts when `num_ctx` is too small, dropping the system prompt | High (wrong output) | `num_ctx` always sent (default 8192, setting); measured in T13; checked in T14 |
 | Translator runs auto-update the user's shared `claude.exe` | Medium | Auto-updater and nonessential traffic disabled via env (T16 confirms names, T17b sets them) |
 | `--safe-mode` behaviour differs from expectations, or admins restrict it | Medium | T16 tests it first; dedicated config dir stays as the fallback |
 | `claude agents --json` output or session behaviour changes in a Claude Code update | Medium: picker or sending breaks | Lenient parser; the version is shown in Settings; `InjectionFailed` falls back to clipboard so text is never lost |
@@ -1183,7 +1180,7 @@ Critical path: T1 → T2 → T3 → T11 (needs T13) → T12 → T20 → T21 → 
 | Layout fix: the target app reads the clipboard after it was already restored, so the old text is pasted | Medium | Fixed delay after Ctrl+V as a named constant, tuned during T42's manual tests; the app's Ctrl+Z undoes a wrong paste |
 | Layout fix: Ctrl+Shift+Left stops at punctuation, so a mistyped word containing `, . ; ' [ ]` (Russian б ю ж э х ъ) is converted only partly | Low | Documented in the README; the user selects the whole word by hand |
 | Auto-copy briefly replaces the user's clipboard | Low | Previous clipboard text is restored; non-text clipboard content (images) is not restored, which is documented |
-| Rust/Tauri is a new stack for the owner | Medium: harder to maintain by hand | Thin commands, documented modules, tests; each task is self-contained |
+| Rust/Tauri is a new stack for the owner | Medium: harder to maintain by hand | Thin commands, documented modules; each task is self-contained |
 | Open: the user should supply 10+ real prompts (Russian and mixed) for the eval set | Affects T13 quality | Ask the user at the start of T13 |
 | Open: should the default provider differ per mode (e.g. Claude for Correct)? | UX | Decide after T13 and T16; it's a settings default only |
 | Open: should the source spec move to `docs/spec/`? | Tidiness | Ask the user; not required |
@@ -1191,6 +1188,7 @@ Critical path: T1 → T2 → T3 → T11 (needs T13) → T12 → T20 → T21 → 
 ## 8. Review notes
 
 - **Added 2026-10-14:** the Git Flow workflow (D39, `docs/development.md`, project `CLAUDE.md`) and milestone `v0.1.0`; T1, T2, T4, T7 and T31 were aligned with it. No test cases were backfilled into the tickets (owner's choice).
+- **Changed 2026-10-15:** automated tests dropped (owner's decision): §4.10 became Verification, CI runs build and lint only, Vitest/RTL/`mockito`/`insta` and the `fake_claude` bin were removed, and test acceptance criteria became behaviour criteria checked by hand. The eval harness (T15) and the manual smoke test stay.
 - **Added 2026-10-14:** story S6.3 (keyboard layout fix, T41–T43, D36–D38) was added through the skill's light path after the plan was approved, so it had no independent review.
 
 An independent review (Opus, 2026-10-13) found 28 issues and 7 improvements. It verified CLI claims by running `claude --help`, `claude agents --help` and `claude agents --json` on 2.1.296. The owner accepted all of them, applied as follows:

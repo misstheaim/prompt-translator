@@ -30,13 +30,11 @@ Run from the repo root unless the row says `src-tauri`.
 | Run locally (dev) | `npm run tauri dev` |
 | Lint (frontend) | `npm run lint` |
 | Typecheck (frontend) | `npm run typecheck` |
-| Frontend tests | `npm test -- --run` |
 | Frontend build (needed before any cargo step) | `npm run build` |
 | Rust format check (`src-tauri`) | `cargo fmt --check` |
 | Rust lint (`src-tauri`) | `cargo clippy --all-targets --locked -- -D warnings` |
-| Rust tests (`src-tauri`) | `cargo test --locked` |
-| Regenerate TS bindings (commit the result) | `npm run bindings` |
-| **Full check** (what CI runs) | all of the above in this order: `npm ci`, lint, typecheck, frontend tests, `npm run build`, then in `src-tauri` fmt, clippy, tests, then `git diff --exit-code src/bindings` |
+| Regenerate TS bindings (commit the result) | `npm run bindings` (runs ts-rs's generated `export_bindings` exports through `cargo test`; there are no hand-written tests) |
+| **Full check** (build and lint, what CI runs) | all of the above in this order: `npm ci`, lint, typecheck, `npm run build`, then in `src-tauri` fmt, clippy, then `npm run bindings` and `git diff --exit-code src/bindings` |
 | Build the installer | `npm run tauri build` (output in `src-tauri/target/release/bundle/nsis/`) |
 | Translation quality report (manual, needs a provider) | `cargo run --bin eval` (in `src-tauri`) |
 
@@ -49,7 +47,7 @@ Git Flow, adapted for a project worked on by Claude sessions.
 | Branch | Purpose | Created from | Merges into | Lives |
 |---|---|---|---|---|
 | `main` | **Released code only.** Starts at the project setup commits and changes only when a release or hotfix merges in. Every such merge is tagged `vX.Y.Z`. | — | — | permanently |
-| `develop` | **Integration branch** and the repo's GitHub default branch. Every ticket PR targets it and is tested before merging; it must always build and pass the full check. | `main` (setup commits) | `release/*` (by branching off) | permanently |
+| `develop` | **Integration branch** and the repo's GitHub default branch. Every ticket PR targets it and is checked before merging; it must always build and pass lint (the full check). | `main` (setup commits) | `release/*` (by branching off) | permanently |
 | `feature/<n>-<slug>`, `fix/…`, `refactor/…`, `docs/…`, `chore/…` | One ticket each | latest `origin/develop` | `develop` (squash) | until merged |
 | `release/<X.Y.Z>` | **Stabilizes one milestone:** bug fixes, version bump and changelog only; no new features | `develop`, once the milestone's tickets are merged | `main` (merge commit + tag), then back into `develop` | until released |
 | `hotfix/<n>-<slug>` | **Urgent fix to the released version** | latest `origin/main` | `main` (merge commit + tag), then `develop` and any open `release/*` | until released |
@@ -112,7 +110,7 @@ Updater signing keys, repo secrets and what to do if a release build fails: `doc
 ## 6. Hotfix process
 
 1. A ticket labelled `hotfix` describes the bug in the released version.
-2. Branch `hotfix/<n>-<slug>` from the latest `origin/main`. Add a test that reproduces the bug, fix it, bump PATCH, and update `CHANGELOG.md`.
+2. Branch `hotfix/<n>-<slug>` from the latest `origin/main`. Fix the bug, bump PATCH, and update `CHANGELOG.md`.
 3. PR into `main`; merge (merge commit), tag, publish the release as in §5 step 5.
 4. Merge `main` back into `develop`, and into the open `release/*` branch if there is one.
 
@@ -120,16 +118,16 @@ Updater signing keys, repo secrets and what to do if a release build fails: `doc
 
 The owner explicitly approves every step that merges into `main` or a `release/*` branch, pushes a tag, publishes a GitHub release, adds repo secrets or changes repo settings. The coordinator only merges ticket PRs into `develop`.
 
-## 8. Tickets, PRs and tests
+## 8. Tickets and PRs
 
 - One ticket = one branch = one PR into `develop`, with `Closes #<n>` in the body.
-- Ticket test cases (IDs like `T3-TC02`), where a ticket has them, become automated tests with the ID in the test name. A ticket closes only when all of them pass. Tickets without test cases are checked against their acceptance criteria.
+- No automated tests: a ticket's PR merges when build and lint pass, git is clean, its acceptance criteria are met and it has no conflicts. Behaviour criteria with example inputs and outputs are checked by hand (e.g. in dev mode or with a scratch `main`), not with test code.
 - Branch, commit and PR naming follow the owner's conventions (Conventional Commits, `#<n>` in commit scopes and PR titles).
 - **Spikes** (T13 #45, T16 #48, T37 #72) and tasks that need the owner's hands (T1 #33 installs, T31 #66 signing keys and secrets) stop for the owner; they are never completed unattended.
 - A PR that changes Rust types exported to TS includes the regenerated `src/bindings/`.
 
 ## 9. CI
 
-`.github/workflows/ci.yml` (T4, #36) runs the full check (§2) on `windows-latest` for pull requests into `develop`, `release/*` and `main`, and for pushes to those branches. No network or LLM tests in CI. `.github/workflows/release.yml` (T31, #66) runs on `v*` tags.
+`.github/workflows/ci.yml` (T4, #36) runs the full check (§2: build, lint and the bindings diff) on `windows-latest` for pull requests into `develop`, `release/*` and `main`, and for pushes to those branches. No automated tests, and no network or LLM calls in CI. `.github/workflows/release.yml` (T31, #66) runs on `v*` tags.
 
 Until CI exists, run the full check locally before every merge.
