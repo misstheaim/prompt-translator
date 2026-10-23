@@ -39,7 +39,7 @@ Run from the repo root unless the row says `src-tauri`. The `src-tauri` commands
 | Build the installer | `npm run tauri build` (output in `src-tauri/target/release/bundle/nsis/`) |
 | Translation quality report (manual, needs a provider) | `cargo run --bin eval` (in `src-tauri`) |
 
-The frontend commands (`npm ci`, `lint`, `typecheck`, `format`, `build`, `tauri dev`) and the `src-tauri` fmt/clippy commands are real since T2 (#34). `npm run bindings`, `cargo run --bin eval` and `tauri build` are still **planned** (T3 #35, T4 #36 and later tasks make them real and update this table and `CLAUDE.md` if anything differs).
+The frontend commands (`npm ci`, `lint`, `typecheck`, `format`, `build`, `tauri dev`) and the `src-tauri` fmt/clippy commands are real since T2 (#34). `npm run bindings` is real since T3 (#35); it runs `cargo test export_bindings` inside `src-tauri` (so `src-tauri/.cargo/config.toml` sets `TS_RS_EXPORT_DIR` to `../src/bindings`). `cargo run --bin eval` and `tauri build` are still **planned** (T4 #36 and later tasks make them real and update this table and `CLAUDE.md` if anything differs).
 
 ## 3. Branches
 
