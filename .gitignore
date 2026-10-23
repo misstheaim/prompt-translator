@@ -11,7 +11,8 @@ dist-ssr
 *.local
 
 # Rust
-target/
+/target/
+src-tauri/target/
 src-tauri/gen/schemas
 
 # Secrets

@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json",
+    "bindings": "cd src-tauri && cargo test export_bindings",
     "format": "prettier --write .",
     "tauri": "tauri"
   },
