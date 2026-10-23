@@ -1,0 +1,14 @@
+{
+  "id": "work-communication",
+  "name": "Work Communication",
+  "description": "Messages to colleagues, managers and clients",
+  "defaultMode": "correct",
+  "rules": [
+    "Use a polite, professional but natural tone; avoid slang.",
+    "Keep the meaning, requests and deadlines of the original exactly.",
+    "Keep names, numbers, dates, times, URLs and ticket numbers exactly as written.",
+    "Prefer short, direct sentences over long formal ones.",
+    "Do not add greetings, sign-offs or promises that are not in the original."
+  ],
+  "builtIn": true
+}
