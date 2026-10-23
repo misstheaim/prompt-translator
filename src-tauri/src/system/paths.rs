@@ -74,11 +74,6 @@ pub fn logs_dir() -> AppResult<PathBuf> {
     ensure(local_dir()?.join("logs"))
 }
 
-/// Isolated `CLAUDE_CONFIG_DIR` for the translator's `claude -p` runs.
-pub fn claude_config_dir() -> AppResult<PathBuf> {
-    ensure(local_dir()?.join("claude-config"))
-}
-
 /// Fixed, empty working directory for `claude -p` runs.
 pub fn claude_cwd() -> AppResult<PathBuf> {
     ensure(local_dir()?.join("claude-cwd"))

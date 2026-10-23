@@ -93,9 +93,9 @@ Each GitHub milestone is one release:
 
 | Milestone | Version | Goal | Status |
 |---|---|---|---|
-| v0.1.0 | 0.1.0 | The whole v1 plan: a daily-usable tray app anyone can install (both providers, main window, popup, history, setup wizard, installer, updater, layout fix, and session send if spike T37 is GO) | planned |
+| v0.1.0 | 0.1.0 | The whole v1 plan: a daily-usable tray app anyone can install (both providers, main window, popup, history, setup wizard, installer, updater, layout fix; Accept copies to the clipboard, session send is on hold) | planned |
 
-If spike T37 (#72) is NO-GO, story S9.2 (#31, #73–#75) is labelled `status:on-hold` and removed from the milestone; v0.1.0 ships without it.
+Spike T37 (#72) could not run (plan D42), so it and story S9.2 (#31, #73–#75) are labelled `status:on-hold` and removed from the milestone; v0.1.0 ships without session send (Clipboard only).
 
 ## 5. Release process
 
