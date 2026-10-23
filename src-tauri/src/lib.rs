@@ -45,6 +45,13 @@ pub fn run() {
                 system::paths::settings_file()?
             ));
             app.manage(presets::PresetStore::open(system::paths::presets_dir()?));
+            // History must never stop the app: without the database, saving is skipped.
+            match history::HistoryDb::open(&system::paths::history_db()?) {
+                Ok(db) => {
+                    app.manage(db);
+                }
+                Err(e) => log::warn!("History database unavailable: {e}"),
+            }
             Ok(())
         })
         // One registration line per module.
