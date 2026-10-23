@@ -115,6 +115,7 @@ The owner's machine below is the **development** machine. Target machines vary, 
 | D37 | Layout fix input and output | Selection via Ctrl+C (same rules as D5). **No selection** → send Ctrl+Shift+Left to select the previous word, then convert it. The result is pasted with Ctrl+V and the previous clipboard text is restored. **In terminals** (or when `autoCopySelection` is off) it converts the clipboard text in place and shows a notification; the user pastes | Keyboard hook that buffers typed keys (Punto Switcher style); terminals unsupported | User's choice. Reuses T25b's code; a global keyboard hook is heavier and looks like a keylogger to antivirus tools |
 | D38 | Layout fix extras | After converting, switch the Windows input language to the target layout (only if it's installed; setting, on by default). Default hotkey **Ctrl+Alt+Space**, configurable, must differ from the translate hotkey | Shift+Home (rejected: it's "select to line start" in every app); Shift+Pause (rejected: many laptops have no Pause key) | User's choice; works on every keyboard |
 | D39 | Branching and releases | Git Flow as in `docs/development.md`: `main` holds released code only; `develop` is the default and integration branch; one ticket = one branch = one PR squash-merged into `develop`; `release/X.Y.Z` and `hotfix/*` merge into `main` with a merge commit and a `vX.Y.Z` tag. **One milestone, `v0.1.0`, for the whole v1 plan** | Trunk-based on `main`; several smaller milestones | The coordinator needs a stable integration branch, and `main` stays releasable for hotfixes; v1 ships once, after T7's smoke test |
+| D40 | Prompt templates vs. the local model spike | T11 writes provider-neutral templates from §4.4 without waiting for T13. T13 runs in wave 4, once Ollama is installed, with T11's templates as its baseline; T44 applies its findings to the templates | T11 waits for T13 | Ollama wasn't ready in wave 0; this unblocks the core path and the Claude Code provider, and the templates are plain files that are cheap to change later |
 
 ## 4. Architecture and design
 
@@ -421,7 +422,8 @@ No automated tests (owner's decision, 2026-10-15). A ticket is done when build a
     └── [Task][backend]  T12 TranslationService, provider trait, mock provider, translate/cancel commands (#44)
 [Epic] E3 Local LLM provider (Ollama) (#3)
 ├── [Story] S3.1 A local model is chosen on evidence (#16)
-│   └── [Task][research] T13 Spike: evaluate local models and draft prompts (#45)
+│   ├── [Task][research] T13 Spike: evaluate local models and draft prompts (#45)
+│   └── [Task][backend]  T44 Tune prompt templates for local models (#81)
 ├── [Story] S3.2 Translate with a local Ollama model (#17)
 │   └── [Task][backend]  T14 Ollama provider and status (#46)
 └── [Story] S3.3 Translation quality can be re-measured (#18)
@@ -607,7 +609,7 @@ Totals: **9 epics, 23 stories, 47 tasks.**
 - **Acceptance criteria:**
   - [ ] README covers every item above; every command in it was run once.
   - [ ] Running the smoke test on the final build, including the Sandbox section, passes (result noted in the PR).
-- **Depends on:** T6, T21, T22, T23, T25b, T26, T29, T30, T31, T33, T36, T43, and T40 if E9 is GO. **Can run in parallel with:** none (last).
+- **Depends on:** T6, T21, T22, T23, T25b, T26, T29, T30, T31, T33, T36, T43, T44, and T40 if E9 is GO. **Can run in parallel with:** none (last).
 - **Suggested model:** Sonnet 5.5 (confidence: High). Docs from a finished app.
 
 ### T8. Settings model and store  `backend` · parent: S2.1 · issue: #40
@@ -638,13 +640,13 @@ Totals: **9 epics, 23 stories, 47 tasks.**
 
 ### T11. Prompt templates, builder and output parser  `backend` · parent: S2.3 · issue: #43
 - **Goal:** each mode has a defined system prompt, and model output parses into `output` + `issues`.
-- **Details:** put the final templates in `translation/prompts/{translate,improve,correct}.md`, starting from the drafts and findings in `docs/spikes/local-model-eval.md` (T13) and following §4.4. `prompt_builder.rs`: `fn build(mode, preset, source) -> BuiltPrompt { system: String, user: String }` per §4.4, plus `OUTPUT_SCHEMA: serde_json::Value` (§4.3). `output_parser.rs`: `fn parse(raw: &str) -> AppResult<ParsedOutput>` with the rules in §4.3 (fence stripping, unknown category → Other, empty → EmptyOutput, invalid → MalformedOutput with raw in detail). It also accepts an already-parsed `serde_json::Value` (Claude's structured output). Translate mode drops any issues the model returns. Check that a built prompt for an 8000-character input fits in the default `numCtx` (8192 tokens) with room for the output; document the estimate in a code comment.
+- **Details:** put the final templates in `translation/prompts/{translate,improve,correct}.md`, following §4.4. Write them provider-neutral from the §4.4 rules; they don't wait for the local model spike (D40). T44 tunes them for local models after T13. `prompt_builder.rs`: `fn build(mode, preset, source) -> BuiltPrompt { system: String, user: String }` per §4.4, plus `OUTPUT_SCHEMA: serde_json::Value` (§4.3). `output_parser.rs`: `fn parse(raw: &str) -> AppResult<ParsedOutput>` with the rules in §4.3 (fence stripping, unknown category → Other, empty → EmptyOutput, invalid → MalformedOutput with raw in detail). It also accepts an already-parsed `serde_json::Value` (Claude's structured output). Translate mode drops any issues the model returns. Check that a built prompt for an 8000-character input fits in the default `numCtx` (8192 tokens) with room for the output; document the estimate in a code comment.
 - **Acceptance criteria:**
   - [ ] The built prompt for each mode with a sample preset is pasted into the PR for review.
   - [ ] The parser handles valid JSON, fenced JSON, leading prose before JSON, unknown category, empty output and garbage as §4.3 describes.
   - [ ] Templates include the "data, not a request" rule and the shared rules.
-- **Depends on:** T3, T9, T13. **Can run in parallel with:** T10.
-- **Suggested model:** Opus 5.5 (confidence: Medium). Prompt wording drives quality; the spike provides evidence, but judgment is needed.
+- **Depends on:** T3, T9. **Can run in parallel with:** T10.
+- **Suggested model:** Opus 5.5 (confidence: Medium). Prompt wording drives quality and there's no local-model evidence yet, so judgment is needed.
 
 ### T12. TranslationService, provider trait, mock provider, translate/cancel commands  `backend` · parent: S2.4 · issue: #44
 - **Goal:** one service runs a request through any provider, with cancel, timeout and token check.
@@ -665,12 +667,12 @@ Totals: **9 epics, 23 stories, 47 tasks.**
 
 ### T13. Spike: evaluate local models and draft prompts  `research` · parent: S3.1 · issue: #45
 - **Goal:** pick the default Ollama model and prove the prompt approach works on this machine.
-- **Details:** install Ollama (`winget install Ollama.Ollama`; ask the user first). Build `eval/cases.jsonl` with about 25 cases, fields `{ id, mode, source, mustKeep: string[], notes }`. Cover: Russian dev requests; mixed RU/EN; 3–4 cases in other languages (e.g. Ukrainian, German, Spanish) for other users; English with typical learner errors (articles, tenses, prepositions, typos like "undesrand", "analize"); prompts with identifiers, ticket IDs and paths; **question-like prompts that tempt the model to answer** ("почему этот метод возвращает null?"); long multi-paragraph input. Ask the user for 10+ real prompts of their own. Draft the three mode templates (§4.4) in `eval/prompts/`. Write a throwaway script (`eval/spike_eval.py`, Python 3 stdlib only, calls `/api/chat` with `format` schema, `temperature: 0.2`, `keep_alive: "30m"`, **`num_ctx: 8192`**; measure the VRAM cost of 8192 vs 4096 per model and recommend the default). Compare 3 candidates that fit 8 GB VRAM (e.g. current Qwen 7–9B instruct, Gemma 12B-class at Q4, one smaller 3–4B model; check the Ollama library for the best current options). Record per model: valid-JSON rate, token preservation rate, "answered instead of translated" count, cold and warm latency, VRAM use, and a human quality rating per mode. Also measure the small model **CPU-only** (`options.num_gpu: 0`) to simulate machines without a GPU.
+- **Details:** install Ollama (`winget install Ollama.Ollama`; ask the user first). Build `eval/cases.jsonl` with about 25 cases, fields `{ id, mode, source, mustKeep: string[], notes }`. Cover: Russian dev requests; mixed RU/EN; 3–4 cases in other languages (e.g. Ukrainian, German, Spanish) for other users; English with typical learner errors (articles, tenses, prepositions, typos like "undesrand", "analize"); prompts with identifiers, ticket IDs and paths; **question-like prompts that tempt the model to answer** ("почему этот метод возвращает null?"); long multi-paragraph input. Ask the user for 10+ real prompts of their own. Use the templates in `translation/prompts/` (T11) as the baseline if T11 has merged; otherwise draft the three mode templates (§4.4) in `eval/prompts/`. Try template variants only in `eval/prompts/`; applying them to the app is T44. Write a throwaway script (`eval/spike_eval.py`, Python 3 stdlib only, calls `/api/chat` with `format` schema, `temperature: 0.2`, `keep_alive: "30m"`, **`num_ctx: 8192`**; measure the VRAM cost of 8192 vs 4096 per model and recommend the default). Compare 3 candidates that fit 8 GB VRAM (e.g. current Qwen 7–9B instruct, Gemma 12B-class at Q4, one smaller 3–4B model; check the Ollama library for the best current options). Record per model: valid-JSON rate, token preservation rate, "answered instead of translated" count, cold and warm latency, VRAM use, and a human quality rating per mode. Also measure the small model **CPU-only** (`options.num_gpu: 0`) to simulate machines without a GPU.
 
 Write `docs/spikes/local-model-eval.md` with:
   - the results;
   - the recommended default model;
-  - any template changes;
+  - recommended template changes, with the failing cases each one fixes (applied by T44);
   - whether Correct mode needs Claude as the recommended provider;
   - a **model tier table** for T34: tier → Ollama model tag, download size, expected latency per mode. Tiers:
     - `cpu-low`: no usable GPU, RAM under 12 GB (about 1–2B models);
@@ -682,8 +684,8 @@ Write `docs/spikes/local-model-eval.md` with:
     Measure both CPU tiers CPU-only (`num_gpu: 0`) on the dev machine and note that a typical laptop CPU will be slower. For each tier, state whether Correct mode is good enough locally or whether Claude Code should be the recommended provider.
 - **Acceptance criteria:**
   - [ ] Report contains a results table for ≥ 3 models × 3 modes, a clear recommendation and the tier table.
-  - [ ] `eval/cases.jsonl` and the draft templates are committed-ready (reused by T11 and T15).
-- **Depends on:** none. **Can run in parallel with:** T1–T10, T16, T18.
+  - [ ] `eval/cases.jsonl` and the draft templates are committed-ready (reused by T44 and T15).
+- **Depends on:** none (needs Ollama installed); runs in wave 4 (D40). **Can run in parallel with:** T12, T17a, T19, T24, T28.
 - **Suggested model:** Opus 5.5 (confidence: Medium). Judging translation and explanation quality needs a strong model; fall back to Fable 5.1 if the results are ambiguous.
 
 ### T14. Ollama provider and status  `backend` · parent: S3.2 · issue: #46
@@ -1129,22 +1131,32 @@ Write `docs/spikes/local-model-eval.md` with:
 - **Depends on:** T22, T42. **Can run in parallel with:** T33, T36.
 - **Suggested model:** Haiku 5.5 (confidence: High). A small form section that reuses T22's components.
 
+### T44. Tune prompt templates for local models  `backend` · parent: S3.1 · issue: #81
+- **Goal:** the prompt templates work well with the local Ollama models chosen by T13, without making them worse for Claude Code.
+- **Details:** read `docs/spikes/local-model-eval.md` (T13): its template findings, failure cases (especially "answered instead of translated", invalid JSON, dropped technical tokens) and the recommended default model. Apply the changes to `translation/prompts/{translate,improve,correct}.md`. Keep the shared templates provider-neutral where possible; only if the report shows a local model needs wording that would hurt Claude, add local-model variants selected by `ProviderKind::Ollama` in `prompt_builder.rs` (every variant keeps the "data, not a request" rule and the shared rules). Re-run `eval/spike_eval.py` against the recommended model with the final templates and record before/after numbers in the report's template section. Re-check T11's `numCtx` estimate comment if the templates grew.
+- **Acceptance criteria:**
+  - [ ] Every template change the T13 report recommends is applied, or rejected with a reason in the PR.
+  - [ ] Before/after eval numbers (valid-JSON rate, token preservation, answered-instead-of-translated count) for the recommended model are in `docs/spikes/local-model-eval.md`.
+  - [ ] Built prompts for the Claude Code provider are unchanged, or the PR shows each changed prompt and why it's still fine for Claude.
+- **Depends on:** T11, T13. **Can run in parallel with:** T14.
+- **Suggested model:** Sonnet 5.5 (confidence: Medium). Applies measured findings to existing templates with a ready eval script; fall back to Opus 5.5 if the report leaves wording choices open.
+
 ## 6. Order of work
 
 | Wave | Tasks (parallel within a wave) | Notes |
 |---|---|---|
-| 0 | T0, T1, T13, T16, T18 | Repo (with approval), toolchain, spikes and design start immediately; T13 needs Ollama (user approves the install) |
+| 0 | T0, T1, T16, T18 | Repo (with approval), toolchain, spike and design start immediately |
 | 1 | T2 → T3, T5; T37 | Scaffold, then core skeleton and icons; T37 (needs Rust from T1) is the **gate** for E9 |
 | 2 | T4, T8, T9, T10, T27, T25c, T41 | Foundations; all independent |
-| 3 | T11 → T12 | T11 needs the T13 report |
-| 4 | T14, T17a → T17b, T19, T24, T28 | Providers, shell, tray, history wiring |
+| 3 | T11 → T12 | T11 writes the templates from §4.4 without waiting for T13 (D40) |
+| 4 | T13 → T14, T44; T17a → T17b, T19, T24, T28 | Providers, shell, tray, history wiring; T13 needs Ollama (user approves the install) |
 | 5 | T15, T20, T22, T23, T25a → T25b, T29, T30 | Screens and hotkey |
 | 6 | T21 → T26; T34 (after T13 + T8 + T17a), T35 (after T14 + T34); T42 (after T25b + T41) | Result details, popup, setup backend, layout-fix hotkey |
 | 7 | T6 → T31 → T32 → T33; T36; T43 | Installer + uninstall, release pipeline, updater, wizard, layout-fix settings |
 | 7b | T38 → T39 → T40 | Only if T37 = GO; otherwise S9.2 is on hold and skipped |
 | 8 | T7 | README, install guide, full smoke test including Windows Sandbox |
 
-Critical path: T1 → T2 → T3 → T11 (needs T13) → T12 → T20 → T21 → T26 → T7. The distribution chain is T24 → T6 → T31 → T32 → T33 → T7.
+Critical path: T1 → T2 → T3 → T11 → T12 → T20 → T21 → T26 → T7. The distribution chain is T24 → T6 → T31 → T32 → T33 → T7.
 
 **First public release** (`v0.1.0`) only after T7's smoke test passes. A test tag in T31 is fine before that, but it must stay a draft. The release follows `docs/development.md` §5: `release/0.1.0` is cut from `develop`, merged into `main` and tagged there.
 
