@@ -1,0 +1,2 @@
+# ts-rs writes LF; keep the checkout LF too so regenerated bindings never look modified (core.autocrlf)
+src/bindings/*.ts text eol=lf
