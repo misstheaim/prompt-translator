@@ -8,9 +8,9 @@ Windows 10/11 x64 only (macOS/Linux builds are out of scope for v1).
 
 | Tool | Version | Check |
 |---|---|---|
-| Node.js | LTS (22.x) | `node --version` |
-| npm | comes with Node.js | `npm --version` |
-| Rust (rustup) | stable, `x86_64-pc-windows-msvc` | `rustc -V`, `cargo -V` |
+| Node.js | current LTS (24.x; set up with 24.20.0) | `node --version` |
+| npm | comes with Node.js (11.x; set up with 11.19.0) | `npm --version` |
+| Rust (rustup) | stable, `x86_64-pc-windows-msvc` (set up with 1.99.1) | `rustc -V`, `cargo -V` |
 | Visual Studio 2022 Build Tools | "Desktop development with C++" workload | `cargo build` links without errors |
 | WebView2 Runtime | ships with Windows 11 | present in "Apps" |
 | Git | any recent | `git --version` |
@@ -18,7 +18,7 @@ Windows 10/11 x64 only (macOS/Linux builds are out of scope for v1).
 | Ollama (optional, for the local provider and `eval`) | latest | `ollama --version` |
 | Claude Code (optional, for the Claude provider) | latest | `claude --version` |
 
-Step-by-step install and troubleshooting: `docs/dev-setup.md` (written by T1, #33).
+Step-by-step install and troubleshooting: [`docs/dev-setup.md`](dev-setup.md).
 
 ## 2. Commands
 
