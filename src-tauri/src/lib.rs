@@ -9,6 +9,7 @@ pub mod target;
 pub mod translation;
 pub mod updater;
 
+use tauri::Manager;
 use tauri_plugin_log::{RotationStrategy, Target, TargetKind};
 
 /// Rotated log files keep at most this many bytes each (1 MB), 5 files in total.
@@ -39,10 +40,18 @@ pub fn run() {
                     .build(),
             )?;
             log::info!("Prompt Translator {} started", app.package_info().version);
+
+            app.manage(settings::SettingsStore::load(
+                system::paths::settings_file()?
+            ));
             Ok(())
         })
         // One registration line per module.
-        .invoke_handler(tauri::generate_handler![system::commands::ping])
+        .invoke_handler(tauri::generate_handler![
+            system::commands::ping,
+            settings::commands::get_settings,
+            settings::commands::save_settings
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

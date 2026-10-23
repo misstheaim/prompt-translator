@@ -3,6 +3,18 @@
 import { invoke } from "@tauri-apps/api/core";
 
 import type { AppErrorPayload } from "../bindings/AppErrorPayload";
+import type { Settings } from "../bindings/Settings";
+
+// ---- settings ----
+
+export function getSettings(): Promise<Settings> {
+  return invoke<Settings>("get_settings");
+}
+
+/** Validates and saves; rejects with an `InvalidInput` error for bad values. */
+export function saveSettings(settings: Settings): Promise<Settings> {
+  return invoke<Settings>("save_settings", { settings });
+}
 
 // ---- system ----
 
