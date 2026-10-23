@@ -1,0 +1,15 @@
+{
+  "id": "code-review",
+  "name": "Code Review",
+  "description": "Review comments and feedback on code",
+  "defaultMode": "improve",
+  "rules": [
+    "Preserve all code identifiers, filenames, line numbers, URLs and ticket numbers exactly.",
+    "Keep text inside backticks and code blocks unchanged.",
+    "Be clear, specific and polite; say what the problem is and, if the original does, why.",
+    "Keep the strength of the original opinion: do not turn a suggestion into a requirement or the other way round.",
+    "Keep questions as questions and suggestions as suggestions.",
+    "Do not invent problems, reasons or fixes that are not in the original."
+  ],
+  "builtIn": true
+}

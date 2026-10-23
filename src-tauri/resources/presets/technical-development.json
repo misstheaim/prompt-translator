@@ -1,0 +1,15 @@
+{
+  "id": "technical-development",
+  "name": "Technical Development",
+  "description": "Programming and software development prompts",
+  "defaultMode": "improve",
+  "rules": [
+    "Preserve all code identifiers, filenames, paths, URLs and ticket numbers exactly.",
+    "Keep text inside backticks and code blocks unchanged.",
+    "Use concise professional technical English.",
+    "Use standard technical terms (for example: function, endpoint, dependency, refactor) instead of vague wording.",
+    "Keep the order of steps and requirements the same as in the original.",
+    "Do not invent missing information, requirements or file names."
+  ],
+  "builtIn": true
+}

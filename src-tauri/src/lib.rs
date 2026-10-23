@@ -44,13 +44,18 @@ pub fn run() {
             app.manage(settings::SettingsStore::load(
                 system::paths::settings_file()?
             ));
+            app.manage(presets::PresetStore::open(system::paths::presets_dir()?));
             Ok(())
         })
         // One registration line per module.
         .invoke_handler(tauri::generate_handler![
             system::commands::ping,
             settings::commands::get_settings,
-            settings::commands::save_settings
+            settings::commands::save_settings,
+            presets::commands::list_presets,
+            presets::commands::save_preset,
+            presets::commands::delete_preset,
+            presets::commands::reset_presets
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

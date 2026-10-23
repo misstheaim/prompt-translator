@@ -1,0 +1,14 @@
+{
+  "id": "general",
+  "name": "General",
+  "description": "Everyday text without a specific domain",
+  "defaultMode": "translate",
+  "rules": [
+    "Keep the meaning, tone and level of formality of the original.",
+    "Use natural, plain English; avoid rare words and idioms.",
+    "Keep names, numbers, dates, URLs and quoted text exactly as written.",
+    "Keep the original structure, such as line breaks and lists.",
+    "Do not add information that is not in the original."
+  ],
+  "builtIn": true
+}
