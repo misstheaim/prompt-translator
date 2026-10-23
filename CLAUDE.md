@@ -25,6 +25,12 @@ A Windows tray app for practising English while working with Claude Code. It tra
 - No automated tests: tickets close when build and lint pass and their acceptance criteria are met.
 - Spike E9 gate: if T37 (#72) is NO-GO, #31 and #73–#75 are on hold; don't implement them.
 
+## Behaviour spec
+
+- `docs/spec/README.md` describes how the product behaves **now**, one file per area; the plans in `docs/plans/` describe what will change.
+- **Any change to behaviour updates the spec in the same change**: the affected items in `docs/spec/<area>.md` (new item with the next free ID, edit in place, or retire the ID). Format and rules: "How to edit this spec" in `docs/spec/README.md`.
+- Exception: ticket implementers run by `/coordinator` don't edit `docs/spec/`; the coordinator updates it after each wave.
+
 ## Conventions
 
 - **Rust owns all I/O** (Ollama, `claude.exe`, SQLite, clipboard, files, Win32). React is UI only and talks to Rust through `src/lib/api.ts` typed wrappers (D3).
