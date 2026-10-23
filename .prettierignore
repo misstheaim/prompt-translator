@@ -1,0 +1,11 @@
+dist
+node_modules
+package-lock.json
+src-tauri
+src/bindings
+docs
+eval
+spikes
+.scratch
+*.md
+LICENSE

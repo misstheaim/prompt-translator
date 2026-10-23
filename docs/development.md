@@ -22,14 +22,15 @@ Step-by-step install and troubleshooting: [`docs/dev-setup.md`](dev-setup.md).
 
 ## 2. Commands
 
-Run from the repo root unless the row says `src-tauri`.
+Run from the repo root unless the row says `src-tauri`. The `src-tauri` commands also work from the root with `--manifest-path src-tauri/Cargo.toml`. `cargo clippy --locked` needs `src-tauri/Cargo.lock` to be committed and up to date.
 
 | Task | Command |
 |---|---|
 | Install dependencies | `npm ci` |
 | Run locally (dev) | `npm run tauri dev` |
-| Lint (frontend) | `npm run lint` |
-| Typecheck (frontend) | `npm run typecheck` |
+| Lint (frontend) | `npm run lint` (ESLint: typescript-eslint, react-hooks) |
+| Typecheck (frontend) | `npm run typecheck` (`tsc --noEmit` for `src/` and for the Vite/ESLint configs) |
+| Format (frontend, writes files) | `npm run format` (Prettier; skips `docs/`, `*.md`, `src-tauri/`, `src/bindings/`) |
 | Frontend build (needed before any cargo step) | `npm run build` |
 | Rust format check (`src-tauri`) | `cargo fmt --check` |
 | Rust lint (`src-tauri`) | `cargo clippy --all-targets --locked -- -D warnings` |
@@ -38,7 +39,7 @@ Run from the repo root unless the row says `src-tauri`.
 | Build the installer | `npm run tauri build` (output in `src-tauri/target/release/bundle/nsis/`) |
 | Translation quality report (manual, needs a provider) | `cargo run --bin eval` (in `src-tauri`) |
 
-Until the bootstrap tasks (T2 #34, T3 #35, T4 #36) create the project, these are the **planned** commands. Those tasks make them real and update this table and `CLAUDE.md` if anything differs.
+The frontend commands (`npm ci`, `lint`, `typecheck`, `format`, `build`, `tauri dev`) and the `src-tauri` fmt/clippy commands are real since T2 (#34). `npm run bindings`, `cargo run --bin eval` and `tauri build` are still **planned** (T3 #35, T4 #36 and later tasks make them real and update this table and `CLAUDE.md` if anything differs).
 
 ## 3. Branches
 
