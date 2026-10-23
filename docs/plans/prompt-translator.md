@@ -103,7 +103,7 @@ The owner's machine below is the **development** machine. Target machines vary, 
 | D24 | Uninstall | Uninstaller shows "Delete all app data" **checked by default**. It removes `%APPDATA%\<id>` and `%LOCALAPPDATA%\<id>` (settings, presets, history, translator Claude profile, WebView cache, temp) and **always** removes the autostart entry. It never touches Ollama or its models. Update mode never deletes data | Always delete; never delete | User asked for full cleanup; the checkbox protects history on reinstall |
 | D25 | New-machine setup | **First-run setup wizard** in the app: checks the environment, installs Ollama via `winget` (fallback: open the download page), recommends a model by hardware, downloads it with progress, benchmarks it, detects Claude Code and checks it is signed in (normal login, D41). Re-runnable from Settings | Bundle Ollama in the installer; README instructions only | Ollama + models are several GB and shared with other software; a wizard works for non-technical users |
 | D26 | Provider availability | Both providers are optional; the app needs at least one working provider and says so clearly when none is | Ollama required | Some machines are too weak for local models; some users don't have Claude Code |
-| D27 | App data locations | Everything under `%APPDATA%\com.misstheaim.prompttranslator` (config: settings, presets) and `%LOCALAPPDATA%\com.misstheaim.prompttranslator` (history.db, logs, `claude-config`, `claude-cwd`, `tmp`, WebView cache). Nothing in `%TEMP%` or elsewhere. `system/paths.rs` (T3) is the single source of these paths | Scattered defaults | So the uninstaller can remove everything |
+| D27 | App data locations | Everything under `%APPDATA%\com.misstheaim.prompttranslator` (config: settings, presets) and `%LOCALAPPDATA%\com.misstheaim.prompttranslator` (history.db, logs, `claude-cwd`, `tmp`, WebView cache). Nothing in `%TEMP%` or elsewhere. `system/paths.rs` (T3) is the single source of these paths | Scattered defaults | So the uninstaller can remove everything |
 | D28 | Local model per machine | Not tied to the dev machine. T13 measures and produces a **tier table** keyed on hardware: a dedicated GPU's VRAM, otherwise **system RAM** (CPU-only). Integrated GPUs count as no GPU. The wizard recommends the matching tier, then runs a **quick benchmark** on the downloaded model; if it's slow, it recommends Claude Code as the default provider (local stays as an offline fallback). Always changeable in Settings | One fixed model; tier by VRAM only | Laptops with only integrated graphics run models on the CPU, where RAM sets the size limit and real speed varies too much to predict |
 | D29 | Repo and license | Public GitHub repo `misstheaim/prompt-translator`, MIT license | Private repo + public releases repo | User's choice; needed for the updater |
 | D30 | Session discovery | `claude agents --json` (lists interactive and background sessions with `pid`, `cwd`, `name`, `status` idle/busy), polled about every 2 s **only while the main window or popup is visible**, plus a fresh check when the popup opens and right before each Accept. No polling while hidden (each poll spawns `claude.exe`) | Scanning processes; window titles | Official scripting output of the CLI; gives exactly the data the picker needs |
@@ -118,6 +118,7 @@ The owner's machine below is the **development** machine. Target machines vary, 
 | D39 | Branching and releases | Git Flow as in `docs/development.md`: `main` holds released code only; `develop` is the default and integration branch; one ticket = one branch = one PR squash-merged into `develop`; `release/X.Y.Z` and `hotfix/*` merge into `main` with a merge commit and a `vX.Y.Z` tag. **One milestone, `v0.1.0`, for the whole v1 plan** | Trunk-based on `main`; several smaller milestones | The coordinator needs a stable integration branch, and `main` stays releasable for hotfixes; v1 ships once, after T7's smoke test |
 | D40 | Prompt templates vs. the local model spike | T11 writes provider-neutral templates from §4.4 without waiting for T13. T13 runs in wave 4, once Ollama is installed, with T11's templates as its baseline; T44 applies its findings to the templates | T11 waits for T13 | Ollama wasn't ready in wave 0; this unblocks the core path and the Claude Code provider, and the templates are plain files that are cheap to change later |
 | D41 | Claude isolation (spike T16 outcome, owner decision 2026-10-24) | Invocation **candidate 1**: `claude -p --safe-mode --setting-sources ""` plus the flags in `docs/spikes/claude-invocation.json` (the contract T17b builds from: args, env added, explicit `envRemove` list, cwd under the app data dir via `system/paths.rs`, `TEMP`/`TMP` redirect, UTF-8 stdin, `CREATE_NO_WINDOW`), using the user's normal subscription login. No dedicated `CLAUDE_CONFIG_DIR`, no separate sign-in, no `claude_open_login`. Sign-in check: `claude auth status` (exit 0 = signed in); its output contains the e-mail, so **never log it**. **Safety:** a running translator run is listed by `claude agents --json` as `kind: "interactive"` (name from `--name prompt-translator`, via a transient `~/.claude/sessions/<pid>.json`). Session discovery (D30), injection (D31, D35) and the picker therefore exclude the app's own translator runs by **both** `name == "prompt-translator"` **and** PIDs in the translator-run registry (`TranslatorPids`, T17a) | Dedicated config dir (separate sign-in, hides runs from `agents`, but costs the user a login); `--bare` + API key; accept leakage | Spike showed candidate 1 loads none of the user's CLAUDE.md, hooks, skills, plugins or MCP servers, leaves no history, and needs no extra step; the `agents` listing is handled by filtering, with two independent checks so one failing (rename, registry race) can't send text into a translator run |
+| D42 | E9 on hold (spike T37 outcome, owner decision 2026-10-24) | Spike T37 (#72) could not run: the implementing agent's safety classifier blocked writing the console injector, so there is **no verdict**. The owner put T37 and story S9.2 (#31, T38-T40 = #73-#75) **on hold** (label `status:on-hold`, removed from milestone v0.1.0). **v0.1.0 ships with Clipboard only**; `copy_result` stays the only Accept path. The T38-T40 tickets and D30-D35 are kept for the future. **What would change it:** the owner writes and runs the injector by hand per T37 step 2 and the matrix passes, or a path that doesn't write into another process's console exists (e.g. Claude Code channels once out of preview) | Keep E9 in v0.1.0 and wait; drop E9 for good | The only risky part (writing into another process's console) needs the owner's hands; Clipboard already delivers the core value |
 
 ## 4. Architecture and design
 
@@ -470,10 +471,10 @@ No automated tests (owner's decision, 2026-10-15). A ticket is done when build a
 └── [Story] S8.2 A new user is guided to a working provider (#29)
     ├── [Task][backend]  T35 Ollama install, start and model download (#70)
     └── [Task][frontend] T36 Setup wizard UI (#71)
-[Epic] E9 Send prompts into an open Claude session (#9)   (gated by T37)
+[Epic] E9 Send prompts into an open Claude session (#9)   (ON HOLD, D42)
 ├── [Story] S9.1 Writing into a running session is proven possible (#30)
-│   └── [Task][research] T37 Spike: console input injection into claude.exe (#72)
-└── [Story] S9.2 Bind a session and send accepted prompts to it (#31)   (on hold if T37 fails)
+│   └── [Task][research] T37 Spike: console input injection into claude.exe (#72)   (ON HOLD, D42)
+└── [Story] S9.2 Bind a session and send accepted prompts to it (#31)   (ON HOLD, D42)
     ├── [Task][backend]  T38 Session discovery and binding (#73)
     ├── [Task][backend]  T39 Console session target and accept routing (#74)
     └── [Task][frontend] T40 Session picker and Accept-to-session UI (#75)
@@ -519,7 +520,7 @@ Totals: **9 epics, 23 stories, 47 tasks.**
   - `error.rs`: `AppError` enum with the kinds in §4.6 (`thiserror`), `Serialize` as `{ kind, message, hint, detail? }`, `type AppResult<T>`.
   - Add deps (exact versions): `serde`, `serde_json`, `tokio`, `thiserror`, `ts-rs`, `uuid`, `tauri-plugin-log`.
   - Put the `Mode`/`ProviderKind`/`TranslationRequest`/`TranslationResult`/`Issue`/`IssueCategory`/`TokenWarning`/`TokenKind` types from §4.3 in `translation/model.rs` with `#[derive(TS)] #[ts(export)]`. Set the export dir with `TS_RS_EXPORT_DIR` in `src-tauri/.cargo/config.toml` pointing at `../src/bindings`. Use serde `camelCase` (enums `rename_all = "camelCase"`, IssueCategory `snake_case` to match the LLM schema). Mark `u64`/`i64` fields `#[ts(type = "number")]`.
-  - **`system/paths.rs`**: the single source of every app path (D14, D27): `config_dir()` (= `app_config_dir()`), `local_dir()` (= `app_local_data_dir()`), `history_db()`, `logs_dir()`, `claude_config_dir()`, `claude_cwd()`, `tmp_dir()`, `presets_dir()`. Creates dirs on first use. Never use `app_data_dir()` (Roaming on Windows).
+  - **`system/paths.rs`**: the single source of every app path (D14, D27): `config_dir()` (= `app_config_dir()`), `local_dir()` (= `app_local_data_dir()`), `history_db()`, `logs_dir()`, `claude_cwd()`, `tmp_dir()`, `presets_dir()`. Creates dirs on first use. Never use `app_data_dir()` (Roaming on Windows).
   - **Logging**: `tauri-plugin-log` writing to `logs_dir()` (rotating, max 5 × 1 MB) and stdout in dev.
   - **Capabilities**: `src-tauri/capabilities/default.json` for windows `["main", "popup"]` with only `core:default`/`core:event` and the window permissions each window needs. Set a strict `app.security.csp` in `tauri.conf.json` (`default-src 'self'; style-src 'self' 'unsafe-inline'` as needed by Tailwind; `connect-src ipc: http://ipc.localhost`).
   - Add a `ping` command and call it from the frontend placeholder to prove the round trip.
@@ -1008,6 +1009,8 @@ Write `docs/spikes/local-model-eval.md` with:
 - **Suggested model:** Sonnet 5.5 (confidence: High). Multi-step form on top of ready commands.
 
 ### T37. Spike: console input injection into claude.exe  `research` · parent: S9.1 · issue: #72
+> **ON HOLD (D42, 2026-10-24):** the spike could not run (the agent's safety classifier blocked writing the injector), so there is no verdict. Not part of v0.1.0; the owner may run step 2 by hand later.
+
 - **Goal:** prove (or disprove) that the app can write a prompt into a specific running interactive Claude Code session and submit it, without focusing its window.
 - **Details:** build a throwaway Rust CLI in `spikes/inject/` (not part of the app) that does the following:
   1. Run `claude agents --json`. Pick an `interactive` session by name or PID. (Already verified during review: `pid` is `claude.exe` itself, with the shell as its parent.)
@@ -1041,7 +1044,10 @@ Write `docs/spikes/local-model-eval.md` with:
 - **Suggested model:** Opus 5.5 (confidence: Medium). Low-level Win32 console behaviour under ConPTY is poorly documented; fall back to Fable 5.1 if the results are inconsistent.
 
 ### T38. Session discovery and binding  `backend` · parent: S9.2 · issue: #73
+> **ON HOLD (D42, 2026-10-24):** part of S9.2; not in v0.1.0. Kept for the future.
+
 - **Goal:** the app knows which Claude sessions are open and which one is bound, live.
+- **Spike findings to apply (from the T16/T37 attempts):** the D41 translator filter must match the session name `prompt-translator` **exactly**, never by prefix (a user session can be named e.g. `prompt-translator-d2`). A helper spawned from inside Claude Code must clear `CLAUDECODE`, `CLAUDE_CODE_*` and `CLAUDE_PID` from its environment before running `claude`, and a GUI-subsystem helper must spawn `claude agents --json` with `CREATE_NO_WINDOW`.
 - **Details:** `target/sessions.rs`:
   - `list_sessions()` runs `claude agents --json` (executable from T17a's `find_claude()`, `CREATE_NO_WINDOW`, 5 s timeout), parses it leniently (unknown fields ignored, unknown `status` kept as a string), keeps `kind == "interactive"` only, and **excludes the app's own translator runs, which `claude agents --json` lists as interactive while they run (D41)**: drop every entry whose `name == "prompt-translator"` **and** every entry whose PID is in `TranslatorPids` (T17a); apply both checks (defence in depth), plus any session whose `cwd` is `paths::claude_cwd()`. `bind_session` also refuses such an entry.
   - Background poller (D30): every 2 s **only while the main window or popup is visible**; no polling while hidden (each poll spawns `claude.exe`); one immediate refresh when the popup opens. It stops when Claude Code isn't installed. When the list or the bound session's status changes, emit `sessions://changed`.
@@ -1054,7 +1060,10 @@ Write `docs/spikes/local-model-eval.md` with:
 - **Suggested model:** Sonnet 5.5 (confidence: High). Process call + state machine.
 
 ### T39. Console session target and accept routing  `backend` · parent: S9.2 · issue: #74
+> **ON HOLD (D42, 2026-10-24):** part of S9.2; not in v0.1.0. Kept for the future.
+
 - **Goal:** Accept delivers the prompt to the bound session, or to the clipboard when none is bound.
+- **Spike findings to apply (from the T16/T37 attempts):** the translator-run check (D41) matches the name `prompt-translator` exactly, never by prefix (a user session can be named e.g. `prompt-translator-d2`). The `--inject` helper and any `claude` it spawns must clear `CLAUDECODE`, `CLAUDE_CODE_*` and `CLAUDE_PID` from the environment, and spawn `claude agents --json` with `CREATE_NO_WINDOW` (the helper is a GUI-subsystem process).
 - **Details:**
   - `target/mod.rs`: `trait ClaudeTarget { fn send(&self, text: &str) -> AppResult<Delivery> }` with `ClipboardTarget` (existing copy logic) and `ConsoleSessionTarget { pid }`.
   - `target/console_inject.rs`: implement the spike's recipe (T37) in production quality as a **helper mode of the app's own exe**: `main` checks for `--inject <pid>` before starting Tauri, reads the text from stdin, ignores console control events, attaches, writes, frees, and exits with a status code (0 ok, distinct codes for access denied, PID gone, other). `ConsoleSessionTarget` spawns it with `CREATE_NO_WINDOW` and maps exit codes to errors. Strip control characters except newline, and send newlines the way the spike found.
@@ -1072,6 +1081,8 @@ Write `docs/spikes/local-model-eval.md` with:
 - **Suggested model:** Opus 5.5 (confidence: Medium). Unsafe Win32 FFI and concurrency.
 
 ### T40. Session picker and Accept-to-session UI  `frontend` · parent: S9.2 · issue: #75
+> **ON HOLD (D42, 2026-10-24):** part of S9.2; not in v0.1.0. Kept for the future.
+
 - **Goal:** the user picks a session once, and every Accept goes there; with no session picked, the app behaves as before.
 - **Details:**
   - **Session picker** in the main window's top bar (§4.8): options "None (copy to clipboard)" plus sessions (`name — folder — idle/busy` dot). It updates on `sessions://changed`. It shows every state in §4.8, including "Session ended" in red. It's hidden when Claude Code isn't installed.
@@ -1157,7 +1168,7 @@ Write `docs/spikes/local-model-eval.md` with:
 | 5 | T15, T20, T22, T23, T25a → T25b, T29, T30 | Screens and hotkey |
 | 6 | T21 → T26; T34 (after T13 + T8 + T17a), T35 (after T14 + T34); T42 (after T25b + T41) | Result details, popup, setup backend, layout-fix hotkey |
 | 7 | T6 → T31 → T32 → T33; T36; T43 | Installer + uninstall, release pipeline, updater, wizard, layout-fix settings |
-| 7b | T38 → T39 → T40 | Only if T37 = GO; otherwise S9.2 is on hold and skipped |
+| 7b | T38 → T39 → T40 | **On hold (D42):** T37 has no verdict, so S9.2 is skipped in v0.1.0 |
 | 8 | T7 | README, install guide, full smoke test including Windows Sandbox |
 
 Critical path: T1 → T2 → T3 → T11 → T12 → T20 → T21 → T26 → T7. The distribution chain is T24 → T6 → T31 → T32 → T33 → T7.
@@ -1184,7 +1195,7 @@ Critical path: T1 → T2 → T3 → T11 → T12 → T20 → T21 → T26 → T7. 
 | Weak machines (integrated graphics only) give slow or poor local translations, especially in Correct mode | Medium | RAM-based CPU tiers from T13; the wizard benchmarks the model and recommends Claude Code when it's slow (D28); the local model stays as an offline fallback |
 | Ollama adds Vulkan/iGPU support later, so integrated GPUs become usable | Low (upside) | Usable-GPU rule lives in one function (T34); revisit when Ollama's Windows iGPU support is stable |
 | Other users' Claude subscriptions: a separate translator sign-in per machine | Low | Wizard step + README |
-| Console injection doesn't work under Windows Terminal/ConPTY, or multi-line text submits early | High for E9 | Spike T37 is a hard gate; NO-GO → E9 on hold, v1 ships with Clipboard |
+| Console injection doesn't work under Windows Terminal/ConPTY, or multi-line text submits early | High for E9 | Realised as "unproven" (D42): T37 couldn't run, E9 is on hold and v0.1.0 ships with Clipboard. Revisit only if the owner runs the injector by hand or channels leave preview |
 | Injected text starting with `!`, `/` or `#` runs a shell command, slash command or memory write in Claude Code (e.g. after prompt injection from copied web text) | High | D35: explicit confirmation before sending; prefix guard in T39; matrix case in T37 |
 | Attaching to a session's console exposes the injector to that console's Ctrl+C/close events | High (app crash) | D31: injection runs in a short-lived helper process that ignores console control events |
 | Ollama silently truncates long prompts when `num_ctx` is too small, dropping the system prompt | High (wrong output) | `num_ctx` always sent (default 8192, setting); measured in T13; checked in T14 |
@@ -1203,6 +1214,7 @@ Critical path: T1 → T2 → T3 → T11 → T12 → T20 → T21 → T26 → T7. 
 
 ## 8. Review notes
 
+- **Changed 2026-10-24:** spike T37 (#72) outcome folded in as D42 (owner decision): the spike could not run (the agent's safety classifier blocked the console injector), so E9 (S9.2 #31, T38-T40 #73-#75, and T37 itself) is on hold and removed from v0.1.0, which ships with Clipboard only. Also dropped the unused `claude-config` app folder and `claude_config_dir()` (D41 removed the dedicated config dir) from D27 and T3.
 - **Changed 2026-10-24:** spike T16 (#48) outcome folded in as D41 (owner decision): `--safe-mode` + `--setting-sources ""` with the normal login, contract in `docs/spikes/claude-invocation.json`; no dedicated config dir or `claude_open_login`; translator runs are visible to `claude agents --json`, so T38/T39 exclude them by name and `TranslatorPids`; T17b gained a no-console-flash manual check.
 - **Added 2026-10-14:** the Git Flow workflow (D39, `docs/development.md`, project `CLAUDE.md`) and milestone `v0.1.0`; T1, T2, T4, T7 and T31 were aligned with it. No test cases were backfilled into the tickets (owner's choice).
 - **Changed 2026-10-15:** automated tests dropped (owner's decision): §4.10 became Verification, CI runs build and lint only, Vitest/RTL/`mockito`/`insta` and the `fake_claude` bin were removed, and test acceptance criteria became behaviour criteria checked by hand. The eval harness (T15) and the manual smoke test stay.
