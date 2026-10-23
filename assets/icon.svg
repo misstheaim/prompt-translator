@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Prompt Translator app icon. Design source for assets/icon.png (rendered by .scratch/make_icons.py). -->
+  <rect width="1024" height="1024" rx="224" fill="#3B5BDB"/>
+  <path d="M272 240 H752 A112 112 0 0 1 864 352 V592 A112 112 0 0 1 752 704 H470 L330 820 V704 H272 A112 112 0 0 1 160 592 V352 A112 112 0 0 1 272 240 Z" fill="#FFFFFF"/>
+  <text x="512" y="590" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="330" fill="#3B5BDB">EN</text>
+</svg>
