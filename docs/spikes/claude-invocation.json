@@ -1,0 +1,64 @@
+{
+  "$comment": "Machine-checkable claude.exe invocation contract from spike T16 (#48). T17b builds its invocation from this file. After a Claude Code upgrade, re-run the spike and diff this file. Placeholders: {model}, {systemPromptFile}, {jsonSchema}; %VAR% are Windows environment variables. Details: docs/spikes/claude-isolation.md.",
+  "claudeVersion": "2.1.309",
+  "exe": "%USERPROFILE%\\.local\\bin\\claude.exe",
+  "args": [
+    "-p",
+    "--safe-mode",
+    "--setting-sources", "",
+    "--no-session-persistence",
+    "--tools", "",
+    "--strict-mcp-config",
+    "--disable-slash-commands",
+    "--name", "prompt-translator",
+    "--model", "{model}",
+    "--output-format", "json",
+    "--system-prompt-file", "{systemPromptFile}",
+    "--json-schema", "{jsonSchema}"
+  ],
+  "argNotes": {
+    "{model}": "settings.claude.model, default \"haiku\"",
+    "{systemPromptFile}": "absolute path of a UTF-8 file under %LOCALAPPDATA%\\com.misstheaim.prompttranslator\\tmp; --system-prompt-file works on 2.1.309 although --help does not list it",
+    "{jsonSchema}": "the LLM output schema as an inline JSON string (minified); a file path is rejected with 'Error: --json-schema is not valid JSON'"
+  },
+  "env": {
+    "DISABLE_AUTOUPDATER": "1",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+    "TEMP": "%LOCALAPPDATA%\\com.misstheaim.prompttranslator\\tmp",
+    "TMP": "%LOCALAPPDATA%\\com.misstheaim.prompttranslator\\tmp"
+  },
+  "envRemove": [
+    "CLAUDECODE",
+    "CLAUDE_CODE_ENTRYPOINT",
+    "CLAUDE_CODE_CHILD_SESSION",
+    "CLAUDE_CODE_SESSION_ID",
+    "CLAUDE_CODE_SESSION_ATTENDED",
+    "CLAUDE_CODE_MESSAGING_SOCKET",
+    "CLAUDE_CODE_MESSAGING_TOKEN",
+    "CLAUDE_CODE_EXECPATH",
+    "CLAUDE_PID",
+    "CLAUDE_EFFORT"
+  ],
+  "cwd": "%LOCALAPPDATA%\\com.misstheaim.prompttranslator\\claude-cwd",
+  "stdin": "The user's text, UTF-8, then close stdin. Must be non-empty: empty stdin exits 1 with 'Error: Input must be provided either through stdin or as a prompt argument when using --print' on stderr.",
+  "spawn": {
+    "creationFlags": "CREATE_NO_WINDOW (0x08000000)",
+    "killOnTimeout": "whole process tree (Job Object or taskkill /T /F)"
+  },
+  "envelope": {
+    "resultField": "result",
+    "errorField": "is_error",
+    "structuredField": "structured_output",
+    "otherFields": ["type", "subtype", "session_id", "num_turns", "stop_reason", "duration_ms", "duration_api_ms", "total_cost_usd", "usage", "modelUsage", "permission_denials", "uuid"]
+  },
+  "outcomes": {
+    "success": "exit 0, stdout is one JSON envelope, is_error false, structured_output is the object that matches the schema (result holds the same object as a JSON string)",
+    "schemaNotSatisfied": "exit 0, is_error false, subtype success, structured_output ABSENT, result is the model's free text: treat as MalformedOutput",
+    "notSignedIn": "exit 1, stdout envelope with is_error true and result 'Not logged in · Please run /login'",
+    "cliError": "exit 1, stdout empty, one 'Error: ...' line on stderr (bad --json-schema, missing --system-prompt-file, empty stdin)"
+  },
+  "authCheck": {
+    "args": ["auth", "status"],
+    "notes": "No API call. Prints JSON {loggedIn, authMethod, apiProvider, subscriptionType, ...}; exit 0 when signed in, exit 1 with loggedIn false when not."
+  }
+}
