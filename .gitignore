@@ -1,0 +1,31 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Node
+node_modules
+dist
+dist-ssr
+*.tsbuildinfo
+*.local
+
+# Rust
+target/
+src-tauri/gen/schemas
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Eval output
+eval/reports/
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.sw?

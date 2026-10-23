@@ -1,0 +1,102 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: light dark;
+
+  /* Base */
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --surface-raised: #eef0f4;
+  --border: #d9dde4;
+  --text: #1b1f27;
+  --muted: #5d6675;
+
+  /* Semantic */
+  --accent: #2f6fed;
+  --accent-contrast: #ffffff;
+  --danger: #c62828;
+  --warning: #b26a00;
+  --success: #1b7f3b;
+
+  /* Issue categories */
+  --cat-spelling: #c62828;
+  --cat-grammar: #c25100;
+  --cat-article: #9a6b00;
+  --cat-tense: #4d7c0f;
+  --cat-preposition: #0f766e;
+  --cat-word-choice: #0369a1;
+  --cat-vocabulary: #7c3aed;
+  --cat-punctuation: #be185d;
+  --cat-style: #4338ca;
+  --cat-other: #5d6675;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14171c;
+    --surface: #1d2128;
+    --surface-raised: #272c35;
+    --border: #343a45;
+    --text: #e8eaef;
+    --muted: #9aa3b2;
+
+    --accent: #6c9bff;
+    --accent-contrast: #0d1117;
+    --danger: #ff7b72;
+    --warning: #f0b429;
+    --success: #4cc27a;
+
+    --cat-spelling: #ff7b72;
+    --cat-grammar: #ff9f5a;
+    --cat-article: #f0b429;
+    --cat-tense: #a3d95b;
+    --cat-preposition: #2dd4bf;
+    --cat-word-choice: #4fb3ff;
+    --cat-vocabulary: #b794f6;
+    --cat-punctuation: #f472b6;
+    --cat-style: #8b9cff;
+    --cat-other: #9aa3b2;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-border: var(--border);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-contrast: var(--accent-contrast);
+  --color-danger: var(--danger);
+  --color-warning: var(--warning);
+  --color-success: var(--success);
+
+  --color-cat-spelling: var(--cat-spelling);
+  --color-cat-grammar: var(--cat-grammar);
+  --color-cat-article: var(--cat-article);
+  --color-cat-tense: var(--cat-tense);
+  --color-cat-preposition: var(--cat-preposition);
+  --color-cat-word-choice: var(--cat-word-choice);
+  --color-cat-vocabulary: var(--cat-vocabulary);
+  --color-cat-punctuation: var(--cat-punctuation);
+  --color-cat-style: var(--cat-style);
+  --color-cat-other: var(--cat-other);
+
+  --font-sans: system-ui, "Segoe UI Variable", "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 20px;
+}
