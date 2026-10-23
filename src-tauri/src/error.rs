@@ -172,6 +172,18 @@ impl From<serde_json::Error> for AppError {
     }
 }
 
+impl From<rusqlite::Error> for AppError {
+    fn from(e: rusqlite::Error) -> Self {
+        Self::Db(e.to_string())
+    }
+}
+
+impl From<rusqlite_migration::Error> for AppError {
+    fn from(e: rusqlite_migration::Error) -> Self {
+        Self::Db(e.to_string())
+    }
+}
+
 impl From<tauri::Error> for AppError {
     fn from(e: tauri::Error) -> Self {
         Self::Io(e.to_string())
