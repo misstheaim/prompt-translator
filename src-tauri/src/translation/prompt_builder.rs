@@ -97,6 +97,9 @@ pub static OUTPUT_SCHEMA: LazyLock<Value> = LazyLock::new(|| {
 /// A ready-to-send prompt: the system prompt and the user message.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuiltPrompt {
+    /// The mode it was built for (providers that answer without a model, like the mock, use
+    /// it).
+    pub mode: Mode,
     pub system: String,
     pub user: String,
 }
@@ -153,5 +156,5 @@ pub fn build(mode: Mode, preset: &Preset, source: &str) -> BuiltPrompt {
         task_line(mode)
     );
 
-    BuiltPrompt { system, user }
+    BuiltPrompt { mode, system, user }
 }

@@ -4,7 +4,7 @@ pub mod commands;
 
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::RwLock;
+use std::sync::{Arc, RwLock};
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -172,10 +172,12 @@ fn is_http_url(value: &str) -> bool {
 /// Holds the current settings and persists them to one JSON file.
 ///
 /// Built from a plain path, so it works without a Tauri `AppHandle`. The app registers it as
-/// managed state; other modules read it with [`SettingsStore::get`].
+/// managed state; other modules read it with [`SettingsStore::get`]. Clones are handles to the
+/// same settings (the translation service keeps one).
+#[derive(Clone)]
 pub struct SettingsStore {
     path: PathBuf,
-    current: RwLock<Settings>,
+    current: Arc<RwLock<Settings>>,
 }
 
 impl SettingsStore {
@@ -186,7 +188,7 @@ impl SettingsStore {
         let settings = read_or_default(&path);
         Self {
             path,
-            current: RwLock::new(settings),
+            current: Arc::new(RwLock::new(settings)),
         }
     }
 
