@@ -4,7 +4,7 @@ pub mod commands;
 
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -106,11 +106,13 @@ fn is_built_in_id(id: &str) -> bool {
 /// Reads and writes the preset files in one directory.
 ///
 /// Built from a plain path, so it works without a Tauri `AppHandle`. Every call reads the
-/// directory, so edits made outside the app are picked up.
+/// directory, so edits made outside the app are picked up. Clones are handles to the same store
+/// (the translation service keeps one).
+#[derive(Clone)]
 pub struct PresetStore {
     dir: PathBuf,
-    /// Serializes writes (save, delete, reset).
-    write_lock: Mutex<()>,
+    /// Serializes writes (save, delete, reset), shared by all clones.
+    write_lock: Arc<Mutex<()>>,
 }
 
 impl PresetStore {
@@ -119,7 +121,7 @@ impl PresetStore {
     pub fn open(dir: impl Into<PathBuf>) -> Self {
         let store = Self {
             dir: dir.into(),
-            write_lock: Mutex::new(()),
+            write_lock: Arc::new(Mutex::new(())),
         };
         if let Err(e) = store.seed_if_empty() {
             log::error!("Can't seed presets in {}: {e}", store.dir.display());

@@ -19,6 +19,8 @@ const LOG_FILES_KEPT: usize = 5;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // Used from Rust only (`copy_result`); the webview gets no clipboard permission.
+        .plugin(tauri_plugin_clipboard_manager::init())
         .setup(|app| {
             system::paths::init(app.handle())?;
 
@@ -41,10 +43,16 @@ pub fn run() {
             )?;
             log::info!("Prompt Translator {} started", app.package_info().version);
 
-            app.manage(settings::SettingsStore::load(
-                system::paths::settings_file()?
+            let settings = settings::SettingsStore::load(system::paths::settings_file()?);
+            let presets = presets::PresetStore::open(system::paths::presets_dir()?);
+            // The service shares the stores with their commands (clones are handles).
+            app.manage(translation::service::TranslationService::new(
+                settings.clone(),
+                presets.clone(),
+                translation::providers::registry(),
             ));
-            app.manage(presets::PresetStore::open(system::paths::presets_dir()?));
+            app.manage(settings);
+            app.manage(presets);
             // History must never stop the app: without the database, saving is skipped.
             match history::HistoryDb::open(&system::paths::history_db()?) {
                 Ok(db) => {
@@ -61,6 +69,9 @@ pub fn run() {
             settings::commands::save_settings,
             settings::commands::set_last_popup_mode,
             translation::commands::detect_mode,
+            translation::commands::translate,
+            translation::commands::cancel_translation,
+            translation::commands::copy_result,
             presets::commands::list_presets,
             presets::commands::save_preset,
             presets::commands::delete_preset,
