@@ -1,14 +1,14 @@
 # App core
 
-The application shell: what launches, the windows and their content, app identity and icons, where data lives, logging, the error payload every command returns, the exported TypeScript contracts, and webview security. The UI is still a scaffold: one placeholder window. Behind it the core already holds settings, presets, the history database, mode detection and the technical-token check (see the other area files), but no screen uses them yet; translation, tray, popup and hotkeys are not implemented.
+The application shell: what launches, the windows and their content, app identity and icons, where data lives, logging, the error payload every command returns, the exported TypeScript contracts, and webview security. The UI is still a scaffold: one placeholder window (plus a dev-only mock panel). Behind it the core already holds settings, presets, the history database, mode detection, the technical-token check and a translation service with a mock provider (see the other area files), but no real screen uses them yet; real providers, tray, popup and hotkeys are not implemented.
 
 > Code: `src-tauri/src/lib.rs`, `src-tauri/src/error.rs`, `src-tauri/src/system/`, `src-tauri/src/translation/model.rs`, `src-tauri/tauri.conf.json`, `src-tauri/capabilities/default.json`, `src/lib/api.ts`, `src/bindings/`, `package.json`
 
 ## Behaviour
 
 ### APP-001 Main window
-On launch one window opens: label `main`, title "Prompt Translator", 800x600. It shows a centred card with the heading "Prompt Translator", the text "Placeholder window" and a line "Rust core: <result>".
-Since: #34 · Changed: #35
+On launch one window opens: label `main`, title "Prompt Translator", 800x600. It shows a centred card with the heading "Prompt Translator", the text "Placeholder window" and a line "Rust core: <result>". In dev builds of the UI a "Mock provider (dev)" panel is shown below the card (TRANS-011).
+Since: #34 · Changed: #35, #44
 
 ### APP-002 Core round-trip check
 On start the main window calls the `ping` command; the line shows "..." until it answers, then "Rust core: pong". If the call fails with an app error, the line shows that error's message; with any other failure it shows "Rust core: ping failed".
@@ -83,16 +83,16 @@ Rust types are exported to `src/bindings/*.ts` (one file per type, LF line endin
 - `IssueCategory` (snake_case, matches the model output): `spelling`, `grammar`, `article`, `tense`, `preposition`, `word_choice`, `vocabulary`, `punctuation`, `style`, `other`.
 - `TokenWarning`: `token`, `kind`; `TokenKind` (camelCase): `ticketId`, `identifier`, `fileName`, `path`, `url`, `codeSpan`, `number`.
 - `ErrorKind` and `AppErrorPayload` as in APP-011/012.
-Only `Mode` is used by a command so far (`detect_mode`, `set_last_popup_mode`); the translation request/result types have no command yet.
-Since: #35 · Changed: #60
+`Mode` is used by `detect_mode` and `set_last_popup_mode`; `TranslationRequest` and `TranslationResult` by `translate` (TRANS-008).
+Since: #35 · Changed: #60, #44
 
 ### APP-014 Regenerating bindings
 `npm run bindings` runs the Rust export tests (`cargo test export_bindings` in `src-tauri`), which write the TypeScript files into `src/bindings/`. Git keeps `src/bindings/*.ts` on LF endings regardless of `core.autocrlf`, so regeneration does not show modified files.
 Since: #35 · Changed: #88
 
 ### APP-015 UI-to-core access
-The UI calls Rust only through typed wrappers in `src/lib/api.ts`: `ping()` (returns "pong"), `getSettings`, `saveSettings`, `setLastPopupMode` and `detectMode`. Registered commands: `ping`, `get_settings`, `save_settings`, `set_last_popup_mode`, `detect_mode`, `list_presets`, `save_preset`, `delete_preset`, `reset_presets`. The four preset commands have no wrapper in `api.ts` yet.
-Since: #35 · Changed: #40, #41, #60
+The UI calls Rust only through typed wrappers in `src/lib/api.ts`: `ping()` (returns "pong"), `getSettings`, `saveSettings`, `setLastPopupMode`, `detectMode`, `translate`, `cancelTranslation` and `copyResult`. Registered commands: `ping`, `get_settings`, `save_settings`, `set_last_popup_mode`, `detect_mode`, `translate`, `cancel_translation`, `copy_result`, `list_presets`, `save_preset`, `delete_preset`, `reset_presets`. The four preset commands have no wrapper in `api.ts` yet.
+Since: #35 · Changed: #40, #41, #60, #44
 
 ### APP-016 Webview security
 Release CSP: `default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src ipc: http://ipc.localhost` (no remote network, no inline scripts). The dev CSP additionally allows inline scripts and connections to `http://localhost:1420` and `ws://localhost:1420`.
