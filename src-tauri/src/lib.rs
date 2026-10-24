@@ -59,6 +59,8 @@ pub fn run() {
             system::commands::ping,
             settings::commands::get_settings,
             settings::commands::save_settings,
+            settings::commands::set_last_popup_mode,
+            translation::commands::detect_mode,
             presets::commands::list_presets,
             presets::commands::save_preset,
             presets::commands::delete_preset,
