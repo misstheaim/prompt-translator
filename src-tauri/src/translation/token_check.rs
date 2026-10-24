@@ -83,9 +83,25 @@ fn is_plural_acronym(m: &str) -> bool {
     !base.chars().any(|c| c.is_ascii_lowercase())
 }
 
+/// Returns `source` with every technical token blanked out (used by mode detection).
+pub fn strip_tokens(source: &str) -> String {
+    scan_tokens(source).1
+}
+
 /// Returns the technical tokens found in `source` that don't appear verbatim in
 /// `output`, deduplicated, in order of first appearance per pattern group.
 pub fn check_tokens(source: &str, output: &str) -> Vec<TokenWarning> {
+    let (found, _) = scan_tokens(source);
+    let mut seen = std::collections::HashSet::new();
+    found
+        .into_iter()
+        .filter(|(token, _)| !output.contains(token.as_str()) && seen.insert(token.clone()))
+        .map(|(token, kind)| TokenWarning { token, kind })
+        .collect()
+}
+
+/// Finds all tokens; also returns the text with them blanked out.
+fn scan_tokens(source: &str) -> (Vec<(String, TokenKind)>, String) {
     let mut found: Vec<(String, TokenKind)> = Vec::new();
     let mut text = source.to_string();
 
@@ -153,10 +169,5 @@ pub fn check_tokens(source: &str, output: &str) -> Vec<TokenWarning> {
         |m| (!is_plural_acronym(m)).then(|| m.to_string()),
     );
 
-    let mut seen = std::collections::HashSet::new();
-    found
-        .into_iter()
-        .filter(|(token, _)| !output.contains(token.as_str()) && seen.insert(token.clone()))
-        .map(|(token, kind)| TokenWarning { token, kind })
-        .collect()
+    (found, text)
 }
