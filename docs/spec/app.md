@@ -1,6 +1,6 @@
 # App core
 
-The application shell: what launches, the windows and their content, app identity and icons, where data lives, logging, the error payload every command returns, the exported TypeScript contracts, and webview security. At this point the app is a scaffold: one placeholder window and one command (`ping`). Features (translation, history, tray, popup, settings) are not implemented yet.
+The application shell: what launches, the windows and their content, app identity and icons, where data lives, logging, the error payload every command returns, the exported TypeScript contracts, and webview security. The UI is still a scaffold: one placeholder window. Behind it the core already holds settings, presets, the history database, mode detection and the technical-token check (see the other area files), but no screen uses them yet; translation, tray, popup and hotkeys are not implemented.
 
 > Code: `src-tauri/src/lib.rs`, `src-tauri/src/error.rs`, `src-tauri/src/system/`, `src-tauri/src/translation/model.rs`, `src-tauri/tauri.conf.json`, `src-tauri/capabilities/default.json`, `src/lib/api.ts`, `src/bindings/`, `package.json`
 
@@ -70,8 +70,8 @@ Since: #35
 | Db | Database error: <text> | (empty) |
 | InvalidInput | Invalid input: <text> | (empty) |
 
-I/O errors, Tauri errors and JSON parse errors convert to `Io`, `Io` and `InvalidInput` respectively. Only `Io` from paths is produced so far; the other kinds are defined but no code raises them yet.
-Since: #35
+I/O errors, Tauri errors, JSON errors and SQLite errors (including migration errors) convert to `Io`, `Io`, `InvalidInput` and `Db` respectively. Raised so far: `Io` (paths, settings and preset files), `InvalidInput` (settings and preset validation, unknown preset) and `Db` (opening the history database, which is only logged, see HISTORY-001); the other kinds are defined but no code raises them yet.
+Since: #35 · Changed: #40, #41, #62
 
 ### APP-013 Exported translation contracts
 Rust types are exported to `src/bindings/*.ts` (one file per type, LF line endings). Field names are camelCase on the wire.
@@ -83,16 +83,16 @@ Rust types are exported to `src/bindings/*.ts` (one file per type, LF line endin
 - `IssueCategory` (snake_case, matches the model output): `spelling`, `grammar`, `article`, `tense`, `preposition`, `word_choice`, `vocabulary`, `punctuation`, `style`, `other`.
 - `TokenWarning`: `token`, `kind`; `TokenKind` (camelCase): `ticketId`, `identifier`, `fileName`, `path`, `url`, `codeSpan`, `number`.
 - `ErrorKind` and `AppErrorPayload` as in APP-011/012.
-No command uses these yet.
-Since: #35
+Only `Mode` is used by a command so far (`detect_mode`, `set_last_popup_mode`); the translation request/result types have no command yet.
+Since: #35 · Changed: #60
 
 ### APP-014 Regenerating bindings
 `npm run bindings` runs the Rust export tests (`cargo test export_bindings` in `src-tauri`), which write the TypeScript files into `src/bindings/`. Git keeps `src/bindings/*.ts` on LF endings regardless of `core.autocrlf`, so regeneration does not show modified files.
 Since: #35 · Changed: #88
 
 ### APP-015 UI-to-core access
-The UI calls Rust only through typed wrappers in `src/lib/api.ts`; today the only wrapper is `ping()` (command `ping`, returns the string "pong"). `ping` is the only registered command.
-Since: #35
+The UI calls Rust only through typed wrappers in `src/lib/api.ts`: `ping()` (returns "pong"), `getSettings`, `saveSettings`, `setLastPopupMode` and `detectMode`. Registered commands: `ping`, `get_settings`, `save_settings`, `set_last_popup_mode`, `detect_mode`, `list_presets`, `save_preset`, `delete_preset`, `reset_presets`. The four preset commands have no wrapper in `api.ts` yet.
+Since: #35 · Changed: #40, #41, #60
 
 ### APP-016 Webview security
 Release CSP: `default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src ipc: http://ipc.localhost` (no remote network, no inline scripts). The dev CSP additionally allows inline scripts and connections to `http://localhost:1420` and `ws://localhost:1420`.
@@ -105,6 +105,10 @@ Since: #34 · Changed: #35
 ### APP-018 Developer scripts
 `npm run dev` (Vite on fixed port 1420, fails if taken), `build` (`tsc && vite build`, producing both `index.html` and `popup.html` pages into `dist/`), `lint` (`eslint .`), `typecheck` (`tsc --noEmit` for the app and the node config), `format` (`prettier --write .`), `bindings` (APP-014), `tauri` (Tauri CLI). `tauri dev` runs `npm run dev` first and `tauri build` runs `npm run build` first.
 Since: #34
+
+### APP-019 Continuous integration
+A GitHub Actions workflow (`CI`) runs on pull requests into and pushes to `develop`, `release/**` and `main`, on `windows-latest`: `npm ci`, lint, typecheck, frontend build, `cargo fmt --check`, `cargo clippy --all-targets --locked -- -D warnings`, `npm run bindings`, then fails if `src/bindings` differs from the committed files. A newer run on the same ref cancels the older one. No tests, network or LLM calls.
+Since: #36
 
 ## Known issues
 

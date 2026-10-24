@@ -1,17 +1,22 @@
 # Prompt Translator: behaviour spec
 
 > What Prompt Translator does **now**: only implemented behaviour. Planned changes are in `docs/plans/`, as spec deltas on their tasks.
-> Synced to: `6d1cd87` (2026-10-24): every change on `develop` up to this commit is reflected here.
+> Synced to: `42525a7` (2026-10-24): every change on `develop` up to this commit is reflected here.
 
 ## Overview
 
-Prompt Translator is a Windows tray app for practising English while working with Claude Code: it will translate, improve or correct a prompt typed in Russian (or another language, or mixed with English), explain the mistakes, and keep a history. It is a Tauri 2 desktop app: a Rust core owns all I/O and a React webview renders the UI, talking to the core only through typed commands. So far only the app shell exists: the main window and popup entry, app identity and icons, data folders, logging, the error format and the shared data contracts. Translation, history, settings, the tray, hotkeys and setup are not implemented yet.
+Prompt Translator is a Windows tray app for practising English while working with Claude Code: it will translate, improve or correct a prompt typed in Russian (or another language, or mixed with English), explain the mistakes, and keep a history. It is a Tauri 2 desktop app: a Rust core owns all I/O and a React webview renders the UI, talking to the core only through typed commands. So far the app shell exists (placeholder main window and popup entry, app identity and icons, data folders, logging, the error format, shared data contracts) plus core building blocks with no UI yet: the settings and preset stores, the history database, the technical-token check, mode detection and layout conversion. Translation, providers, the tray, hotkeys, the history/settings screens and setup are not implemented yet.
 
 ## Areas
 
 | Area | File | Covers |
 |---|---|---|
-| App core | [app.md](app.md) | Windows, identity and icons, data folders, logging, error format, exported contracts, webview security, developer contracts |
+| App core | [app.md](app.md) | Windows, identity and icons, data folders, logging, error format, exported contracts, webview security, developer contracts, CI |
+| Settings | [settings.md](settings.md) | `settings.json`: fields, defaults, loading, validation, saving, commands |
+| Presets | [presets.md](presets.md) | Preset files, the four built-ins, seeding, validation, list/save/delete/reset |
+| History | [history.md](history.md) | SQLite history database, search, "my mistakes" summary (no commands yet) |
+| Translation helpers | [translation.md](translation.md) | Technical-token check and mode detection |
+| Layout fix | [layout-fix.md](layout-fix.md) | US/Russian wrong-layout text conversion (not wired yet) |
 
 ## Glossary
 
