@@ -48,7 +48,7 @@ Git Flow, adapted for a project worked on by Claude sessions.
 | Branch | Purpose | Created from | Merges into | Lives |
 |---|---|---|---|---|
 | `main` | **Released code only.** Starts at the project setup commits and changes only when a release or hotfix merges in. Every such merge is tagged `vX.Y.Z`. | — | — | permanently |
-| `develop` | **Integration branch** and the repo's GitHub default branch. Every ticket PR targets it and is checked before merging; it must always build and pass lint (the full check). | `main` (setup commits) | `release/*` (by branching off) | permanently |
+| `develop` | **Integration branch** and the repo's GitHub default branch. Every ticket PR targets it and passes the full check locally before merging; it must always build and pass lint (the full check). | `main` (setup commits) | `release/*` (by branching off) | permanently |
 | `feature/<n>-<slug>`, `fix/…`, `refactor/…`, `docs/…`, `chore/…` | One ticket each | latest `origin/develop` | `develop` (squash) | until merged |
 | `release/<X.Y.Z>` | **Stabilizes one milestone:** bug fixes, version bump and changelog only; no new features | `develop`, once the milestone's tickets are merged | `main` (merge commit + tag), then back into `develop` | until released |
 | `hotfix/<n>-<slug>` | **Urgent fix to the released version** | latest `origin/main` | `main` (merge commit + tag), then `develop` and any open `release/*` | until released |
@@ -129,6 +129,6 @@ The owner explicitly approves every step that merges into `main` or a `release/*
 
 ## 9. CI
 
-`.github/workflows/ci.yml` (T4, #36) runs the full check (§2: build, lint and the bindings diff) on `windows-latest` for pull requests into `develop`, `release/*` and `main`, and for pushes to those branches. No automated tests, and no network or LLM calls in CI. `.github/workflows/release.yml` (T31, #66) runs on `v*` tags.
+`.github/workflows/ci.yml` (T4, #36) runs the full check (§2: build, lint and the bindings diff) on `windows-latest` **for release builds only**: pull requests into `release/*` and `main`, and pushes to those branches. Ticket PRs into `develop` and pushes to `develop` don't run CI; the full check run locally (by the coordinator's final gate, or by hand) is the only check before they merge. No automated tests, and no network or LLM calls in CI. `.github/workflows/release.yml` (T31, #66) runs on `v*` tags.
 
-The workflow is real since T4 (#36). Actions are pinned to commit SHAs (update them deliberately), and runs of the same ref cancel older ones. Run the full check locally before pushing so CI doesn't fail on something you could have caught.
+The workflow is real since T4 (#36). Actions are pinned to commit SHAs (update them deliberately), and runs of the same ref cancel older ones. Always run the full check locally before pushing: for ticket PRs nothing else checks it, and for release builds it keeps CI from failing on something you could have caught.

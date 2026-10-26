@@ -107,7 +107,7 @@ Since: #34 · Changed: #35
 Since: #34
 
 ### APP-019 Continuous integration
-A GitHub Actions workflow (`CI`) runs on pull requests into and pushes to `develop`, `release/**` and `main`, on `windows-latest`: `npm ci`, lint, typecheck, frontend build, `cargo fmt --check`, `cargo clippy --all-targets --locked -- -D warnings`, `npm run bindings`, then fails if `src/bindings` differs from the committed files. A newer run on the same ref cancels the older one. No tests, network or LLM calls.
+A GitHub Actions workflow (`CI`) runs for release builds only, on pull requests into and pushes to `release/**` and `main` (not `develop`), on `windows-latest`: `npm ci`, lint, typecheck, frontend build, `cargo fmt --check`, `cargo clippy --all-targets --locked -- -D warnings`, `npm run bindings`, then fails if `src/bindings` differs from the committed files. A newer run on the same ref cancels the older one. No tests, network or LLM calls.
 Since: #36
 
 ## Known issues

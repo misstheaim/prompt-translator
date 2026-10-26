@@ -537,8 +537,8 @@ Totals: **9 epics, 23 stories, 47 tasks.**
 - **Suggested model:** Sonnet 5.5 (confidence: High). Clear contract, boilerplate.
 
 ### T4. GitHub Actions CI for build and lint  `cloud` · parent: S1.1 · issue: #36
-- **Goal:** every push runs the checks in §4.10.
-- **Details:** `.github/workflows/ci.yml` on `windows-latest`, triggered by `pull_request` into `develop`, `release/**` and `main` and by `push` to those branches (`docs/development.md` §9), `permissions: contents: read`, actions pinned to commit SHAs. Steps:
+- **Goal:** every release build (PR or push into `release/**` or `main`) runs the checks in §4.10.
+- **Details:** `.github/workflows/ci.yml` on `windows-latest`, triggered by `pull_request` into `release/**` and `main` and by `push` to those branches, release builds only (changed 2026-10-27; `docs/development.md` §9), `permissions: contents: read`, actions pinned to commit SHAs. Steps:
   1. checkout;
   2. setup-node (LTS, npm cache);
   3. `dtolnay/rust-toolchain@stable` with clippy and rustfmt;
@@ -1214,6 +1214,7 @@ Critical path: T1 → T2 → T3 → T11 → T12 → T20 → T21 → T26 → T7. 
 
 ## 8. Review notes
 
+- **Changed 2026-10-27:** CI runs for release builds only (owner's decision): PRs into and pushes to `release/**` and `main`, no longer `develop`; ticket PRs rely on the local full check (T4, `docs/development.md` §9, APP-019).
 - **Changed 2026-10-24:** spike T37 (#72) outcome folded in as D42 (owner decision): the spike could not run (the agent's safety classifier blocked the console injector), so E9 (S9.2 #31, T38-T40 #73-#75, and T37 itself) is on hold and removed from v0.1.0, which ships with Clipboard only. Also dropped the unused `claude-config` app folder and `claude_config_dir()` (D41 removed the dedicated config dir) from D27 and T3.
 - **Changed 2026-10-24:** spike T16 (#48) outcome folded in as D41 (owner decision): `--safe-mode` + `--setting-sources ""` with the normal login, contract in `docs/spikes/claude-invocation.json`; no dedicated config dir or `claude_open_login`; translator runs are visible to `claude agents --json`, so T38/T39 exclude them by name and `TranslatorPids`; T17b gained a no-console-flash manual check.
 - **Added 2026-10-14:** the Git Flow workflow (D39, `docs/development.md`, project `CLAUDE.md`) and milestone `v0.1.0`; T1, T2, T4, T7 and T31 were aligned with it. No test cases were backfilled into the tickets (owner's choice).
