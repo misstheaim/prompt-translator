@@ -1,10 +1,11 @@
 name: CI
 
+# Release builds only: ticket PRs into develop rely on the local full check (docs/development.md §9).
 on:
   pull_request:
-    branches: [develop, "release/**", main]
+    branches: ["release/**", main]
   push:
-    branches: [develop, "release/**", main]
+    branches: ["release/**", main]
 
 permissions:
   contents: read
