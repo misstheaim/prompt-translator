@@ -10,6 +10,7 @@ use super::providers::claude_code;
 use super::providers::ollama::OllamaProvider;
 use super::service::TranslationService;
 use crate::error::{AppError, AppResult};
+use crate::history::{self, AcceptedTarget};
 use crate::settings::SettingsStore;
 
 /// Picks Translate or Correct for the popup; `last` is used when the text is too short to tell.
@@ -45,14 +46,16 @@ pub async fn provider_status(settings: State<'_, SettingsStore>) -> AppResult<Pr
 
 /// Accept with the Clipboard target: writes the text to the clipboard.
 #[tauri::command]
-pub fn copy_result(app: AppHandle, text: String, history_id: Option<i64>) -> AppResult<()> {
+pub async fn copy_result(app: AppHandle, text: String, history_id: Option<i64>) -> AppResult<()> {
     if text.trim().is_empty() {
         return Err(AppError::InvalidInput("There is nothing to copy".into()));
     }
     app.clipboard()
         .write_text(text)
         .map_err(|e| AppError::Io(format!("Can't write to the clipboard: {e}")))?;
-    // T28: mark the history entry `history_id` as accepted with target `clipboard`.
-    let _ = history_id;
+    if let Some(id) = history_id {
+        // A history problem never fails the copy.
+        history::commands::mark_accepted(&app, id, AcceptedTarget::Clipboard).await;
+    }
     Ok(())
 }

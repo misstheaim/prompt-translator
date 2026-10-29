@@ -65,21 +65,27 @@ pub fn run() {
 
             let settings = settings::SettingsStore::load(system::paths::settings_file()?);
             let presets = presets::PresetStore::open(system::paths::presets_dir()?);
+            // History must never stop the app: without the database it is not managed, the
+            // service skips saving and the history commands return an error.
+            let history = match history::HistoryDb::open(&system::paths::history_db()?) {
+                Ok(db) => {
+                    app.manage(db.clone());
+                    Some(db)
+                }
+                Err(e) => {
+                    log::warn!("History database unavailable: {e}");
+                    None
+                }
+            };
             // The service shares the stores with their commands (clones are handles).
             app.manage(translation::service::TranslationService::new(
                 settings.clone(),
                 presets.clone(),
                 translation::providers::registry(translator_pids, housekeeping),
+                history,
             ));
             app.manage(settings);
             app.manage(presets);
-            // History must never stop the app: without the database, saving is skipped.
-            match history::HistoryDb::open(&system::paths::history_db()?) {
-                Ok(db) => {
-                    app.manage(db);
-                }
-                Err(e) => log::warn!("History database unavailable: {e}"),
-            }
 
             system::tray::init(app.handle())?;
             system::autostart::init(app.handle());
@@ -106,7 +112,12 @@ pub fn run() {
             presets::commands::list_presets,
             presets::commands::save_preset,
             presets::commands::delete_preset,
-            presets::commands::reset_presets
+            presets::commands::reset_presets,
+            history::commands::history_list,
+            history::commands::history_get,
+            history::commands::history_delete,
+            history::commands::history_clear,
+            history::commands::mistakes_summary
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

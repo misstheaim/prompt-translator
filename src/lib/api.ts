@@ -4,6 +4,10 @@ import { invoke } from "@tauri-apps/api/core";
 
 import type { AppErrorPayload } from "../bindings/AppErrorPayload";
 import type { ErrorKind } from "../bindings/ErrorKind";
+import type { HistoryEntry } from "../bindings/HistoryEntry";
+import type { HistoryEntrySummary } from "../bindings/HistoryEntrySummary";
+import type { IssueFilter } from "../bindings/IssueFilter";
+import type { MistakesSummary } from "../bindings/MistakesSummary";
 import type { Mode } from "../bindings/Mode";
 import type { Preset } from "../bindings/Preset";
 import type { ProviderStatus } from "../bindings/ProviderStatus";
@@ -113,6 +117,42 @@ export function providerStatus(): Promise<ProviderStatus> {
 /** Accept with the Clipboard target: copies the text (Rust writes the clipboard). */
 export function copyResult(text: string, historyId: number | null = null): Promise<void> {
   return call<void>("copy_result", { text, historyId });
+}
+
+// ---- history ----
+
+/** Newest first. `query` searches source and output; `issue` keeps entries with that mistake. */
+export function historyList(args: {
+  query?: string | null;
+  issue?: IssueFilter | null;
+  limit: number;
+  offset: number;
+}): Promise<HistoryEntrySummary[]> {
+  return call<HistoryEntrySummary[]>("history_list", {
+    query: args.query ?? null,
+    issue: args.issue ?? null,
+    limit: args.limit,
+    offset: args.offset,
+  });
+}
+
+/** One entry with its issues; rejects with `InvalidInput` when it doesn't exist. */
+export function historyGet(id: number): Promise<HistoryEntry> {
+  return call<HistoryEntry>("history_get", { id });
+}
+
+export function historyDelete(id: number): Promise<void> {
+  return call<void>("history_delete", { id });
+}
+
+/** Deletes the whole history. */
+export function historyClear(): Promise<void> {
+  return call<void>("history_clear");
+}
+
+/** The "my mistakes" aggregates for the last `sinceDays` days (all when null). */
+export function mistakesSummary(sinceDays: number | null = null): Promise<MistakesSummary> {
+  return call<MistakesSummary>("mistakes_summary", { sinceDays });
 }
 
 // ---- system ----
