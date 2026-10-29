@@ -37,6 +37,8 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         // Used from Rust only (`open_url`, allow-listed URLs); the webview gets no opener permission.
         .plugin(tauri_plugin_opener::init())
+        // Used from Rust only (layout-fix hints); the webview gets no notification permission.
+        .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             system::paths::init(app.handle())?;
 

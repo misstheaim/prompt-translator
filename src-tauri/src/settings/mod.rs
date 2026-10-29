@@ -147,7 +147,24 @@ impl Settings {
         if self.layout_fix.enabled && self.layout_fix.hotkey.trim().is_empty() {
             return Err(invalid("The layout fix hotkey must not be empty"));
         }
+        if self.layout_fix.enabled && same_hotkey(&self.layout_fix.hotkey, &self.hotkey) {
+            return Err(invalid(
+                "The layout fix hotkey must be different from the global hotkey",
+            ));
+        }
         Ok(())
+    }
+}
+
+/// Whether two hotkey strings name the same combination: compared as parsed shortcuts (so
+/// modifier order and case don't matter), or as text when one doesn't parse.
+fn same_hotkey(a: &str, b: &str) -> bool {
+    use std::str::FromStr;
+    use tauri_plugin_global_shortcut::Shortcut;
+
+    match (Shortcut::from_str(a.trim()), Shortcut::from_str(b.trim())) {
+        (Ok(a), Ok(b)) => a == b,
+        _ => a.trim().eq_ignore_ascii_case(b.trim()),
     }
 }
 
