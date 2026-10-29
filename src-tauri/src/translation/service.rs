@@ -100,6 +100,16 @@ impl TranslationService {
     /// unavailable provider, duplicate `request_id`), `Cancelled`, `Timeout`, the parser's
     /// `EmptyOutput` / `MalformedOutput`, and whatever the provider returns.
     pub async fn translate(&self, req: TranslationRequest) -> AppResult<TranslationResult> {
+        self.translate_with(req, self.settings.get()).await
+    }
+
+    /// Like [`translate`](Self::translate), but with the given settings instead of the saved
+    /// ones (the setup benchmark runs a model that isn't the selected one yet).
+    pub async fn translate_with(
+        &self,
+        req: TranslationRequest,
+        settings: Settings,
+    ) -> AppResult<TranslationResult> {
         let started = Instant::now();
         validate(&req)?;
         // Registered first, so a cancel that arrives while the prompt is being prepared still
@@ -107,7 +117,6 @@ impl TranslationService {
         let registration = self.register(&req.request_id)?;
         let cancel = registration.token.clone();
 
-        let settings = self.settings.get();
         let preset = self.presets.get(&req.preset_id).ok_or_else(|| {
             AppError::InvalidInput(format!("The preset \"{}\" doesn't exist", req.preset_id))
         })?;

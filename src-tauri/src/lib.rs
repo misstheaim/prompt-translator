@@ -91,6 +91,7 @@ pub fn run() {
             ));
             app.manage(settings);
             app.manage(presets);
+            app.manage(setup::ollama_setup::SetupTasks::default());
 
             system::tray::init(app.handle())?;
             system::autostart::init(app.handle());
@@ -128,7 +129,13 @@ pub fn run() {
             history::commands::history_delete,
             history::commands::history_clear,
             history::commands::mistakes_summary,
-            setup::commands::environment_check
+            setup::commands::environment_check,
+            setup::commands::ollama_install,
+            setup::commands::ollama_start,
+            setup::commands::ollama_pull,
+            setup::commands::ollama_benchmark,
+            setup::commands::cancel_setup_task,
+            setup::commands::complete_setup
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

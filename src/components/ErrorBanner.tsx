@@ -1,6 +1,8 @@
+import { useState } from "react";
+
 import type { AppErrorPayload } from "../bindings/AppErrorPayload";
 import type { ErrorKind } from "../bindings/ErrorKind";
-import { LINKS, openUrl, toAppError } from "../lib/api";
+import { LINKS, ollamaStart, openUrl, toAppError } from "../lib/api";
 import { useAppStore } from "../store/app";
 import { Banner, type BannerVariant } from "./Banner";
 import { Button } from "./Button";
@@ -53,13 +55,35 @@ export function ErrorBanner({
   const setScreen = useAppStore((s) => s.setScreen);
   const showToast = useAppStore((s) => s.showToast);
   const info = KINDS[error.kind] ?? KINDS.Io;
+  const [starting, setStarting] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
 
   function openLink(url: string) {
     openUrl(url).catch((e: unknown) => showToast("error", toAppError(e).message));
   }
 
+  // Starts Ollama, then retries the request that failed.
+  function startOllama() {
+    setStarting(true);
+    setStartError(null);
+    ollamaStart()
+      .then(() => {
+        setStarting(false);
+        onRetry?.();
+      })
+      .catch((e: unknown) => {
+        setStarting(false);
+        setStartError(toAppError(e).message);
+      });
+  }
+
   const actions = (
     <>
+      {error.kind === "OllamaUnreachable" && (
+        <Button size="sm" variant="primary" disabled={starting} onClick={startOllama}>
+          {starting ? "Starting Ollama..." : "Start Ollama"}
+        </Button>
+      )}
       {info.installLink && (
         <Button size="sm" variant="ghost" onClick={() => openLink(LINKS.claudeCodeSetup)}>
           Install help
@@ -82,6 +106,7 @@ export function ErrorBanner({
     <Banner variant={info.variant} actions={actions} className={className}>
       <p className="font-medium">{error.message}</p>
       {error.hint && <p className="text-muted">{error.hint}</p>}
+      {startError && <p className="text-muted">Couldn&apos;t start Ollama: {startError}</p>}
       {error.detail && (
         <details className="mt-1">
           <summary className="cursor-pointer text-xs text-muted">Details</summary>

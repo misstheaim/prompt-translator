@@ -1,8 +1,10 @@
 // Typed wrappers around Tauri commands. The UI never calls `invoke` directly (plan D3).
 // One section per Rust module; each backend task adds its own section.
 import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
 import type { AppErrorPayload } from "../bindings/AppErrorPayload";
+import type { BenchmarkResult } from "../bindings/BenchmarkResult";
 import type { ErrorKind } from "../bindings/ErrorKind";
 import type { EnvironmentReport } from "../bindings/EnvironmentReport";
 import type { HistoryEntry } from "../bindings/HistoryEntry";
@@ -13,6 +15,7 @@ import type { Mode } from "../bindings/Mode";
 import type { Preset } from "../bindings/Preset";
 import type { ProviderStatus } from "../bindings/ProviderStatus";
 import type { Settings } from "../bindings/Settings";
+import type { SetupProgress } from "../bindings/SetupProgress";
 import type { TranslationRequest } from "../bindings/TranslationRequest";
 import type { TranslationResult } from "../bindings/TranslationResult";
 
@@ -191,4 +194,42 @@ export function openUrl(url: string): Promise<void> {
 /** GPU, RAM, Ollama, winget and Claude Code status, plus the recommended model tier. */
 export function environmentCheck(): Promise<EnvironmentReport> {
   return call<EnvironmentReport>("environment_check");
+}
+
+/**
+ * Installs Ollama with winget; output arrives as `setup://progress` (see `onSetupProgress`).
+ * Rejects with `InvalidInput` when winget is missing: open `LINKS.ollamaDownload` then.
+ */
+export function ollamaInstall(): Promise<void> {
+  return call<void>("ollama_install");
+}
+
+/** Starts Ollama if needed and resolves once it answers (up to 30 s). */
+export function ollamaStart(): Promise<void> {
+  return call<void>("ollama_start");
+}
+
+/** Downloads a model and selects it as the Ollama model; progress via `onSetupProgress`. */
+export function ollamaPull(model: string): Promise<void> {
+  return call<void>("ollama_pull", { model });
+}
+
+/** Times a Translate and a Correct run with `model` and reads the GPU offload. */
+export function ollamaBenchmark(model: string): Promise<BenchmarkResult> {
+  return call<BenchmarkResult>("ollama_benchmark", { model });
+}
+
+/** Cancels the running install wait, Ollama start or model download. */
+export function cancelSetupTask(): Promise<void> {
+  return call<void>("cancel_setup_task");
+}
+
+/** Marks the first-run setup as done. */
+export function completeSetup(): Promise<void> {
+  return call<void>("complete_setup");
+}
+
+/** Listens to `setup://progress`; resolves with the function that stops listening. */
+export function onSetupProgress(handler: (progress: SetupProgress) => void): Promise<UnlistenFn> {
+  return listen<SetupProgress>("setup://progress", (event) => handler(event.payload));
 }
