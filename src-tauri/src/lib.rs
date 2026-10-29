@@ -23,6 +23,8 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         // Used from Rust only (`pick_file`); the webview gets no dialog permission.
         .plugin(tauri_plugin_dialog::init())
+        // Used from Rust only (`open_url`, allow-listed URLs); the webview gets no opener permission.
+        .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             system::paths::init(app.handle())?;
 
@@ -77,6 +79,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             system::commands::ping,
             system::commands::pick_file,
+            system::commands::open_url,
             settings::commands::get_settings,
             settings::commands::save_settings,
             settings::commands::set_last_popup_mode,
