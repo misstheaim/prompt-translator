@@ -34,10 +34,15 @@ pub struct ProviderStatus {
 }
 
 /// Every provider the app registers with the translation service. The service still refuses
-/// the mock outside debug builds unless `devMockProvider` is on.
-pub fn registry() -> Vec<Arc<dyn TranslationProvider>> {
+/// the mock outside debug builds unless `devMockProvider` is on. `pids` and `housekeeping` are
+/// handles to the app's shared translator-run registry and run counter.
+pub fn registry(
+    pids: claude_code::TranslatorPids,
+    housekeeping: claude_code::Housekeeping,
+) -> Vec<Arc<dyn TranslationProvider>> {
     vec![
         Arc::new(mock::MockProvider),
         Arc::new(ollama::OllamaProvider::new()),
+        Arc::new(claude_code::ClaudeCodeProvider::new(pids, housekeeping)),
     ]
 }

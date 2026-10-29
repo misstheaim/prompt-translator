@@ -1,13 +1,17 @@
-//! `claude_code` provider (plan T17a, D41): finding Claude Code, its status, the registry of the
-//! app's own translator runs and the cleanup of the translator's dirs. The translation run
-//! itself (T17b) is built on these pieces.
+//! `claude_code` provider (plan T17a, T17b, D41): finding Claude Code, its status, the registry
+//! of the app's own translator runs, the cleanup of the translator's dirs, and the translation
+//! run itself ([`ClaudeCodeProvider`]).
 
 pub mod detect;
 pub mod housekeeping;
+#[cfg(windows)]
+mod job;
+pub mod provider;
 pub mod registry;
 
 pub use detect::{ClaudeExe, ExeKind, find_claude, status};
 pub use housekeeping::Housekeeping;
+pub use provider::ClaudeCodeProvider;
 pub use registry::{TRANSLATOR_NAME, TranslatorPids, is_translator_run};
 
 /// Environment variables removed from every `claude` process the app spawns, so a Claude Code
