@@ -4,6 +4,7 @@ import { DevMockPanel } from "./components/DevMockPanel";
 import { ErrorBanner } from "./components/ErrorBanner";
 import { ToastHost } from "./components/Toast";
 import { cx } from "./lib/cx";
+import { SettingsScreen } from "./screens/Settings/SettingsScreen";
 import { TranslateScreen } from "./screens/Translate/TranslateScreen";
 import { initAppStore, SCREENS, useAppStore, type Screen } from "./store/app";
 
@@ -90,7 +91,13 @@ function App() {
 
       <main className="min-h-0 flex-1 overflow-auto p-4">
         {screen === "translate" && import.meta.env.DEV && <DevMockPanel />}
-        {screen === "translate" ? <TranslateScreen /> : <ScreenPlaceholder screen={screen} />}
+        {screen === "translate" ? (
+          <TranslateScreen />
+        ) : screen === "settings" ? (
+          <SettingsScreen />
+        ) : (
+          <ScreenPlaceholder screen={screen} />
+        )}
       </main>
       <ToastHost />
     </div>
