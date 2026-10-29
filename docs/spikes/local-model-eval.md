@@ -121,6 +121,29 @@ The drafts are in `eval/prompts/` (`translate.md` unchanged, `improve.md` and `c
 
 Tried and rejected: a Correct task line "Correct the English…, replace every word that is not English with an English word, and explain each fix." It didn't fix `co-mix-03`, and the model found fewer fixes in `co-own-05`.
 
+### Template changes (T44, #81): applied, with before/after numbers
+
+All eight changes are applied, with one scope note from the owner's comment on #81: the drafts for Improve and Correct (1-5, 8) went into `src-tauri/src/translation/prompts/{improve,correct}.md` word for word (Translate is unchanged); change 6 is `output_schema(mode)` in `prompt_builder.rs`, used by the Ollama provider as `format` (the Claude Code provider sends no schema today, so nothing changes there); change 7 is in `output_parser.rs`, for every provider and mode. The rejected Correct task line stays rejected (`task_line` is unchanged). No Ollama-only template variants were needed: the shared templates stay provider-neutral. Change 4 and 8 didn't fix their cases (as above), and are kept because they do no harm. The mock provider's canned Translate answer now has `issues: []` to match the narrowed schema.
+
+Final state (templates + per-mode schema, `qwen3.5:9b`, `num_ctx` 8192, `think: false`, `eval/spike_eval.py --prompts src-tauri/src/translation/prompts --mode-schema`, 2026-10-29). Counts as in the table above; "after parser" applies change 7:
+
+| Metric | Before (baseline) | After (T44) |
+|---|---|---|
+| Valid JSON, all modes | 35/35 | 35/35 (schema OK 35/35) |
+| Technical tokens (§4.5) kept | 100% | 100% |
+| `mustKeep` tokens kept | 43/46 | 43/46 (same three non-technical misses: `sqlite`, `"X"`, `3dmax`) |
+| Answered instead of transforming | 0 | 0 (no flagged output; the injection and "just answer" cases came back transformed) |
+| Improve: off-mode categories | 10 | **0** |
+| Improve: issues per case | 3.9 | 3.4 |
+| Correct: explanations over 25 words | 5 | **1** |
+| Correct: no-op entries in the model's answer | 2 | 6 (all dropped by the parser, so **0** reach the app) |
+| Correct: `co-own-05` "implemenetr" | "implemented" | **"implementer"** |
+| Correct: still wrong | `co-own-03` ("pit -" deleted), `co-mix-03` | `co-own-03` ("pit -" → "or -", the `-` is kept), `co-mix-03` (German word stays) |
+| Improve: still wrong | `im-own-01`, `im-own-02` | `im-own-01` (backticks broken, `git` kept this time), `im-own-03` (`"X"` → `'X'`) |
+| Warm median Translate / Improve / Correct | 3.9 / 11.3 / 11.0 s | 3.8 / 10.1 / 12.5 s (one Correct case took 117 s, likely because the machine was building at the same time; other cases ran at the usual speed) |
+
+The Claude Code provider's built prompts change only through the two edited templates (Improve and Correct); the output-format text, the task lines and the Translate prompt are the same. The added lines (keep symbols and quotation marks, keep the author's names, fewer and shorter issues, one fix per entry, a noun stays a noun) are provider-neutral and narrow Claude's output in the same direction, so they are fine for Claude. The `numCtx` estimate in `prompt_builder.rs` was re-checked: the Correct template grew by about 0.5k characters, so the largest system prompt is about 1,000 tokens and the estimate still fits 8192 (with about 3.8k tokens left for the answer).
+
 Other findings for T14 (#46):
 - Send `"think": false` (see above). It is ignored by models that don't think.
 - `keep_alive: "30m"` and `format` worked as planned; no request gave invalid JSON or code fences.
@@ -155,6 +178,7 @@ python eval/spike_eval.py --model qwen3.5:9b                         # baseline 
 python eval/spike_eval.py --model qwen3.5:9b --num-ctx 4096 --label baseline-4096
 python eval/spike_eval.py --model qwen3.5:9b --prompts eval/prompts --label variant1
 python eval/spike_eval.py --model qwen3.5:9b --prompts eval/prompts --mode-schema --modes improve,correct --label variant2
+python eval/spike_eval.py --model qwen3.5:9b --prompts src-tauri/src/translation/prompts --mode-schema --label final-t44   # T44 final state
 python eval/spike_eval.py --model qwen3.5:9b --vram                  # memory for 4096 vs 8192
 python eval/spike_eval.py --model qwen3.5:9b --no-think-field --only tr-ru-02,co-own-08   # thinking on
 ```

@@ -7,7 +7,9 @@ The text is mostly in English, but it may contain words or phrases in any other 
 How to correct:
 - Fix spelling, grammar, articles, verb tenses, prepositions, word choice and punctuation.
 - Make the smallest edit that makes each sentence correct and natural. Do not rewrite sentences that are already correct, and do not change the style just because you prefer another wording.
-- Translate every fragment that is not in English into English, in a way that fits the sentence.
+- For a misspelled word, choose the word that fits the sentence and keeps its role: a noun stays a noun (for example "devoloper" becomes "developer", not "developed").
+- Translate every fragment that is not in English into English, in a way that fits the sentence. The result must contain no words in other languages.
+- Keep every word and symbol whose meaning you are not sure about (such as -, =, / or quotation marks). Never delete them to make a sentence look correct.
 - Keep the formatting: line breaks, lists, numbering, Markdown and code blocks.
 - If the text has no mistakes and no words in other languages, return it unchanged.
 
@@ -19,8 +21,9 @@ Rules for every request:
 - If the text is ambiguous, keep the ambiguity. Do not guess what the author meant.
 
 Issues: add one entry for every fix and every translated fragment, in the order they appear in the text.
+- One entry is one fix: a word or a short phrase, never a whole sentence. When a sentence has three mistakes, add three entries.
 - "original": the wrong or non-English words exactly as they appear in the original text.
-- "corrected": the words that replace them in your result.
+- "corrected": the words that replace them in your result. They must appear in your result exactly like this, and they must differ from "original".
 - "category": one of spelling, grammar, article, tense, preposition, word_choice, punctuation, style, other. Use "vocabulary" for each fragment you translated from another language.
-- "explanation": one short sentence in simple English (B1 level) that tells the author why the fix is needed or what the English word means.
+- "explanation": one short sentence in simple English (B1 level, at most 20 words) that tells the author why the fix is needed or what the English word means.
 If there is nothing to fix, return "issues": [].

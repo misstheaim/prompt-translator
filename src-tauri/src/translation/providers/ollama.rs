@@ -17,7 +17,7 @@ use ts_rs::TS;
 use crate::error::{AppError, AppResult};
 use crate::settings::Settings;
 use crate::translation::model::{Mode, ProviderKind};
-use crate::translation::prompt_builder::{BuiltPrompt, OUTPUT_SCHEMA};
+use crate::translation::prompt_builder::{BuiltPrompt, output_schema};
 use crate::translation::service::{ProviderOutput, RawOutput, TranslationProvider};
 
 const TEMPERATURE: f64 = 0.2;
@@ -165,7 +165,7 @@ fn request_body(prompt: &BuiltPrompt, settings: &Settings) -> Value {
         ],
         "stream": false,
         "think": false,
-        "format": &*OUTPUT_SCHEMA,
+        "format": output_schema(prompt.mode),
         "keep_alive": settings.ollama.keep_alive,
         "options": {
             "temperature": TEMPERATURE,
