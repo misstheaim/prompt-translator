@@ -1,8 +1,8 @@
 # History
 
-The SQLite database that holds every translation with its issues, and the "my mistakes" aggregates over it. Each successful translation is saved when history is on, and commands list, read, delete and summarise entries; no screen shows them yet.
+The SQLite database that holds every translation with its issues, and the "my mistakes" aggregates over it. Each successful translation is saved when history is on, and commands list, read, delete and summarise entries. The History tab lists and shows the entries (HISTORY-010) and the Mistakes tab shows the summary (HISTORY-011).
 
-> Code: `src-tauri/src/history/`, `src/bindings/HistoryEntry.ts` and related
+> Code: `src-tauri/src/history/`, `src/bindings/HistoryEntry.ts` and related, `src/screens/History/`, `src/screens/Mistakes/`
 
 ## Behaviour
 
@@ -48,6 +48,24 @@ Since: #63
 ### HISTORY-009 Accepted marking
 Copying a result with its `historyId` (TRANS-010) sets that entry's accepted target to `clipboard`, so the list and the entry show it as accepted. An id that no longer exists changes nothing.
 Since: #63
+
+### HISTORY-010 History screen
+The History tab has a search box ("Search source and output"; the list updates 300 ms after typing stops, trimmed text, HISTORY-004), the entries newest first in pages of 50 with a "Load more" button while a page came back full, and a detail panel.
+- Each row shows the mode badge, the provider, the date and time, and the source and output previews on one line each.
+- Empty states: "No history yet", or "No matching entries" while a text search or the mistake filter is active. A list error shows an error banner with Retry.
+- When `historyEnabled` is off an info banner says "History is turned off, so new translations aren't saved. Existing entries stay here." with an "Open settings" button.
+- Clicking a row loads the entry into the panel: mode, provider and model, date, full source and output, the issues (`original` struck through, an arrow, `corrected`, the category, the explanation), and, when there are token warnings, a banner "Missing from the output: <tokens>". "Select an entry to see it in full." shows until then.
+- Panel buttons: "Copy" copies the output and marks the entry accepted (TRANS-010, toast "Copied to clipboard"); "Open in Translate" fills the Translate screen with the entry's source, mode, provider and result and switches to it (TRANS-013); "Delete" asks "Delete this entry?" and then removes it from the list and shows "Entry deleted".
+- A mistake filter set from the Mistakes tab (HISTORY-011) keeps only entries having that mistake and shows "Entries with the mistake <original> → <corrected>" with a "Clear filter" button. It stays set, also after leaving the tab, until cleared.
+Since: #64 · Changed: #65
+
+### HISTORY-011 Mistakes screen
+The Mistakes tab has a period switch, 7 days, 30 days (selected at first) or All time, and loads the summary (HISTORY-006) for it again on every switch; a failure shows an error banner with Retry. Sections:
+- **By category**: one bar per category, the longest scaled to the most frequent, with the count and the category's colour.
+- **Recurring mistakes**: each pair as `original → corrected`, its category and "×<count>"; "Nothing has repeated yet." when empty. Clicking a pair sets the History mistake filter to it and opens the History tab.
+- **Vocabulary**: `original → corrected`, "last seen <date>" and "×<count>"; "No new words yet." when empty.
+When all three are empty the screen shows "No mistakes recorded for this period. They appear here after Correct and Improve runs, which explain what you wrote wrong."
+Since: #65
 
 ## Known issues
 
