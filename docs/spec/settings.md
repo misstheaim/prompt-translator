@@ -1,6 +1,6 @@
 # Settings
 
-The app's user settings, stored in one `settings.json`. The core loads them at startup and serves them to the webview through commands. No screen edits them yet and, apart from `lastPopupMode`, nothing else in the app reads them.
+The app's user settings, stored in one `settings.json`. The core loads them at startup and serves them to the webview through commands. No screen edits them yet. The app reads them as follows: `lastPopupMode` (mode detection), `closeToTray` (APP-027), `autostart` (APP-029), `historyEnabled` (HISTORY-007), `ollama.*` and `claude.*` (the providers, `providers.md`) and `devMockProvider` (TRANS-008). `defaultProvider` is not read by anything yet, and there is no per-mode provider default.
 
 > Code: `src-tauri/src/settings/`, `src/lib/api.ts`, `src/bindings/Settings.ts`
 
@@ -9,10 +9,10 @@ The app's user settings, stored in one `settings.json`. The core loads them at s
 ### SETTINGS-001 Settings fields and defaults
 `Settings` (camelCase on the wire) has these fields and defaults:
 - `defaultProvider` `ollama`; `defaultPresetId` `technical-development`; `historyEnabled` true; `hotkey` `Ctrl+Shift+Space`; `autostart` false; `closeToTray` true; `setupCompleted` false; `autoCheckUpdates` true; `autoCopySelection` true; `sessionAppendHintShown` false; `lastPopupMode` `correct`; `devMockProvider` false.
-- `ollama`: `endpoint` `http://localhost:11434`, `model` `qwen2.5:7b`, `keepAlive` `30m`, `numCtx` 8192, `timeoutSecs` 60.
+- `ollama`: `endpoint` `http://localhost:11434`, `model` `qwen3.5:9b`, `keepAlive` `30m`, `numCtx` 8192, `timeoutSecs` 60.
 - `claude`: `executablePath` null (find claude.exe automatically), `model` `haiku`, `timeoutSecs` 90.
 - `layoutFix`: `enabled` true, `hotkey` `Ctrl+Alt+Space`, `switchInputLanguage` true.
-Since: #40
+Since: #40 · Changed: #46
 
 ### SETTINGS-002 Loading settings.json
 The file is read from the settings location (see APP-006) at startup. A missing file gives the defaults and nothing is written. A field missing from the file (also inside `ollama`, `claude`, `layoutFix`) takes its default; unknown fields are ignored and are not kept on the next save. Loaded values are not validated.
