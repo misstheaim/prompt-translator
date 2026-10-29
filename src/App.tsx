@@ -9,6 +9,7 @@ import { DevMockPanel } from "./components/DevMockPanel";
 import { ErrorBanner } from "./components/ErrorBanner";
 import { ToastHost } from "./components/Toast";
 import { cx } from "./lib/cx";
+import { HistoryScreen } from "./screens/History/HistoryScreen";
 import { SettingsScreen } from "./screens/Settings/SettingsScreen";
 import { TranslateScreen } from "./screens/Translate/TranslateScreen";
 import { useTranslateStore } from "./screens/Translate/store";
@@ -143,6 +144,8 @@ function App() {
         {screen === "translate" && import.meta.env.DEV && <DevMockPanel />}
         {screen === "translate" ? (
           <TranslateScreen />
+        ) : screen === "history" ? (
+          <HistoryScreen />
         ) : screen === "settings" ? (
           <SettingsScreen />
         ) : (
