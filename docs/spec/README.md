@@ -1,21 +1,22 @@
 # Prompt Translator: behaviour spec
 
 > What Prompt Translator does **now**: only implemented behaviour. Planned changes are in `docs/plans/`, as spec deltas on their tasks.
-> Synced to: `45c6d6b` (2026-10-24): every change on `develop` up to this commit is reflected here.
+> Synced to: `e71c304` (2026-10-29): every change on `develop` up to this commit is reflected here.
 
 ## Overview
 
-Prompt Translator is a Windows tray app for practising English while working with Claude Code: it will translate, improve or correct a prompt typed in Russian (or another language, or mixed with English), explain the mistakes, and keep a history. It is a Tauri 2 desktop app: a Rust core owns all I/O and a React webview renders the UI, talking to the core only through typed commands. So far the app shell exists (placeholder main window and popup entry, app identity and icons, data folders, logging, the error format, shared data contracts) plus core building blocks with no UI yet: the settings and preset stores, the history database, the technical-token check, mode detection and layout conversion, and the translation pipeline (prompt building, output parsing, the translation service and its commands) with a mock provider and a dev-only test panel. Real providers (Ollama, Claude Code), the tray, hotkeys, the history/settings screens and setup are not implemented yet.
+Prompt Translator is a Windows tray app for practising English while working with Claude Code: it will translate, improve or correct a prompt typed in Russian (or another language, or mixed with English), explain the mistakes, and keep a history. It is a Tauri 2 desktop app: a Rust core owns all I/O and a React webview renders the UI, talking to the core only through typed commands. So far the app shell exists (main window with four placeholder tabs, error banner and toasts, tray icon, close-to-tray, single instance and autostart, popup entry placeholder, app identity and icons, data folders, logging, the error format, shared data contracts) plus core building blocks with little UI yet: the settings and preset stores, the history database (translations are saved when history is on, with history commands), the technical-token check, mode detection and layout conversion, and the translation pipeline (prompt building, output parsing, the translation service and its commands) with the Ollama, Claude Code and mock providers, a provider status check and a dev-only test panel. The real screens (Translate, History, Mistakes, Settings), the popup, hotkeys and setup are not implemented yet.
 
 ## Areas
 
 | Area | File | Covers |
 |---|---|---|
-| App core | [app.md](app.md) | Windows, identity and icons, data folders, logging, error format, exported contracts, webview security, developer contracts, CI |
+| App core | [app.md](app.md) | Main window shell (tabs, error banner, toasts), tray, close-to-tray, single instance, autostart, identity and icons, data folders, logging, error format, exported contracts, webview security, developer contracts, CI |
 | Settings | [settings.md](settings.md) | `settings.json`: fields, defaults, loading, validation, saving, commands |
 | Presets | [presets.md](presets.md) | Preset files, the four built-ins, seeding, validation, list/save/delete/reset |
-| History | [history.md](history.md) | SQLite history database, search, "my mistakes" summary (no commands yet) |
-| Translation | [translation.md](translation.md) | Prompt building, output parsing, translate/cancel/copy commands, mock provider, technical-token check, mode detection |
+| History | [history.md](history.md) | SQLite history database, saving results, search, "my mistakes" summary, history commands |
+| Translation | [translation.md](translation.md) | Prompt building, per-mode output schema, output parsing, translate/cancel/copy commands, mock provider, technical-token check, mode detection |
+| Providers | [providers.md](providers.md) | Ollama and Claude Code providers, Claude Code detection and isolation, translator-run registry, provider status |
 | Layout fix | [layout-fix.md](layout-fix.md) | US/Russian wrong-layout text conversion (not wired yet) |
 
 ## Glossary

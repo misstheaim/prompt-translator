@@ -1,14 +1,14 @@
 # History
 
-The SQLite database that will hold every translation with its issues, and the "my mistakes" aggregates over it. Only the database and its repository exist: no command exposes them, nothing writes to it and no screen shows it yet.
+The SQLite database that holds every translation with its issues, and the "my mistakes" aggregates over it. Each successful translation is saved when history is on, and commands list, read, delete and summarise entries; no screen shows them yet.
 
 > Code: `src-tauri/src/history/`, `src/bindings/HistoryEntry.ts` and related
 
 ## Behaviour
 
 ### HISTORY-001 Database opening
-At startup the app opens `history.db` (see APP-006), creating the file if needed, turns on foreign keys and WAL journal mode, and applies pending migrations. If this fails the error is logged ("History database unavailable: ...") and the app starts anyway, without a history database.
-Since: #62
+At startup the app opens `history.db` (see APP-006), creating the file if needed, turns on foreign keys and WAL journal mode, and applies pending migrations. If this fails the error is logged ("History database unavailable: ...") and the app starts anyway, without a history database: nothing is saved (HISTORY-007) and the history commands fail (HISTORY-008).
+Since: #62 · Changed: #63
 
 ### HISTORY-002 Schema
 Migration 1 creates `translations` (id, `created_at`, mode, provider, model, preset id, source text, output text, duration in ms, token warnings as JSON text defaulting to `[]`, and nullable accepted target, session id and session name) and `issues` (id, translation id, category, original, corrected, explanation), with indexes on `created_at`, issue category and issue translation id. Deleting a translation deletes its issues.
@@ -32,6 +32,22 @@ Over the entries of the last N days (all entries when no limit is given), the su
 - recurring mistakes: original/corrected pairs (case-insensitive) that occur at least twice, most frequent first then most recent, at most 50, shown with the spelling and category of the latest occurrence;
 - vocabulary: pairs from `vocabulary` issues, most frequent first then most recent, at most 100, with count and the time of the latest entry containing them.
 Since: #62
+
+### HISTORY-007 Saving translations
+Every successful `translate` result, from any provider including the mock, is saved with its issues and token warnings before it is returned, when `historyEnabled` is on and the database is open; the result's `historyId` is the new entry's id. When `historyEnabled` is off, or the database is unavailable, or saving fails, nothing is saved, `historyId` is null and the translation still succeeds (a failure is only logged). Failed or cancelled requests are never saved. Turning history off does not delete existing entries.
+Since: #63
+
+### HISTORY-008 History commands
+- `history_list(query, issue, limit, offset)` (wrapper `historyList`): HISTORY-004; `limit` is clamped to 1-500.
+- `history_get(id)` (`historyGet`): the entry with its issues; an unknown id fails with `InvalidInput` "This history entry doesn't exist".
+- `history_delete(id)` (`historyDelete`) and `history_clear()` (`historyClear`): HISTORY-005; only `history_clear` removes everything.
+- `mistakes_summary(sinceDays)` (`mistakesSummary`): HISTORY-006; null means all entries.
+When the database could not be opened at startup, each of them fails with `Db` "The history database is unavailable".
+Since: #63
+
+### HISTORY-009 Accepted marking
+Copying a result with its `historyId` (TRANS-010) sets that entry's accepted target to `clipboard`, so the list and the entry show it as accepted. An id that no longer exists changes nothing.
+Since: #63
 
 ## Known issues
 
