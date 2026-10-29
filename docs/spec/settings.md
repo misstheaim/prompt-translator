@@ -1,6 +1,6 @@
 # Settings
 
-The app's user settings, stored in one `settings.json`. The core loads them at startup and serves them to the webview through commands; the Settings screen (SETTINGS-007 to SETTINGS-010) edits most of them. The app reads them as follows: `lastPopupMode` (the popup's mode fallback), `hotkey` and `autoCopySelection` (`popup.md`), `closeToTray` (APP-027), `autostart` (APP-029), `historyEnabled` (HISTORY-007), `defaultProvider` and `defaultPresetId` (the Translate screen's initial choices, TRANS-013), `ollama.*` and `claude.*` (the providers, `providers.md`) and `devMockProvider` (TRANS-008). There is no per-mode provider default. `layoutFix.*`, `setupCompleted`, `autoCheckUpdates` and `sessionAppendHintShown` are not read or editable yet.
+The app's user settings, stored in one `settings.json`. The core loads them at startup and serves them to the webview through commands; the Settings screen (SETTINGS-007 to SETTINGS-010) edits most of them. The app reads them as follows: `lastPopupMode` (the popup's mode fallback), `hotkey` and `autoCopySelection` (`popup.md`), `layoutFix.enabled`, `layoutFix.hotkey` and `layoutFix.switchInputLanguage` (`layout-fix.md`; not editable in the Settings screen yet), `setupCompleted` (set to true by `complete_setup`, SETUP-005; nothing reads it yet), `closeToTray` (APP-027), `autostart` (APP-029), `historyEnabled` (HISTORY-007), `defaultProvider` and `defaultPresetId` (the Translate screen's initial choices, TRANS-013), `ollama.*` and `claude.*` (the providers, `providers.md`) and `devMockProvider` (TRANS-008). There is no per-mode provider default. `autoCheckUpdates` and `sessionAppendHintShown` are not read or editable yet. `ollama.model` is also set by the model download (SETUP-003).
 
 > Code: `src-tauri/src/settings/`, `src/screens/Settings/`, `src/lib/api.ts`, `src/bindings/Settings.ts`
 
@@ -29,9 +29,10 @@ A save is refused with `InvalidInput` (nothing written, in-memory settings uncha
 - `claude.timeoutSecs` is outside 5-600: "The Claude timeout must be 5 to 600 seconds";
 - `ollama.numCtx` is outside 2048-32768: "The context size must be 2048 to 32768";
 - `hotkey` is empty or whitespace: "The hotkey must not be empty";
-- `layoutFix.enabled` is true and `layoutFix.hotkey` is empty or whitespace: "The layout fix hotkey must not be empty".
+- `layoutFix.enabled` is true and `layoutFix.hotkey` is empty or whitespace: "The layout fix hotkey must not be empty";
+- `layoutFix.enabled` is true and `layoutFix.hotkey` is the same combination as `hotkey` (compared as parsed shortcuts, so modifier order and case do not matter; as trimmed text ignoring case if one does not parse): "The layout fix hotkey must be different from the global hotkey".
 The checks run in this order and the first failure is reported.
-Since: #40
+Since: #40 · Changed: #78
 
 ### SETTINGS-005 Saving
 A valid save creates the settings folder if needed, writes `settings.json` as pretty-printed JSON through a temporary file that is then renamed over it, and replaces the current settings. Concurrent saves are applied one after another. `settings.json` first appears on the first save.

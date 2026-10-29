@@ -1,6 +1,6 @@
 # App core
 
-The application shell: what launches, the main window with its tabs, error banner and toasts, the tray, close-to-tray, single instance and autostart, app identity and icons, where data lives, logging, the error payload every command returns, the exported TypeScript contracts, and webview security. The four tabs show real screens: Translate (`translation.md`), History and Mistakes (`history.md`) and Settings (`settings.md`, `presets.md`); the Settings About tab is a placeholder, and in dev builds a mock panel sits above Translate. Behind them the core holds settings, presets, the history database, mode detection, the technical-token check and a translation service with the Ollama, Claude Code and mock providers (see the other area files). The global hotkey and the popup window are in `popup.md`; the popup page is still a placeholder.
+The application shell: what launches, the main window with its tabs, error banner and toasts, the tray, close-to-tray, single instance and autostart, app identity and icons, where data lives, logging, the error payload every command returns, the exported TypeScript contracts, and webview security. The four tabs show real screens: Translate (`translation.md`), History and Mistakes (`history.md`) and Settings (`settings.md`, `presets.md`); the Settings About tab is a placeholder, and in dev builds a mock panel sits above Translate. Behind them the core holds settings, presets, the history database, mode detection, the technical-token check and a translation service with the Ollama, Claude Code and mock providers (see the other area files). The global hotkeys and the popup window with its translate page are in `popup.md` and `layout-fix.md`; the commands for checking the machine and setting up Ollama are in `setup.md`.
 
 > Code: `src-tauri/src/lib.rs`, `src-tauri/src/error.rs`, `src-tauri/src/system/`, `src-tauri/src/translation/model.rs`, `src-tauri/tauri.conf.json`, `src-tauri/capabilities/default.json`, `src/App.tsx`, `src/store/app.ts`, `src/components/`, `src/lib/api.ts`, `src/bindings/`, `package.json`
 
@@ -11,8 +11,8 @@ The window `main` (title "Prompt Translator", 800x600) is created hidden and sho
 Since: #34 · Changed: #35, #44, #52, #57, #53, #55, #58, #64, #65
 
 ### APP-003 Popup page
-A second page (`popup.html`, title "Prompt Translator Popup") is the content of the hidden `popup` window created at startup; the hotkey opens it (`popup.md`). The page is still a placeholder.
-Since: #34 · Changed: #58
+A second page (`popup.html`, title "Prompt Translator Popup") is the content of the hidden `popup` window created at startup; the hotkey opens it (`popup.md`). The page translates the captured text (POPUP-005, POPUP-009).
+Since: #34 · Changed: #58, #61
 
 ### APP-004 App identity
 Product name "Prompt Translator", version 0.1.0, bundle identifier `com.misstheaim.prompttranslator`. Bundle targets: all; bundle icons: 32x32.png, 128x128.png, 128x128@2x.png, icon.icns, icon.ico (from `src-tauri/icons/`).
@@ -88,8 +88,8 @@ Since: #35 · Changed: #60, #44, #49
 Since: #35 · Changed: #88
 
 ### APP-015 UI-to-core access
-The UI calls Rust only through typed wrappers in `src/lib/api.ts`; a rejected call always throws an error of the APP-011 shape. Wrappers: `ping()` (returns "pong"; nothing in the UI calls it), `getSettings`, `saveSettings`, `setLastPopupMode`, `listPresets`, `savePreset`, `deletePreset`, `resetPresets`, `detectMode`, `translate`, `cancelTranslation`, `providerStatus`, `copyResult`, `historyList`, `historyGet`, `historyDelete`, `historyClear`, `mistakesSummary`, `hotkeyError`, `pickFile` and `openUrl`. Registered commands: `ping`, `hotkey_error`, `pick_file`, `open_url`, `get_settings`, `save_settings`, `set_last_popup_mode`, `detect_mode`, `translate`, `cancel_translation`, `provider_status`, `copy_result`, `list_presets`, `save_preset`, `delete_preset`, `reset_presets`, `history_list`, `history_get`, `history_delete`, `history_clear`, `mistakes_summary`.
-Since: #35 · Changed: #40, #41, #60, #44, #49, #52, #63, #58
+The UI calls Rust only through typed wrappers in `src/lib/api.ts`; a rejected call always throws an error of the APP-011 shape. Wrappers: `ping()` (returns "pong"; nothing in the UI calls it), `getSettings`, `saveSettings`, `setLastPopupMode`, `listPresets`, `savePreset`, `deletePreset`, `resetPresets`, `detectMode`, `translate`, `cancelTranslation`, `providerStatus`, `copyResult`, `historyList`, `historyGet`, `historyDelete`, `historyClear`, `mistakesSummary`, `hotkeyError`, `pickFile`, `openUrl` and the setup wrappers of `setup.md` (`environmentCheck`, `ollamaInstall`, `ollamaStart`, `ollamaPull`, `ollamaBenchmark`, `cancelSetupTask`, `completeSetup`, `onSetupProgress`). Registered commands: `ping`, `hotkey_error`, `pick_file`, `open_url`, `get_settings`, `save_settings`, `set_last_popup_mode`, `detect_mode`, `translate`, `cancel_translation`, `provider_status`, `copy_result`, `list_presets`, `save_preset`, `delete_preset`, `reset_presets`, `history_list`, `history_get`, `history_delete`, `history_clear`, `mistakes_summary`, `environment_check`, `ollama_install`, `ollama_start`, `ollama_pull`, `ollama_benchmark`, `cancel_setup_task`, `complete_setup`.
+Since: #35 · Changed: #40, #41, #60, #44, #49, #52, #63, #58, #69, #70
 
 ### APP-016 Webview security
 Release CSP: `default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src ipc: http://ipc.localhost` (no remote network, no inline scripts). The dev CSP additionally allows inline scripts and connections to `http://localhost:1420` and `ws://localhost:1420`.
@@ -119,9 +119,10 @@ Since: #52 · Changed: #58
 An error is shown as a banner with the message in bold, the hint below it when not empty, and a collapsed "Details" section when the error has a `detail`. By kind:
 - red: OllamaUnreachable, ModelMissing, ClaudeNotFound, ClaudeAuth, Timeout, EmptyOutput, MalformedOutput, ProcessCrashed, Io, Db, InvalidInput; blue: Cancelled; yellow: SessionClosed, SessionUnreachable, InjectionFailed, PrefixNeedsConfirmation. An unknown kind looks like Io.
 - "Retry" appears (when the screen gives a retry action) for OllamaUnreachable, ModelMissing, ClaudeNotFound, ClaudeAuth, Timeout, Cancelled, EmptyOutput, MalformedOutput and ProcessCrashed.
-- "Open settings" (switches to the Settings tab) appears for OllamaUnreachable, ModelMissing and ClaudeNotFound; ClaudeNotFound also has "Install help", which opens the Claude Code install docs (APP-024).
+- "Open settings" (switches to the Settings tab) appears for OllamaUnreachable, ModelMissing and ClaudeNotFound, except in the popup, which has no Settings screen; ClaudeNotFound also has "Install help", which opens the Claude Code install docs (APP-024).
+- OllamaUnreachable also has "Start Ollama" (SETUP-002).
 - If a link fails to open, an error toast shows the message.
-Since: #52
+Since: #52 · Changed: #61, #70
 
 ### APP-023 Toasts
 A toast is a short message at the bottom centre of the window with a "×" button to dismiss it. At most 3 show at once (a newer one pushes out the oldest). Info and success toasts disappear after 3 s, error toasts after 6 s.
@@ -154,6 +155,13 @@ Since: #57
 ### APP-030 Eval harness
 `cargo run --bin eval -- --provider ollama|claude-code` (in `src-tauri`) runs the cases of `eval/cases.jsonl` through the real translation service and a real provider, without a Tauri runtime, and writes a Markdown report. `cargo run` with no `--bin` still starts the app (`default-run`). Arguments: `--provider` (required), `--model` (default: the app's default model), `--cases <file>` (default `eval/cases.jsonl`), `--out <file>` (default `eval/reports/<UTC timestamp>.md`, git-ignored), `--preset <id>` (default `technical-development`); `--help` prints the usage; it, an unknown argument, an unknown provider, a missing value, an unreadable or empty cases file and an unknown preset all end with a message on stderr and a non-zero exit. A case is a JSON line with `id`, `mode`, `source`, `mustKeep` (tokens that must appear verbatim in the output) and `notes`. It uses its own scratch settings and presets under `%TEMP%\prompt-translator-eval` (presets re-seeded on every run), never the user's app data; history is off and timeouts are 180 s (Ollama) and 120 s (Claude). The report lists per case the source, output, issues, token warnings, `mustKeep` misses, duration or error, and a summary: JSON-valid rate (provider failures such as timeout are not counted as invalid), `mustKeep` pass rate, average and p95 latency of the successful cases. Details: `eval/README.md`.
 Since: #47
+
+### APP-031 Result components
+Shared by the Translate screen, History and the popup:
+- **Diff**: a word-level comparison of the source and the output, labelled "Changes": removed words struck through on a red background, added words on a green one.
+- **Issue list**: one card per issue with a coloured category chip (the category name, `word_choice` shown as "word choice"), `original` struck through, an arrow, `corrected` in bold, and the explanation below when not empty. More than 5 issues show the first 5 and a "Show all <n>" button; expanded, it reads "Show fewer".
+- **Token-warning banner** (yellow): "The result is missing text from your input that should stay unchanged:" with each lost token in code style, and the buttons "Ignore" and "Retry". It shows nothing when there are no warnings.
+Since: #54
 
 ## Known issues
 

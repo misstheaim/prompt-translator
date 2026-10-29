@@ -1,18 +1,18 @@
 # Hotkey and popup
 
-The global hotkey that captures text from any app and opens the popup window, with the auto-copy of the current selection. Today the popup page is a placeholder that only shows what was captured: it does not translate, and nothing sends it to the main window yet.
+The global hotkey that captures text from any app and opens the popup window, with the auto-copy of the current selection. The popup page translates the captured text right away in the detected mode, shows the result and copies it with Enter. The layout-fix hotkey is registered by the same code (see `layout-fix.md`).
 
-> Code: `src-tauri/src/system/hotkey.rs`, `src-tauri/src/system/popup.rs`, `src-tauri/src/system/clipboard.rs`, `src-tauri/capabilities/popup.json`, `src/popup/main.tsx`, `src/App.tsx`, `src/store/app.ts`
+> Code: `src-tauri/src/system/hotkey.rs`, `src-tauri/src/system/popup.rs`, `src-tauri/src/system/clipboard.rs`, `src-tauri/src/system/input.rs`, `src-tauri/capabilities/popup.json`, `src/popup/`, `src/App.tsx`, `src/store/app.ts`
 
 ## Behaviour
 
 ### POPUP-001 Hotkey registration
-The global hotkey is `settings.hotkey` (default `Ctrl+Shift+Space`), written as modifiers in the order Ctrl, Alt, Shift, Super and then one key (`Ctrl+Alt+Space`). It is registered at startup, after the settings are loaded, and again whenever `settings://changed` fires with a different value (the old one is unregistered first), so a new hotkey works without a restart. The value is trimmed; saving settings with an unchanged hotkey does nothing. Only the popup hotkey is registered: the layout-fix hotkey (`layoutFix.hotkey`) is not.
-Since: #58
+The global hotkey is `settings.hotkey` (default `Ctrl+Shift+Space`), written as modifiers in the order Ctrl, Alt, Shift, Super and then one key (`Ctrl+Alt+Space`). It is registered at startup, after the settings are loaded, and again whenever `settings://changed` fires with a different value (the old one is unregistered first), so a new hotkey works without a restart. The value is trimmed; saving settings with an unchanged hotkey does nothing. The layout-fix hotkey is registered next to it (LAYOUT-003); a settings change touches only the hotkey that changed.
+Since: #58 · Changed: #78
 
 ### POPUP-002 Registration failure
-If the hotkey cannot be registered (not a valid hotkey string, or taken by another app), no hotkey is active (the popup is off until a working one is saved) and the error text is kept: `"<hotkey>" isn't a valid hotkey (<reason>).` or `Could not register "<hotkey>": <reason>.`, followed by "The popup hotkey is off. Choose another combination in Settings." The text is sent to the main window as the event `hotkey://error` (the text, or null once registration works) and is returned by the command `hotkey_error` (wrapper `hotkeyError`), which the window asks once when it opens, because a startup failure happens before it listens. While an error is set, the main window shows a warning banner with that text and an "Open settings" button under the tab bar; a successful registration clears it. A failure never stops the app from starting.
-Since: #58
+If the hotkey cannot be registered (not a valid hotkey string, or taken by another app), no hotkey is active (the popup is off until a working one is saved) and the error text is kept: `"<hotkey>" isn't a valid hotkey (<reason>).` or `Could not register "<hotkey>": <reason>.`, followed by "The popup hotkey is off. Choose another combination in Settings." If the layout-fix hotkey fails too, its message (same form, "The layout fix hotkey is off.") is appended after a space, so the one text holds both. The text is sent to the main window as the event `hotkey://error` (the text, or null once registration works) and is returned by the command `hotkey_error` (wrapper `hotkeyError`), which the window asks once when it opens, because a startup failure happens before it listens. While an error is set, the main window shows a warning banner with that text and an "Open settings" button under the tab bar; a successful registration of both clears it. A failure never stops the app from starting.
+Since: #58 · Changed: #78
 
 ### POPUP-003 Pressing the hotkey
 On key press (not release) the hotkey captures the source text (POPUP-007), picks the mode with mode detection (TRANS-003) using `lastPopupMode` as the fallback, shows the popup (POPUP-004) and sends it the event `popup://source` with `{ text, mode }`. `text` is the selection when auto-copy produced one, else the clipboard text; empty when the clipboard is empty or holds no text. Capturing can take up to about a second and does not freeze the app.
@@ -23,12 +23,17 @@ The window `popup` (title "Prompt Translator Popup", 520x360, not resizable, fra
 Since: #58
 
 ### POPUP-005 Popup page
-Until it receives `popup://source` the page shows "Popup placeholder". After it, an empty or blank text shows "Select or copy some text first"; otherwise the page shows "Mode: <mode>" and the captured text. Esc hides the popup. It has no translate, accept or other controls yet.
-Since: #34 · Changed: #58
+Until it receives `popup://source` the page shows "Waiting for text...". After it, an empty or blank text shows "Select or copy some text first"; otherwise it shows, top to bottom:
+- the source text, cut to 3 lines; with a "Show more" / "Show less" toggle when the text is over 180 characters or 3 lines;
+- a mode switch (Translate / Improve / Correct) set to the mode from the event;
+- the result area (POPUP-009);
+- a footer "Enter: copy · Esc: close · Ctrl+R: retry · Tab: mode" and an "Open in main window" button (POPUP-006).
+Each new `popup://source` resets the page (cancelling a running request) and starts a run for a non-blank text. With a blank text the footer hint shows but there is no "Open in main window" button.
+Since: #34 · Changed: #58, #61
 
 ### POPUP-006 Opening an entry in the main window
-When the event `main://open-entry` with `{ input, mode, result }` (`result` a translation result or null) is emitted, the core shows and focuses the main window and hides the popup, and the main window selects the Translate tab and loads it: the input, the mode, the provider of the result (none, so the settings default, when `result` is null), and, when a result is given, that result as a finished translation with its output in the editable output box. Nothing sends this event yet.
-Since: #58
+When the event `main://open-entry` with `{ input, mode, result }` (`result` a translation result or null) is emitted, the core shows and focuses the main window and hides the popup, and the main window selects the Translate tab and loads it: the input, the mode, the provider of the result (none, so the settings default, when `result` is null), and, when a result is given, that result as a finished translation with its output in the editable output box. The popup's "Open in main window" button sends it with the captured text, the current mode and the finished result (null while loading, after an error or when nothing ran yet); the popup does not cancel a request still running.
+Since: #58 · Changed: #61
 
 ### POPUP-007 Auto-copy of the selection
 When `autoCopySelection` is on (default), pressing the hotkey first tries to copy what is selected in the foreground app, so no manual Ctrl+C is needed:
@@ -36,12 +41,26 @@ When `autoCopySelection` is on (default), pressing the hotkey first tries to cop
 2. It waits up to 500 ms for every modifier key (Shift, Ctrl, Alt, Win) to be released; if one is still down, nothing is sent (Ctrl+Shift+C would open DevTools in Chromium apps).
 3. It saves the clipboard text, and gives up unless the same window is still in front and no modifier is down. It sends Ctrl+C and waits up to 300 ms for the clipboard to change.
 4. The new clipboard text is the captured source, and the saved text is put back on the clipboard. The restore is marked (`ExcludeClipboardContentFromMonitorProcessing`, `CanIncludeInClipboardHistory` = 0) so it does not appear in Windows clipboard history.
-Only one capture runs at a time. When `autoCopySelection` is off, the clipboard is used as it is.
-Since: #59
+Only one capture runs at a time, and not while a layout fix is using the clipboard (LAYOUT-004). When `autoCopySelection` is off, the clipboard is used as it is.
+Since: #59 · Changed: #78
 
 ### POPUP-008 Fallback to the clipboard
 Whenever auto-copy gives nothing (a terminal, modifiers held, the clipboard busy, the input blocked by Windows, no selection so the clipboard did not change, or an empty copy), the source is the text currently on the clipboard, left untouched. This is not an error.
 Since: #59
+
+### POPUP-009 Running and showing the result
+For a non-blank text the page runs `translate` (TRANS-008) at once with a new request id, the detected mode, and the provider and preset from the current settings (`defaultProvider`, `defaultPresetId`). While it runs the area shows a spinner and "Working... Esc to cancel".
+- Success: the output text (not editable), then the token-warning banner (Ignore hides it for this result, Retry runs again; TRANS-013) and, when the result has issues, a toggle "<n> fix" / "<n> fixes" that expands the issue list (APP-031, collapsed again on every new run).
+- Failure: an error banner (APP-022) with Retry but without "Open settings", and "Start Ollama" for `OllamaUnreachable` (SETUP-002). `Cancelled` is not shown as an error; the page returns to idle.
+- Changing the mode (switch or Tab) with a non-blank text saves it as `lastPopupMode` and runs again. A new run cancels the one in progress, and an answer to a superseded or cancelled request is ignored.
+Since: #61
+
+### POPUP-010 Popup keys
+- Enter (without Ctrl, Shift or Alt) after a successful run copies the output with its `historyId` (TRANS-010, which marks the history entry accepted), saves the mode as `lastPopupMode` and hides the popup. If the copy fails the popup stays open with the error banner; Enter does nothing in other states.
+- Esc cancels a running request and hides the popup.
+- Ctrl+R runs the same text and mode again (also while one runs); it does not reload the page.
+- Tab and Shift+Tab move the mode forward and back through Translate, Improve, Correct, wrapping around.
+Since: #61
 
 ## Known issues
 
