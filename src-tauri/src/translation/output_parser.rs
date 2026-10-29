@@ -8,6 +8,7 @@
 //! - An unknown or missing `category` becomes [`IssueCategory::Other`]; an `issues` entry that
 //!   isn't an object with string `original` and `corrected` fields is skipped. A missing or
 //!   `null` `issues` field means no issues.
+//! - An `issues` entry whose trimmed `original` equals its `corrected` is dropped (a no-op).
 //! - A blank answer, an empty fence, or a blank or `null` `output` is [`AppError::EmptyOutput`].
 //! - Anything else that can't be read is [`AppError::MalformedOutput`], with the raw answer as
 //!   the error's detail.
@@ -104,7 +105,18 @@ fn from_value(value: Value, mode: Mode, raw: &str) -> AppResult<ParsedOutput> {
 
     let issues = match (mode, object.get("issues")) {
         (Mode::Translate, _) | (_, None | Some(Value::Null)) => Vec::new(),
-        (_, Some(Value::Array(items))) => items.iter().filter_map(parse_issue).collect(),
+        (_, Some(Value::Array(items))) => items
+            .iter()
+            .filter_map(parse_issue)
+            .filter(|issue| {
+                // A no-op entry ("remote?" -> "remote?") teaches nothing; small models add them.
+                let changed = issue.original != issue.corrected;
+                if !changed {
+                    log::warn!("Dropping an issue whose `original` equals `corrected`");
+                }
+                changed
+            })
+            .collect(),
         (_, Some(_)) => return Err(malformed(raw)),
     };
 

@@ -89,11 +89,8 @@ fn canned(mode: Mode) -> String {
     let answer = match mode {
         Mode::Translate => json!({
             "output": "Please fix the bug on the settings screen and keep the current layout.",
-            // The parser drops these in Translate mode.
-            "issues": [{
-                "original": "x", "corrected": "y", "category": "other",
-                "explanation": "Never shown."
-            }]
+            // Translate's schema allows no issues (`output_schema`).
+            "issues": []
         }),
         Mode::Improve => json!({
             "output": "Fix the bug on the settings screen. Keep the current layout unchanged.",
