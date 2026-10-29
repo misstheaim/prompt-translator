@@ -1,0 +1,172 @@
+import type { KeyboardEvent } from "react";
+
+import type { Mode } from "../../bindings/Mode";
+import type { ProviderKind } from "../../bindings/ProviderKind";
+import { Button } from "../../components/Button";
+import { ErrorBanner } from "../../components/ErrorBanner";
+import { SegmentedControl, type SegmentedOption } from "../../components/SegmentedControl";
+import { Select, type SelectOption } from "../../components/Select";
+import { TextArea } from "../../components/TextArea";
+import { copyResult, toAppError } from "../../lib/api";
+import { cx } from "../../lib/cx";
+import { useAppStore } from "../../store/app";
+import { MAX_INPUT_CHARS, useTranslateStore } from "./store";
+
+const MODE_OPTIONS: SegmentedOption<Mode>[] = [
+  { value: "translate", label: "Translate" },
+  { value: "improve", label: "Improve" },
+  { value: "correct", label: "Correct" },
+];
+
+const PROVIDER_LABELS: Record<ProviderKind, string> = {
+  ollama: "Ollama",
+  claudeCode: "Claude Code",
+  mock: "Mock (dev)",
+};
+
+function formatDuration(ms: number): string {
+  return ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`;
+}
+
+export function TranslateScreen() {
+  const settings = useAppStore((s) => s.settings);
+  const presets = useAppStore((s) => s.presets);
+  const showToast = useAppStore((s) => s.showToast);
+
+  const input = useTranslateStore((s) => s.input);
+  const modeOverride = useTranslateStore((s) => s.mode);
+  const providerOverride = useTranslateStore((s) => s.provider);
+  const presetOverride = useTranslateStore((s) => s.presetId);
+  const status = useTranslateStore((s) => s.status);
+  const result = useTranslateStore((s) => s.result);
+  const output = useTranslateStore((s) => s.output);
+  const error = useTranslateStore((s) => s.error);
+  const { setInput, setMode, setProvider, setPreset, setOutput, run, cancel } =
+    useTranslateStore.getState();
+
+  // Effective selections: the user's choice, else the settings defaults.
+  const showMock = import.meta.env.DEV || settings?.devMockProvider === true;
+  const providerOptions: SelectOption[] = (["ollama", "claudeCode"] as ProviderKind[])
+    .concat(showMock ? ["mock"] : [])
+    .map((p) => ({ value: p, label: PROVIDER_LABELS[p] }));
+  const provider: ProviderKind = providerOverride ?? settings?.defaultProvider ?? "ollama";
+  const presetId = presetOverride ?? settings?.defaultPresetId ?? presets[0]?.id ?? "";
+  const preset = presets.find((p) => p.id === presetId) ?? presets[0];
+  const mode: Mode = modeOverride ?? preset?.defaultMode ?? "translate";
+
+  const loading = status === "loading";
+  const tooLong = input.length > MAX_INPUT_CHARS;
+  const canRun = !loading && input.trim() !== "" && !tooLong && presetId !== "";
+
+  function runNow() {
+    if (!canRun) return;
+    void run({ mode, provider, presetId: preset?.id ?? presetId });
+  }
+
+  async function handleAccept() {
+    const { output: text, result: res } = useTranslateStore.getState();
+    if (text.trim() === "") return;
+    try {
+      await copyResult(text, res?.historyId ?? null);
+      showToast("success", "Copied");
+    } catch (e) {
+      showToast("error", toAppError(e).message);
+    }
+  }
+
+  function onKeyDown(e: KeyboardEvent) {
+    if (e.key !== "Enter" || !e.ctrlKey) return;
+    e.preventDefault();
+    if (e.shiftKey) void handleAccept();
+    else runNow();
+  }
+
+  return (
+    <div className="mx-auto flex max-w-3xl flex-col gap-4" onKeyDown={onKeyDown}>
+      <div className="flex flex-wrap items-center gap-3">
+        <SegmentedControl
+          aria-label="Mode"
+          options={MODE_OPTIONS}
+          value={mode}
+          onChange={setMode}
+          disabled={loading}
+        />
+        <Select
+          label="Provider"
+          options={providerOptions}
+          value={provider}
+          onChange={(v) => setProvider(v as ProviderKind)}
+          disabled={loading}
+        />
+        <Select
+          label="Preset"
+          options={presets.map((p) => ({ value: p.id, label: p.name }))}
+          value={preset?.id ?? ""}
+          onChange={(id) => {
+            const p = presets.find((x) => x.id === id);
+            if (p) setPreset(p.id, p.defaultMode);
+          }}
+          disabled={loading || presets.length === 0}
+        />
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <TextArea
+          aria-label="Text to process"
+          placeholder="Type or paste your text (any language)"
+          rows={6}
+          autoFocus
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+        />
+        <div className="flex items-center justify-between gap-3">
+          <span
+            className={cx("text-xs", tooLong ? "text-danger" : "text-muted")}
+            aria-live="polite"
+          >
+            {input.length} / {MAX_INPUT_CHARS}
+            {tooLong && " (too long)"}
+          </span>
+          <div className="flex items-center gap-2">
+            {loading && <Button onClick={() => void cancel()}>Cancel</Button>}
+            <Button variant="primary" loading={loading} disabled={!canRun} onClick={runNow}>
+              {loading ? "Running" : "Run"}
+              {!loading && <span className="text-xs font-normal opacity-70">Ctrl+Enter</span>}
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {status === "error" && error && <ErrorBanner error={error} onRetry={runNow} />}
+
+      {result && (
+        <section aria-label="Result" className="flex flex-col gap-2">
+          <TextArea
+            aria-label="Result text"
+            rows={6}
+            value={output}
+            onChange={(e) => setOutput(e.target.value)}
+          />
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-xs text-muted">
+              {PROVIDER_LABELS[result.provider]} · {result.model} ·{" "}
+              {formatDuration(result.durationMs)}
+            </span>
+            <AcceptButton disabled={output.trim() === ""} onAccept={() => void handleAccept()} />
+          </div>
+          {/* Slot for the result details (diff, issues, token warnings): T21. */}
+          <div id="translate-result-details" />
+        </section>
+      )}
+    </div>
+  );
+}
+
+/** The main action. T40 changes the label and routing (clipboard vs. session). */
+function AcceptButton({ disabled, onAccept }: { disabled: boolean; onAccept: () => void }) {
+  return (
+    <Button variant="primary" disabled={disabled} onClick={onAccept} shortcut="Ctrl+Shift+Enter">
+      Copy
+    </Button>
+  );
+}
