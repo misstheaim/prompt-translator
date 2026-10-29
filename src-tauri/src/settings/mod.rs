@@ -33,7 +33,7 @@ impl Default for OllamaSettings {
     fn default() -> Self {
         Self {
             endpoint: "http://localhost:11434".into(),
-            model: "qwen2.5:7b".into(),
+            model: "qwen3.5:9b".into(),
             keep_alive: "30m".into(),
             num_ctx: 8192,
             timeout_secs: 60,

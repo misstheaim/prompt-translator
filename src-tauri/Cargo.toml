@@ -32,6 +32,7 @@ uuid ={ version = "=1.29.0", features = ["v4"] }
 async-trait = "=0.1.92"
 tokio-util = "=0.7.20"
 tauri-plugin-clipboard-manager = "=2.5.0"
+reqwest = { version = "=0.13.5", default-features = false, features = ["json"] }
 
 [profile.release]
 codegen-units = 1

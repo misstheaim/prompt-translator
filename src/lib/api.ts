@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 
 import type { AppErrorPayload } from "../bindings/AppErrorPayload";
 import type { Mode } from "../bindings/Mode";
+import type { ProviderStatus } from "../bindings/ProviderStatus";
 import type { Settings } from "../bindings/Settings";
 import type { TranslationRequest } from "../bindings/TranslationRequest";
 import type { TranslationResult } from "../bindings/TranslationResult";
@@ -39,6 +40,11 @@ export function translate(req: TranslationRequest): Promise<TranslationResult> {
 /** Cancels the running request with this id; its `translate` call rejects with `Cancelled`. */
 export function cancelTranslation(requestId: string): Promise<void> {
   return invoke<void>("cancel_translation", { requestId });
+}
+
+/** Ollama's state (`claude` is null until the Claude check exists). */
+export function providerStatus(): Promise<ProviderStatus> {
+  return invoke<ProviderStatus>("provider_status");
 }
 
 /** Accept with the Clipboard target: copies the text (Rust writes the clipboard). */
