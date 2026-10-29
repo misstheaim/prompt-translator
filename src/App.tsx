@@ -65,6 +65,8 @@ function App() {
         requestId: null,
         result,
         output: result?.output ?? "",
+        resultSource: input,
+        resultMode: mode,
         error: null,
       });
       setScreen("translate");

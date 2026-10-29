@@ -1,12 +1,16 @@
-import type { KeyboardEvent } from "react";
+import { useState, type KeyboardEvent } from "react";
 
 import type { Mode } from "../../bindings/Mode";
 import type { ProviderKind } from "../../bindings/ProviderKind";
+import type { TranslationResult } from "../../bindings/TranslationResult";
 import { Button } from "../../components/Button";
+import { DiffView } from "../../components/DiffView";
 import { ErrorBanner } from "../../components/ErrorBanner";
+import { IssueList } from "../../components/IssueList";
 import { SegmentedControl, type SegmentedOption } from "../../components/SegmentedControl";
 import { Select, type SelectOption } from "../../components/Select";
 import { TextArea } from "../../components/TextArea";
+import { TokenWarningBanner } from "../../components/TokenWarningBanner";
 import { copyResult, toAppError } from "../../lib/api";
 import { cx } from "../../lib/cx";
 import { useAppStore } from "../../store/app";
@@ -40,7 +44,11 @@ export function TranslateScreen() {
   const status = useTranslateStore((s) => s.status);
   const result = useTranslateStore((s) => s.result);
   const output = useTranslateStore((s) => s.output);
+  const resultSource = useTranslateStore((s) => s.resultSource);
+  const resultMode = useTranslateStore((s) => s.resultMode);
   const error = useTranslateStore((s) => s.error);
+  // The result whose token warnings the user dismissed (a new result shows its own).
+  const [ignoredWarningsFor, setIgnoredWarningsFor] = useState<TranslationResult | null>(null);
   const { setInput, setMode, setProvider, setPreset, setOutput, run, cancel } =
     useTranslateStore.getState();
 
@@ -154,8 +162,27 @@ export function TranslateScreen() {
             </span>
             <AcceptButton disabled={output.trim() === ""} onAccept={() => void handleAccept()} />
           </div>
-          {/* Slot for the result details (diff, issues, token warnings): T21. */}
-          <div id="translate-result-details" />
+          {result.tokenWarnings.length > 0 && ignoredWarningsFor !== result && (
+            <TokenWarningBanner
+              warnings={result.tokenWarnings}
+              onIgnore={() => setIgnoredWarningsFor(result)}
+              onRetry={runNow}
+            />
+          )}
+          {resultMode !== "translate" && (
+            <>
+              <h3 className="mt-2 text-sm font-medium text-text">Changes</h3>
+              <DiffView source={resultSource} output={result.output} />
+              {result.issues.length > 0 && (
+                <>
+                  <h3 className="mt-2 text-sm font-medium text-text">
+                    Issues ({result.issues.length})
+                  </h3>
+                  <IssueList issues={result.issues} />
+                </>
+              )}
+            </>
+          )}
         </section>
       )}
     </div>

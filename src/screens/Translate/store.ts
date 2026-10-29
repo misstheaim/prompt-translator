@@ -22,6 +22,9 @@ interface TranslateState {
   result: TranslationResult | null;
   /** The editable output; starts as `result.output`. */
   output: string;
+  /** The source text and mode `result` was produced from (the input may change afterwards). */
+  resultSource: string;
+  resultMode: Mode | null;
   error: AppError | null;
 
   setInput: (input: string) => void;
@@ -45,6 +48,8 @@ export const useTranslateStore = create<TranslateState>((set, get) => ({
   requestId: null,
   result: null,
   output: "",
+  resultSource: "",
+  resultMode: null,
   error: null,
 
   setInput: (input) => set({ input }),
@@ -67,7 +72,14 @@ export const useTranslateStore = create<TranslateState>((set, get) => ({
         presetId,
       });
       if (get().requestId !== requestId) return;
-      set({ status: "success", result, output: result.output, requestId: null });
+      set({
+        status: "success",
+        result,
+        output: result.output,
+        resultSource: input,
+        resultMode: mode,
+        requestId: null,
+      });
     } catch (e) {
       if (get().requestId !== requestId) return;
       const error = toAppError(e);
