@@ -19,6 +19,13 @@ const LOG_FILES_KEPT: usize = 5;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // Must be the first plugin: a second launch focuses the main window and exits.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            system::tray::show_main_window(app);
+        }))
+        // Registered from Rust only; the webview gets no autostart permission.
+        .plugin(system::autostart::plugin())
+        .on_window_event(system::tray::on_window_event)
         // Used from Rust only (`copy_result`); the webview gets no clipboard permission.
         .plugin(tauri_plugin_clipboard_manager::init())
         // Used from Rust only (`pick_file`); the webview gets no dialog permission.
@@ -72,6 +79,14 @@ pub fn run() {
                     app.manage(db);
                 }
                 Err(e) => log::warn!("History database unavailable: {e}"),
+            }
+
+            system::tray::init(app.handle())?;
+            system::autostart::init(app.handle());
+            // Started by the autostart entry: stay in the tray (the main window is created
+            // hidden; no popup exists at startup either).
+            if !system::autostart::launched_by_autostart() {
+                system::tray::show_main_window(app.handle());
             }
             Ok(())
         })

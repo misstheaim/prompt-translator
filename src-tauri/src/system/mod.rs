@@ -1,5 +1,6 @@
 //! OS integration: tray, hotkey, popup, clipboard and app paths.
 
+pub mod autostart;
 pub mod clipboard;
 pub mod commands;
 pub mod hotkey;
