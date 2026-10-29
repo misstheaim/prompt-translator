@@ -36,10 +36,10 @@ Run from the repo root unless the row says `src-tauri`. The `src-tauri` commands
 | Rust lint (`src-tauri`) | `cargo clippy --all-targets --locked -- -D warnings` |
 | Regenerate TS bindings (commit the result) | `npm run bindings` (runs ts-rs's generated `export_bindings` exports through `cargo test`; there are no hand-written tests) |
 | **Full check** (build and lint, what CI runs) | all of the above in this order: `npm ci`, lint, typecheck, `npm run build`, then in `src-tauri` fmt, clippy, then `npm run bindings` and `git diff --exit-code src/bindings` |
-| Build the installer | `npm run tauri build` (output in `src-tauri/target/release/bundle/nsis/`) |
+| Build the installer | `npm run tauri build` (output in `src-tauri/target/release/bundle/nsis/`; details in [`docs/build.md`](build.md)) |
 | Translation quality report (manual, needs a provider) | `cargo run --bin eval -- --provider ollama\|claude-code` (in `src-tauri`; options and report in `eval/README.md`) |
 
-The frontend commands (`npm ci`, `lint`, `typecheck`, `format`, `build`, `tauri dev`) and the `src-tauri` fmt/clippy commands are real since T2 (#34). `npm run bindings` is real since T3 (#35); it runs `cargo test export_bindings` inside `src-tauri` (so `src-tauri/.cargo/config.toml` sets `TS_RS_EXPORT_DIR` to `../src/bindings`). `cargo run --bin eval` is real since T15 (#47); `Cargo.toml` sets `default-run`, so plain `cargo run` still starts the app. `tauri build` is still **planned** (a later task makes it real and updates this table and `CLAUDE.md` if anything differs).
+The frontend commands (`npm ci`, `lint`, `typecheck`, `format`, `build`, `tauri dev`) and the `src-tauri` fmt/clippy commands are real since T2 (#34). `npm run bindings` is real since T3 (#35); it runs `cargo test export_bindings` inside `src-tauri` (so `src-tauri/.cargo/config.toml` sets `TS_RS_EXPORT_DIR` to `../src/bindings`). `cargo run --bin eval` is real since T15 (#47); `Cargo.toml` sets `default-run`, so plain `cargo run` still starts the app. `npm run tauri build` is real since T6 (#38): what the installer and uninstaller do, the custom NSIS template and the Windows Sandbox test are in [`docs/build.md`](build.md).
 
 ## 3. Branches
 
