@@ -5,8 +5,11 @@ use tauri_plugin_clipboard_manager::ClipboardExt;
 
 use super::mode_detect;
 use super::model::{Mode, TranslationRequest, TranslationResult};
+use super::providers::ProviderStatus;
+use super::providers::ollama::OllamaProvider;
 use super::service::TranslationService;
 use crate::error::{AppError, AppResult};
+use crate::settings::SettingsStore;
 
 /// Picks Translate or Correct for the popup; `last` is used when the text is too short to tell.
 #[tauri::command]
@@ -27,6 +30,16 @@ pub async fn translate(
 #[tauri::command]
 pub fn cancel_translation(service: State<'_, TranslationService>, request_id: String) {
     service.cancel(&request_id);
+}
+
+/// Ollama's state (and, from T17a, Claude Code's) for the current settings.
+#[tauri::command]
+pub async fn provider_status(settings: State<'_, SettingsStore>) -> AppResult<ProviderStatus> {
+    let settings = settings.get();
+    Ok(ProviderStatus {
+        ollama: OllamaProvider::new().status(&settings).await,
+        claude: None,
+    })
 }
 
 /// Accept with the Clipboard target: writes the text to the clipboard.

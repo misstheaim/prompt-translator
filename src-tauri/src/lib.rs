@@ -71,6 +71,7 @@ pub fn run() {
             translation::commands::detect_mode,
             translation::commands::translate,
             translation::commands::cancel_translation,
+            translation::commands::provider_status,
             translation::commands::copy_result,
             presets::commands::list_presets,
             presets::commands::save_preset,
