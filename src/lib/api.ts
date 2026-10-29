@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 
 import type { AppErrorPayload } from "../bindings/AppErrorPayload";
 import type { ErrorKind } from "../bindings/ErrorKind";
+import type { EnvironmentReport } from "../bindings/EnvironmentReport";
 import type { HistoryEntry } from "../bindings/HistoryEntry";
 import type { HistoryEntrySummary } from "../bindings/HistoryEntrySummary";
 import type { IssueFilter } from "../bindings/IssueFilter";
@@ -183,4 +184,11 @@ export const LINKS = {
 
 export function openUrl(url: string): Promise<void> {
   return call<void>("open_url", { url });
+}
+
+// ---- setup ----
+
+/** GPU, RAM, Ollama, winget and Claude Code status, plus the recommended model tier. */
+export function environmentCheck(): Promise<EnvironmentReport> {
+  return call<EnvironmentReport>("environment_check");
 }
