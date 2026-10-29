@@ -11,7 +11,7 @@ use ts_rs::TS;
 
 use super::service::TranslationProvider;
 
-/// Claude Code's state. T17a fills it in; until then `ProviderStatus.claude` stays `None`.
+/// Claude Code's state. Filled by `claude_code::status`.
 #[derive(Debug, Clone, PartialEq, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
@@ -29,7 +29,7 @@ pub struct ClaudeStatus {
 #[ts(export)]
 pub struct ProviderStatus {
     pub ollama: ollama::OllamaStatus,
-    /// `None` until T17a adds the Claude check.
+    /// `None` only if the check could not run.
     pub claude: Option<ClaudeStatus>,
 }
 

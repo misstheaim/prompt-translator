@@ -21,6 +21,8 @@ pub fn run() {
     tauri::Builder::default()
         // Used from Rust only (`copy_result`); the webview gets no clipboard permission.
         .plugin(tauri_plugin_clipboard_manager::init())
+        // Used from Rust only (`pick_file`); the webview gets no dialog permission.
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             system::paths::init(app.handle())?;
 
@@ -42,6 +44,12 @@ pub fn run() {
                     .build(),
             )?;
             log::info!("Prompt Translator {} started", app.package_info().version);
+
+            // Translator-run registry (read by session discovery) and the run counter that
+            // triggers cleanup; the dirs are tidied once at startup.
+            app.manage(translation::providers::claude_code::TranslatorPids::new());
+            app.manage(translation::providers::claude_code::Housekeeping::new());
+            translation::providers::claude_code::housekeeping::run(true);
 
             let settings = settings::SettingsStore::load(system::paths::settings_file()?);
             let presets = presets::PresetStore::open(system::paths::presets_dir()?);
@@ -65,6 +73,7 @@ pub fn run() {
         // One registration line per module.
         .invoke_handler(tauri::generate_handler![
             system::commands::ping,
+            system::commands::pick_file,
             settings::commands::get_settings,
             settings::commands::save_settings,
             settings::commands::set_last_popup_mode,

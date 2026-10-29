@@ -7,6 +7,6 @@ import type { OllamaStatus } from "./OllamaStatus";
  */
 export type ProviderStatus = { ollama: OllamaStatus, 
 /**
- * `None` until T17a adds the Claude check.
+ * `None` only if the check could not run.
  */
 claude: ClaudeStatus | null, };

@@ -42,7 +42,7 @@ export function cancelTranslation(requestId: string): Promise<void> {
   return invoke<void>("cancel_translation", { requestId });
 }
 
-/** Ollama's state (`claude` is null until the Claude check exists). */
+/** Ollama's and Claude Code's state. */
 export function providerStatus(): Promise<ProviderStatus> {
   return invoke<ProviderStatus>("provider_status");
 }
@@ -57,6 +57,11 @@ export function copyResult(text: string, historyId: number | null = null): Promi
 /** Round-trip check between the UI and the Rust core. */
 export function ping(): Promise<string> {
   return invoke<string>("ping");
+}
+
+/** Native file dialog; `filter` is a list of extensions without dots. Null when cancelled. */
+export function pickFile(filter: string[] | null = null): Promise<string | null> {
+  return invoke<string | null>("pick_file", { filter });
 }
 
 /** Narrows a rejected `invoke` value to the serialized `AppError` shape. */
