@@ -4,6 +4,7 @@ import { DevMockPanel } from "./components/DevMockPanel";
 import { ErrorBanner } from "./components/ErrorBanner";
 import { ToastHost } from "./components/Toast";
 import { cx } from "./lib/cx";
+import { TranslateScreen } from "./screens/Translate/TranslateScreen";
 import { initAppStore, SCREENS, useAppStore, type Screen } from "./store/app";
 
 const TAB_LABELS: Record<Screen, string> = {
@@ -89,7 +90,7 @@ function App() {
 
       <main className="min-h-0 flex-1 overflow-auto p-4">
         {screen === "translate" && import.meta.env.DEV && <DevMockPanel />}
-        <ScreenPlaceholder screen={screen} />
+        {screen === "translate" ? <TranslateScreen /> : <ScreenPlaceholder screen={screen} />}
       </main>
       <ToastHost />
     </div>
