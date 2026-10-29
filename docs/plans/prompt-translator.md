@@ -304,7 +304,7 @@ Extract candidate tokens from the source with regexes: ticket IDs `[A-Z][A-Z0-9]
 | `history_get` / `history_delete` | `id` | `HistoryEntry` / `()` |
 | `history_clear` | – | `()` |
 | `mistakes_summary` | `{ sinceDays? }` | `{ byCategory: {category, count}[], recurring: {original, corrected, category, count}[], vocabulary: {original, corrected, count, lastSeen}[] }` |
-| `environment_check` | – | `EnvironmentReport { os, ramMb, usableGpu: bool, gpus: {name, vramMb, integrated, usable}[], recommendation: { tier, model, downloadMb }, winget: bool, ollama: { installed, running, version, models }, claude: { found, path, version, signedIn } }` |
+| `environment_check` | – | `EnvironmentReport { os, ramMb, ramAvailableMb, usableGpu: bool, gpus: {name, vramMb, integrated, usable}[], recommendation: { tier, model, downloadMb } (`model`/`downloadMb` null for tier `none`, changed in #69), winget: bool, ollama: { installed, running, version, models }, claude: { found, path, version, signedIn } }` |
 | `ollama_install` | – | `()`: runs winget; progress via `setup://progress` |
 | `ollama_start` | – | `()`: launches the installed Ollama app if not running (wizard and the `OllamaUnreachable` error's **Start Ollama** button) |
 | `ollama_benchmark` | `{ model }` | `{ translateMs, correctMs, gpuOffloadPercent }` (offload from `/api/ps`) |
@@ -885,7 +885,7 @@ Write `docs/spikes/local-model-eval.md` with:
 
 ### T26. Popup UI  `frontend` · parent: S6.2 · issue: #61
 - **Goal:** a fast keyboard-only review-and-copy flow.
-- **Details:** `src/popup/`. On `popup://source`: show a source excerpt (3 lines, expandable), mode chips (detected mode preselected), and auto-run `translate` with the default provider and preset. While loading: spinner + Esc to cancel and close. Result: output text, compact issue count ("3 fixes") expanding to `IssueList`, and `TokenWarningBanner` (reuse T21 components). Keys: **Enter** → `copy_result` then hide (T40 switches this to `accept_result`); **Esc** → hide (cancels if running); **Ctrl+R** → retry; **Tab** cycles mode and re-runs; link "Open in main window" emits `main://open-entry` with this input and result. Remember the mode the user ended on (`lastPopupMode`, T25c). Errors via ErrorBanner; `OllamaUnreachable` shows a **Start Ollama** button once T35 exists.
+- **Details:** `src/popup/`. On `popup://source`: show a source excerpt (3 lines, expandable), mode chips (detected mode preselected), and auto-run `translate` with the default provider and preset. While loading: spinner + Esc to cancel and close. Result: output text, compact issue count ("3 fixes") expanding to `IssueList`, and `TokenWarningBanner` (reuse T21 components). Keys: **Enter** → `copy_result` then hide (T40 switches this to `accept_result`); **Esc** → hide (cancels if running); **Ctrl+R** → retry; **Tab** cycles mode and re-runs; link "Open in main window" emits `main://open-entry` with this input and result. Remember the mode the user ended on (`lastPopupMode`, T25c). Errors via ErrorBanner; `OllamaUnreachable` shows a **Start Ollama** button once T35 exists (done in #70: `ErrorBanner` has the button, so the main window and the popup both get it; the popup hides "Open settings" via `showSettingsAction={false}`).
 - **Note:** Popup permissions are in `capabilities/popup.json` (popup only); `main://open-entry` takes `{ input, mode, result: TranslationResult | null }`; #58 left a placeholder in `src/popup/main.tsx` that shows the captured text and hides on Esc (changed in #58).
 - **Acceptance criteria:**
   - [ ] Auto-run on event, keyboard handling, cancel on Esc and the error state work.
@@ -974,7 +974,7 @@ Write `docs/spikes/local-model-eval.md` with:
   - **Claude:** use `find_claude()` and the status function from T17a.
   - **System RAM** via `GlobalMemoryStatusEx` (total and available).
   - **Usable GPU (initial guess)** = a discrete NVIDIA or AMD GPU (vendor ID 0x10DE or 0x1002) with ≥ 4 GB `DedicatedVideoMemory`. **Integrated GPUs** (Intel vendor 0x8086, or AMD with under 1 GB dedicated memory, or a known iGPU name such as "Radeon Graphics", "UHD", "Iris") count as no GPU. Report them, but mark them as not used. This is only a guess: the real check is `ollama_benchmark`'s GPU offload from `/api/ps` (T35), which the wizard uses to correct the tier.
-  - `setup/model_tiers.rs`: the tier table from `docs/spikes/local-model-eval.md` (T13) as data, with `fn recommend(gpus, ram) -> Recommendation { tier, model, downloadMb }`. A usable GPU picks a `gpu-*` tier by VRAM; **changed in #45:** without a usable GPU the tier is `none` (no model, Claude Code recommended); there are no `cpu-low`/`cpu` tiers, and no `preferClaudeForCorrect` field (D5: Ollama and Claude are equal choices in every mode).
+  - `setup/model_tiers.rs`: the tier table from `docs/spikes/local-model-eval.md` (T13) as data, with `fn recommend(gpus) -> Recommendation { tier, model, downloadMb }` (**changed in #69:** no RAM argument, since the CPU tiers are gone; `model` and `downloadMb` are null for `none`; VRAM bounds are tolerant: usable ≥ 3900 MB, `gpu-medium` ≥ 5800 MB, `gpu-large` ≥ 10500 MB). A usable GPU picks a `gpu-*` tier by VRAM; **changed in #45:** without a usable GPU the tier is `none` (no model, Claude Code recommended); there are no `cpu-low`/`cpu` tiers, and no `preferClaudeForCorrect` field (D5: Ollama and Claude are equal choices in every mode).
   - Every check has a short timeout (≤ 3 s) and checks run in parallel.
 - **Acceptance criteria:**
   - [ ] `recommend` picks correctly for: every tier; integrated-only GPU with 8 GB and 16 GB RAM; integrated + dedicated (dedicated wins); two dedicated GPUs; GPU under 4 GB.
@@ -1167,12 +1167,11 @@ Write `docs/spikes/local-model-eval.md` with:
 
 ## 6. Order of work
 
-Done: waves 0, 2-5 (see git history of this file). Wave 1 keeps its row for T37 (on hold).
+Done: waves 0, 2-6 (see git history of this file). Wave 1 keeps its row for T37 (on hold).
 
 | Wave | Tasks (parallel within a wave) | Notes |
 |---|---|---|
 | 1 | T2 → T3, T5; T37 | Scaffold, then core skeleton and icons; T37 (needs Rust from T1) is the **gate** for E9 |
-| 6 | T21 → T26; T34 (after T13 + T8 + T17a), T35 (after T14 + T34); T42 (after T25b + T41) | Result details, popup, setup backend, layout-fix hotkey |
 | 7 | T6 → T31 → T32 → T33; T36; T43 | Installer + uninstall, release pipeline, updater, wizard, layout-fix settings |
 | 7b | T38 → T39 → T40 | **On hold (D42):** T37 has no verdict, so S9.2 is skipped in v0.1.0 |
 | 8 | T7 | README, install guide, full smoke test including Windows Sandbox |
@@ -1220,6 +1219,7 @@ Critical path: T1 → T2 → T3 → T11 → T12 → T20 → T21 → T26 → T7. 
 
 ## 8. Review notes
 
+- **Changed 2026-10-30:** wave 6 outcomes folded in. T34 (#69): `recommend(gpus)` without RAM, nullable `model`/`downloadMb` for tier `none`, `ramAvailableMb` in `EnvironmentReport`, tolerant VRAM bounds. T26/T35 (#61, #70): Start Ollama button in the shared `ErrorBanner` (main window and popup).
 - **Changed 2026-10-29:** wave 4 outcomes folded in. Spike T13 (#45, owner decisions): one model `qwen3.5:9b`, no CPU tiers (no usable GPU → tier `none`, Claude Code), no per-mode provider default (D28, T13, T34, T36, §4.6, risks). T14 (#46): `think: false`, too-long guard. T44 (#81): per-mode output schema and parser drop of no-op issues. T17b (#50): `is_error` → `ClaudeAuth` only for sign-in errors. T6: autostart value name `Prompt Translator`, unquoted path (from T24, #57).
 - **Changed 2026-10-27:** CI runs for release builds only (owner's decision): PRs into and pushes to `release/**` and `main`, no longer `develop`; ticket PRs rely on the local full check (T4, `docs/development.md` §9, APP-019).
 - **Changed 2026-10-24:** spike T37 (#72) outcome folded in as D42 (owner decision): the spike could not run (the agent's safety classifier blocked the console injector), so E9 (S9.2 #31, T38-T40 #73-#75, and T37 itself) is on hold and removed from v0.1.0, which ships with Clipboard only. Also dropped the unused `claude-config` app folder and `claude_config_dir()` (D41 removed the dedicated config dir) from D27 and T3.

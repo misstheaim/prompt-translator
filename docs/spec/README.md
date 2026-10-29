@@ -1,11 +1,11 @@
 # Prompt Translator: behaviour spec
 
 > What Prompt Translator does **now**: only implemented behaviour. Planned changes are in `docs/plans/`, as spec deltas on their tasks.
-> Synced to: `c4dd432` (2026-10-30): every change on `develop` up to this commit is reflected here.
+> Synced to: `c25631f` (2026-10-30): every change on `develop` up to this commit is reflected here.
 
 ## Overview
 
-Prompt Translator is a Windows tray app for practising English while working with Claude Code: it translates, improves or corrects a prompt typed in Russian (or another language, or mixed with English), explains the mistakes, and keeps a history. It is a Tauri 2 desktop app: a Rust core owns all I/O and a React webview renders the UI, talking to the core only through typed commands. Implemented so far: the app shell (main window with tabs, error banner and toasts, tray icon, close-to-tray, single instance and autostart, app identity and icons, data folders, logging, the error format, shared data contracts); the Translate screen (run a mode, copy the result), the History and Mistakes screens, and the Settings screen with the preset editor (the About tab is a placeholder); the settings and preset stores; the history database; the translation pipeline with the Ollama, Claude Code and mock providers and a provider status check; the technical-token check and mode detection; the global hotkey with auto-copy of the selection and a popup window whose page is still a placeholder; and the `eval` quality-report binary. Not implemented yet: the diff and issue details on the Translate screen, the popup's translate flow, layout fix, the setup wizard and the About tab.
+Prompt Translator is a Windows tray app for practising English while working with Claude Code: it translates, improves or corrects a prompt typed in Russian (or another language, or mixed with English), explains the mistakes, and keeps a history. It is a Tauri 2 desktop app: a Rust core owns all I/O and a React webview renders the UI, talking to the core only through typed commands. Implemented so far: the app shell (main window with tabs, error banner and toasts, tray icon, close-to-tray, single instance and autostart, app identity and icons, data folders, logging, the error format, shared data contracts); the Translate screen (run a mode, diff, issues and token warnings, copy the result), the History and Mistakes screens, and the Settings screen with the preset editor (the About tab is a placeholder); the settings and preset stores; the history database; the translation pipeline with the Ollama, Claude Code and mock providers and a provider status check; the technical-token check and mode detection; the global hotkey with auto-copy of the selection and the popup window that translates the captured text; the layout-fix hotkey that replaces wrong-layout text in the foreground app; the setup commands (environment check and model recommendation, Ollama install, start, model download and benchmark); and the `eval` quality-report binary. Not implemented yet: the setup wizard screen, layout-fix settings in the Settings screen and the About tab.
 
 ## Areas
 
@@ -15,10 +15,11 @@ Prompt Translator is a Windows tray app for practising English while working wit
 | Settings | [settings.md](settings.md) | `settings.json`: fields, defaults, loading, validation, saving, commands; the Settings screen |
 | Presets | [presets.md](presets.md) | Preset files, the four built-ins, seeding, validation, list/save/delete/reset; the preset editor |
 | History | [history.md](history.md) | SQLite history database, saving results, search, "my mistakes" summary, history commands; the History and Mistakes screens |
-| Translation | [translation.md](translation.md) | Prompt building, per-mode output schema, output parsing, translate/cancel/copy commands, mock provider, technical-token check, mode detection; the Translate screen |
+| Translation | [translation.md](translation.md) | Prompt building, per-mode output schema, output parsing, translate/cancel/copy commands, mock provider, technical-token check, mode detection; the Translate screen with its diff, issues and token warnings |
 | Providers | [providers.md](providers.md) | Ollama and Claude Code providers (text generation only), Claude Code detection and isolation, translator-run registry, provider status |
-| Hotkey and popup | [popup.md](popup.md) | Global hotkey, registration errors, the popup window and page, auto-copy of the selection |
-| Layout fix | [layout-fix.md](layout-fix.md) | US/Russian wrong-layout text conversion (not wired yet) |
+| Hotkey and popup | [popup.md](popup.md) | Global hotkey, registration errors, the popup window and its translate page and keys, auto-copy of the selection |
+| Layout fix | [layout-fix.md](layout-fix.md) | US/Russian wrong-layout text conversion and the layout-fix hotkey (replace, previous word, terminals, input-language switch) |
+| Setup | [setup.md](setup.md) | Environment check and model tier, Ollama install, start, model download and benchmark, setup progress events |
 
 ## Glossary
 

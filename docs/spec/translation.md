@@ -83,8 +83,9 @@ The Translate tab has, top to bottom:
 - A text box (autofocused, any language, "Type or paste your text (any language)") with a counter "<n> / 8000" that turns red with "(too long)" above 8000. "Run" (Ctrl+Enter) is disabled while the text is blank or too long, while a request runs or while no preset exists. While running it shows "Running" with a spinner and a "Cancel" button.
 - Run sends a new request id with `translate` (TRANS-008). On success an editable result box appears with the output, a line "<provider> · <model> · <duration>" (ms under 1 s, else seconds with one decimal) and a "Copy" button (Ctrl+Shift+Enter, disabled for a blank result) that copies the edited text with the entry's `historyId` (TRANS-010) and shows the toast "Copied"; a copy failure shows an error toast with its message. The shortcuts work while focus is inside the screen.
 - On failure an error banner with a Retry action that runs again (APP-022). Cancel makes the request fail with `Cancelled`, which is not shown as an error: the screen goes back to the previous result, or to idle if there is none.
-- The input, selections, result and edited output stay when the user switches tabs. Opening an entry from History (HISTORY-010) or the popup (POPUP-006) fills them. Issues, diff and token warnings are not shown on this screen yet.
-Since: #53
+- The input, selections, result and edited output stay when the user switches tabs. Opening an entry from History (HISTORY-010) or the popup (POPUP-006) fills them.
+- Below the result line, in this order: the token-warning banner when the result has warnings (APP-031; "Ignore" hides it for that result only, a new result shows its own; "Retry" runs again with the current text), then, only when the result's mode is Improve or Correct, a "Changes" section with the word-level diff and, when the result has issues, an "Issues (<n>)" section with the issue list (APP-031). Translate results show neither. The diff compares the text the result was made from and the provider's output, not the edited output box; both stay tied to the result when the input box is edited afterwards.
+Since: #53 · Changed: #54
 
 ## Known issues
 
