@@ -81,8 +81,15 @@ fn copy_selection_win() -> Option<String> {
     sleep(input::SETTLE_TIME);
 
     let copied = input::read_text().ok().flatten();
+    // VS Code / Monaco copy the whole line when nothing is selected; that is "no selection".
+    // Must be checked before the restore replaces the clipboard (and its marker).
+    let whole_line = input::clipboard_is_empty_selection_copy();
     if !input::write_text(saved.as_deref(), true) {
         log::warn!("Auto-copy: could not restore the previous clipboard text");
+    }
+    if whole_line {
+        log::debug!("Auto-copy: whole-line copy (no selection); using the clipboard");
+        return None;
     }
     copied.filter(|text| !text.is_empty())
 }
