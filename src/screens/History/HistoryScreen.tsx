@@ -69,6 +69,16 @@ export function HistoryScreen() {
   const [detailError, setDetailError] = useState<AppError | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
+  const historyIssue = useAppStore((s) => s.historyIssue);
+  const setHistoryIssue = useAppStore((s) => s.setHistoryIssue);
+  const issueOriginal = historyIssue?.original ?? null;
+  const issueCorrected = historyIssue?.corrected ?? null;
+  function issueFilter() {
+    return issueOriginal !== null && issueCorrected !== null
+      ? { original: issueOriginal, corrected: issueCorrected }
+      : null;
+  }
+
   // Only the latest list/detail request may write its result.
   const listRequest = useRef(0);
   const detailRequest = useRef(0);
@@ -80,31 +90,39 @@ export function HistoryScreen() {
   }, [searchText]);
 
   // The first page is loading while the list shows another query than the box.
-  const loading = loadedQuery !== query || moreLoading;
+  const listKey = JSON.stringify([query, issueOriginal, issueCorrected]);
+  const loading = loadedQuery !== listKey || moreLoading;
 
   // First page for the current query (also reruns on retry).
   useEffect(() => {
     const id = ++listRequest.current;
-    historyList({ query: query === "" ? null : query, limit: PAGE_SIZE, offset: 0 })
+    historyList({
+      query: query === "" ? null : query,
+      issue: issueFilter(),
+      limit: PAGE_SIZE,
+      offset: 0,
+    })
       .then((page) => {
         if (id !== listRequest.current) return;
         setItems(page);
         setHasMore(page.length === PAGE_SIZE);
         setListError(null);
-        setLoadedQuery(query);
+        setLoadedQuery(listKey);
       })
       .catch((e: unknown) => {
         if (id !== listRequest.current) return;
         setListError(toAppError(e));
-        setLoadedQuery(query);
+        setLoadedQuery(listKey);
       });
-  }, [query, reloadKey]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- listKey covers query and the issue
+  }, [listKey, reloadKey]);
 
   function loadMore() {
     const id = ++listRequest.current;
     setMoreLoading(true);
     historyList({
       query: query === "" ? null : query,
+      issue: issueFilter(),
       limit: PAGE_SIZE,
       offset: items.length,
     })
@@ -189,7 +207,7 @@ export function HistoryScreen() {
   }
 
   const historyDisabled = settings !== null && !settings.historyEnabled;
-  const searching = query !== "";
+  const searching = query !== "" || historyIssue !== null;
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-4">
@@ -204,6 +222,16 @@ export function HistoryScreen() {
           className="h-8 min-w-0 flex-1 rounded-md border border-border bg-surface px-3 text-sm text-text placeholder:text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
         />
       </div>
+
+      {historyIssue && (
+        <div className="flex items-center gap-2 text-sm text-muted">
+          <span>Entries with the mistake</span>
+          <span className="rounded bg-surface-raised px-2 py-0.5 text-text">
+            {historyIssue.original} <span aria-hidden="true">→</span> {historyIssue.corrected}
+          </span>
+          <Button onClick={() => setHistoryIssue(null)}>Clear filter</Button>
+        </div>
+      )}
 
       {historyDisabled && (
         <Banner
