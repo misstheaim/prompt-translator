@@ -10,6 +10,7 @@ import { ErrorBanner } from "./components/ErrorBanner";
 import { ToastHost } from "./components/Toast";
 import { cx } from "./lib/cx";
 import { HistoryScreen } from "./screens/History/HistoryScreen";
+import { MistakesScreen } from "./screens/Mistakes/MistakesScreen";
 import { SettingsScreen } from "./screens/Settings/SettingsScreen";
 import { TranslateScreen } from "./screens/Translate/TranslateScreen";
 import { useTranslateStore } from "./screens/Translate/store";
@@ -146,6 +147,8 @@ function App() {
           <TranslateScreen />
         ) : screen === "history" ? (
           <HistoryScreen />
+        ) : screen === "mistakes" ? (
+          <MistakesScreen />
         ) : screen === "settings" ? (
           <SettingsScreen />
         ) : (

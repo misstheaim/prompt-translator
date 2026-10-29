@@ -1,6 +1,7 @@
 import { listen } from "@tauri-apps/api/event";
 import { create } from "zustand";
 
+import type { IssueFilter } from "../bindings/IssueFilter";
 import type { Preset } from "../bindings/Preset";
 import type { ProviderStatus } from "../bindings/ProviderStatus";
 import type { Settings } from "../bindings/Settings";
@@ -38,7 +39,11 @@ interface AppState {
   /** Why the popup hotkey isn't registered; the shell shows it as a banner. */
   hotkeyError: string | null;
 
+  /** Mistake the History screen is filtered by (set from the Mistakes screen). */
+  historyIssue: IssueFilter | null;
+
   setScreen: (screen: Screen) => void;
+  setHistoryIssue: (issue: IssueFilter | null) => void;
   /** Replaces the settings (after `save_settings`, or from `settings://changed`). */
   setSettings: (settings: Settings) => void;
   setPresets: (presets: Preset[]) => void;
@@ -59,7 +64,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   toasts: [],
   hotkeyError: null,
 
+  historyIssue: null,
+
   setScreen: (screen) => set({ screen }),
+  setHistoryIssue: (historyIssue) => set({ historyIssue }),
   setSettings: (settings) => set({ settings }),
   setPresets: (presets) => set({ presets }),
 
