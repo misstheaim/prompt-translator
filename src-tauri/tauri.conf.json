@@ -26,6 +26,7 @@
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": ["nsis"],
     "publisher": "misstheaim",
     "homepage": "https://github.com/misstheaim/prompt-translator",
@@ -50,6 +51,14 @@
         "template": "windows/installer.nsi",
         "installerHooks": "windows/hooks.nsh"
       }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "REPLACE_WITH_UPDATER_PUBLIC_KEY (see docs/release.md; the contents of the generated .pub file)",
+      "endpoints": [
+        "https://github.com/misstheaim/prompt-translator/releases/latest/download/latest.json"
+      ]
     }
   }
 }
