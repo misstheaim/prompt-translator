@@ -10,6 +10,8 @@ interface ErrorBannerProps {
   /** Shows the Retry action for kinds where retrying makes sense. */
   onRetry?: () => void;
   className?: string;
+  /** Set to `false` where there is no settings screen to open (the popup window). */
+  showSettingsAction?: boolean;
 }
 
 interface KindInfo {
@@ -42,7 +44,12 @@ const KINDS: Record<ErrorKind, KindInfo> = {
 };
 
 /** Maps an `AppError` to a banner with its message, hint, details and actions. */
-export function ErrorBanner({ error, onRetry, className }: ErrorBannerProps) {
+export function ErrorBanner({
+  error,
+  onRetry,
+  className,
+  showSettingsAction = true,
+}: ErrorBannerProps) {
   const setScreen = useAppStore((s) => s.setScreen);
   const showToast = useAppStore((s) => s.showToast);
   const info = KINDS[error.kind] ?? KINDS.Io;
@@ -58,7 +65,7 @@ export function ErrorBanner({ error, onRetry, className }: ErrorBannerProps) {
           Install help
         </Button>
       )}
-      {info.openSettings && (
+      {info.openSettings && showSettingsAction && (
         <Button size="sm" onClick={() => setScreen("settings")}>
           Open settings
         </Button>
