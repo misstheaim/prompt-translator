@@ -8,6 +8,7 @@ import { Banner } from "../../components/Banner";
 import { Button } from "../../components/Button";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { ErrorBanner } from "../../components/ErrorBanner";
+import { IssueList } from "../../components/IssueList";
 import { Spinner } from "../../components/Spinner";
 import {
   copyResult,
@@ -20,7 +21,6 @@ import {
 import { cx } from "../../lib/cx";
 import { useAppStore } from "../../store/app";
 import { useTranslateStore } from "../Translate/store";
-import { IssueList } from "./IssueList";
 
 const PAGE_SIZE = 50;
 const DEBOUNCE_MS = 300;
@@ -201,6 +201,8 @@ export function HistoryScreen() {
         durationMs: detail.durationMs,
       },
       output: detail.outputText,
+      resultSource: detail.sourceText,
+      resultMode: detail.mode,
       error: null,
     });
     setScreen("translate");
