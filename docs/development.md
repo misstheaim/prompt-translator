@@ -102,7 +102,7 @@ Spike T37 (#72) could not run (plan D42), so it and story S9.2 (#31, #73–#75) 
 1. Every ticket in the milestone is closed (or on hold and removed from it) and `develop` is green.
 2. Cut the release branch: `git fetch origin develop`, `git switch -c release/X.Y.Z origin/develop`. Bump the version (`node scripts/bump-version.mjs X.Y.Z`), update `CHANGELOG.md`, push, and open a PR into `main`.
 3. Only fixes go into the release branch (PRs into `release/X.Y.Z`), each also needed on `develop` (it comes back with step 6).
-4. Run the smoke test (`docs/smoke-test.md`, T7) on an installer built from the release branch, including the Windows Sandbox section.
+4. Run the smoke test (`docs/smoke-test.md`, T7) on an installer built from the release branch, including the Windows Sandbox section. Local `tauri build` signs updater artifacts, so it needs the signing key in the environment (or `createUpdaterArtifacts` turned off); see `docs/release.md` §1.
 5. When it passes: merge the PR into `main` (merge commit) and push the tag `vX.Y.Z` on that merge commit. The tag triggers `.github/workflows/release.yml`, which builds the signed installer and creates a **draft** GitHub release with `latest.json`. Check the draft and publish it; publishing is what makes the in-app updater see it.
 6. Merge `main` back into `develop`, delete the release branch, and close the milestone.
 
