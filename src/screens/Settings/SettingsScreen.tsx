@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import { cx } from "../../lib/cx";
 import { GeneralSettings } from "./GeneralSettings";
+import { PresetsSettings } from "./PresetsSettings";
 
 const TABS = [
   { id: "general", label: "General" },
@@ -61,7 +62,7 @@ export function SettingsScreen() {
       </div>
       {tab === "presets" && (
         <div role="tabpanel" id="settings-panel-presets" aria-labelledby="settings-tab-presets">
-          <TabPlaceholder title="Presets" ticket="the preset editor (T23)" />
+          <PresetsSettings />
         </div>
       )}
       {tab === "about" && (
