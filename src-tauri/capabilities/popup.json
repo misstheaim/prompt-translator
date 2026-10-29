@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "popup",
+  "description": "Window permissions the popup's own JS needs (the event permissions are in default)",
+  "windows": ["popup"],
+  "permissions": ["core:window:allow-hide", "core:window:allow-show", "core:window:allow-set-focus"]
+}

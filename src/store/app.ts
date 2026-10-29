@@ -4,7 +4,14 @@ import { create } from "zustand";
 import type { Preset } from "../bindings/Preset";
 import type { ProviderStatus } from "../bindings/ProviderStatus";
 import type { Settings } from "../bindings/Settings";
-import { getSettings, listPresets, providerStatus, toAppError, type AppError } from "../lib/api";
+import {
+  getSettings,
+  hotkeyError,
+  listPresets,
+  providerStatus,
+  toAppError,
+  type AppError,
+} from "../lib/api";
 
 export const SCREENS = ["translate", "history", "mistakes", "settings"] as const;
 export type Screen = (typeof SCREENS)[number];
@@ -28,6 +35,8 @@ interface AppState {
   /** Set when loading settings failed; the shell shows it as a banner. */
   loadError: AppError | null;
   toasts: ToastItem[];
+  /** Why the popup hotkey isn't registered; the shell shows it as a banner. */
+  hotkeyError: string | null;
 
   setScreen: (screen: Screen) => void;
   /** Replaces the settings (after `save_settings`, or from `settings://changed`). */
@@ -48,6 +57,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   providerStatus: null,
   loadError: null,
   toasts: [],
+  hotkeyError: null,
 
   setScreen: (screen) => set({ screen }),
   setSettings: (settings) => set({ settings }),
@@ -97,6 +107,21 @@ export async function initAppStore(): Promise<() => void> {
     s.setSettings(event.payload);
     void s.refreshProviderStatus();
   });
-  await Promise.all([store.loadSettings(), store.loadPresets(), store.refreshProviderStatus()]);
-  return unlisten;
+  // A registration failure at startup happens before this window listens, so ask once too.
+  const unlistenHotkey = await listen<string | null>("hotkey://error", (event) => {
+    useAppStore.setState({ hotkeyError: event.payload });
+  });
+  await Promise.all([
+    store.loadSettings(),
+    store.loadPresets(),
+    store.refreshProviderStatus(),
+    hotkeyError().then(
+      (message) => useAppStore.setState({ hotkeyError: message }),
+      () => undefined,
+    ),
+  ]);
+  return () => {
+    unlisten();
+    unlistenHotkey();
+  };
 }

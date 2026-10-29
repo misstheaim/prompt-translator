@@ -71,6 +71,13 @@ export function setLastPopupMode(mode: Mode): Promise<Settings> {
   return call<Settings>("set_last_popup_mode", { mode });
 }
 
+// ---- system ----
+
+/** Why the popup hotkey isn't registered (taken, invalid), or `null` when it works. */
+export function hotkeyError(): Promise<string | null> {
+  return call<string | null>("hotkey_error");
+}
+
 // ---- presets ----
 
 export function listPresets(): Promise<Preset[]> {
