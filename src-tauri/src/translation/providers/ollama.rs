@@ -239,7 +239,7 @@ fn parse_chat_response(text: &str) -> AppResult<String> {
 }
 
 /// `qwen3.5:9b` matches itself; a name without a tag means `:latest`.
-fn same_model(installed: &str, wanted: &str) -> bool {
+pub fn same_model(installed: &str, wanted: &str) -> bool {
     fn norm(name: &str) -> String {
         let name = name.trim();
         if name.contains(':') {
