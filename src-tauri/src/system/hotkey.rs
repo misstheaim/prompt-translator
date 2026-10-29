@@ -17,6 +17,7 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutEvent, S
 use crate::settings::{SETTINGS_CHANGED_EVENT, SettingsStore};
 use crate::translation::{mode_detect, model::Mode};
 
+use super::clipboard;
 use super::popup::{self, PopupSource};
 
 /// Rust → main window: the registration error message, or `null` once the hotkey works.
@@ -119,7 +120,7 @@ fn on_shortcut<R: Runtime>(app: &AppHandle<R>, shortcut: &Shortcut, event: Short
         return;
     }
     let app = app.clone();
-    // Capturing may wait (auto-copy, #59), so it must not block the event loop.
+    // Capturing may wait (auto-copy), so it must not block the event loop.
     tauri::async_runtime::spawn_blocking(move || {
         let text = capture_source(&app);
         let last = app
@@ -131,10 +132,15 @@ fn on_shortcut<R: Runtime>(app: &AppHandle<R>, shortcut: &Shortcut, event: Short
     });
 }
 
-/// The text to translate. Today this is the clipboard; empty or non-text content gives "".
-///
-/// Hook point for auto-copy (#59, plan D5): when `autoCopySelection` is on and the foreground
-/// window isn't a terminal, send Ctrl+C here, read the clipboard, then restore the old text.
+/// The text to translate: the foreground app's selection when `autoCopySelection` is on and it
+/// could be copied (plan D5, [`clipboard::copy_selection`]), otherwise the clipboard. Empty or
+/// non-text content gives "". Blocks for up to about a second, so it runs off the event loop.
 fn capture_source<R: Runtime>(app: &AppHandle<R>) -> String {
+    let auto_copy = app
+        .try_state::<SettingsStore>()
+        .is_some_and(|s| s.get().auto_copy_selection);
+    if auto_copy && let Some(text) = clipboard::copy_selection() {
+        return text;
+    }
     app.clipboard().read_text().unwrap_or_default()
 }
