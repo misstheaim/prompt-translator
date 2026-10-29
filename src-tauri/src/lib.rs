@@ -47,8 +47,11 @@ pub fn run() {
 
             // Translator-run registry (read by session discovery) and the run counter that
             // triggers cleanup; the dirs are tidied once at startup.
-            app.manage(translation::providers::claude_code::TranslatorPids::new());
-            app.manage(translation::providers::claude_code::Housekeeping::new());
+            // The Claude Code provider gets handles to the same two (clones share the state).
+            let translator_pids = translation::providers::claude_code::TranslatorPids::new();
+            let housekeeping = translation::providers::claude_code::Housekeeping::new();
+            app.manage(translator_pids.clone());
+            app.manage(housekeeping.clone());
             translation::providers::claude_code::housekeeping::run(true);
 
             let settings = settings::SettingsStore::load(system::paths::settings_file()?);
@@ -57,7 +60,7 @@ pub fn run() {
             app.manage(translation::service::TranslationService::new(
                 settings.clone(),
                 presets.clone(),
-                translation::providers::registry(),
+                translation::providers::registry(translator_pids, housekeeping),
             ));
             app.manage(settings);
             app.manage(presets);

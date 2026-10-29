@@ -2632,6 +2632,7 @@ dependencies = [
  "ts-rs",
  "uuid",
  "whatlang",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
