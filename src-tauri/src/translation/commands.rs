@@ -6,6 +6,7 @@ use tauri_plugin_clipboard_manager::ClipboardExt;
 use super::mode_detect;
 use super::model::{Mode, TranslationRequest, TranslationResult};
 use super::providers::ProviderStatus;
+use super::providers::claude_code;
 use super::providers::ollama::OllamaProvider;
 use super::service::TranslationService;
 use crate::error::{AppError, AppResult};
@@ -32,13 +33,13 @@ pub fn cancel_translation(service: State<'_, TranslationService>, request_id: St
     service.cancel(&request_id);
 }
 
-/// Ollama's state (and, from T17a, Claude Code's) for the current settings.
+/// Ollama's and Claude Code's state for the current settings.
 #[tauri::command]
 pub async fn provider_status(settings: State<'_, SettingsStore>) -> AppResult<ProviderStatus> {
     let settings = settings.get();
     Ok(ProviderStatus {
         ollama: OllamaProvider::new().status(&settings).await,
-        claude: None,
+        claude: Some(claude_code::status(&settings).await),
     })
 }
 
