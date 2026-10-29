@@ -1,11 +1,17 @@
+import { listen } from "@tauri-apps/api/event";
 import { useEffect } from "react";
 
+import type { Mode } from "./bindings/Mode";
+import type { TranslationResult } from "./bindings/TranslationResult";
+import { Banner } from "./components/Banner";
+import { Button } from "./components/Button";
 import { DevMockPanel } from "./components/DevMockPanel";
 import { ErrorBanner } from "./components/ErrorBanner";
 import { ToastHost } from "./components/Toast";
 import { cx } from "./lib/cx";
 import { SettingsScreen } from "./screens/Settings/SettingsScreen";
 import { TranslateScreen } from "./screens/Translate/TranslateScreen";
+import { useTranslateStore } from "./screens/Translate/store";
 import { initAppStore, SCREENS, useAppStore, type Screen } from "./store/app";
 
 const TAB_LABELS: Record<Screen, string> = {
@@ -25,10 +31,18 @@ function ScreenPlaceholder({ screen }: { screen: Screen }) {
   );
 }
 
+/** Payload of `main://open-entry` (sent by the popup, T26): the input and its result. */
+interface OpenEntryPayload {
+  input: string;
+  mode: Mode;
+  result: TranslationResult | null;
+}
+
 function App() {
   const screen = useAppStore((s) => s.screen);
   const setScreen = useAppStore((s) => s.setScreen);
   const loadError = useAppStore((s) => s.loadError);
+  const hotkeyError = useAppStore((s) => s.hotkeyError);
 
   useEffect(() => {
     const unlisten = initAppStore();
@@ -36,6 +50,27 @@ function App() {
       void unlisten.then((fn) => fn());
     };
   }, []);
+
+  // The popup's "Open in main window" sends `main://open-entry` (Rust shows this window).
+  useEffect(() => {
+    const unlisten = listen<OpenEntryPayload>("main://open-entry", (event) => {
+      const { input, mode, result } = event.payload;
+      useTranslateStore.setState({
+        input,
+        mode,
+        provider: result?.provider ?? null,
+        status: result ? "success" : "idle",
+        requestId: null,
+        result,
+        output: result?.output ?? "",
+        error: null,
+      });
+      setScreen("translate");
+    });
+    return () => {
+      void unlisten.then((fn) => fn());
+    };
+  }, [setScreen]);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -86,6 +121,21 @@ function App() {
             error={loadError}
             onRetry={() => void useAppStore.getState().loadSettings()}
           />
+        </div>
+      )}
+
+      {hotkeyError && (
+        <div className="shrink-0 px-4 pt-4">
+          <Banner
+            variant="warning"
+            actions={
+              <Button variant="secondary" onClick={() => setScreen("settings")}>
+                Open settings
+              </Button>
+            }
+          >
+            {hotkeyError}
+          </Banner>
         </div>
       )}
 

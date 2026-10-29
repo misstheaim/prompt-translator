@@ -25,7 +25,12 @@ pub fn run() {
         }))
         // Registered from Rust only; the webview gets no autostart permission.
         .plugin(system::autostart::plugin())
-        .on_window_event(system::tray::on_window_event)
+        // Registered from Rust only (`system::hotkey`); the webview gets no shortcut permission.
+        .plugin(system::hotkey::plugin())
+        .on_window_event(|window, event| {
+            system::tray::on_window_event(window, event);
+            system::popup::on_window_event(window, event);
+        })
         // Used from Rust only (`copy_result`); the webview gets no clipboard permission.
         .plugin(tauri_plugin_clipboard_manager::init())
         // Used from Rust only (`pick_file`); the webview gets no dialog permission.
@@ -89,8 +94,12 @@ pub fn run() {
 
             system::tray::init(app.handle())?;
             system::autostart::init(app.handle());
+            // The popup exists (hidden) from the start so the hotkey works at once; the hotkey
+            // is registered after the settings are managed.
+            system::popup::init(app.handle())?;
+            system::hotkey::init(app.handle());
             // Started by the autostart entry: stay in the tray (the main window is created
-            // hidden; no popup exists at startup either).
+            // hidden).
             if !system::autostart::launched_by_autostart() {
                 system::tray::show_main_window(app.handle());
             }
@@ -99,6 +108,7 @@ pub fn run() {
         // One registration line per module.
         .invoke_handler(tauri::generate_handler![
             system::commands::ping,
+            system::commands::hotkey_error,
             system::commands::pick_file,
             system::commands::open_url,
             settings::commands::get_settings,

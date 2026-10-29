@@ -12,6 +12,13 @@ pub fn ping() -> String {
     "pong".to_string()
 }
 
+/// The current hotkey registration error, if any (the main window asks once at startup; later
+/// changes arrive as `hotkey://error`).
+#[tauri::command]
+pub fn hotkey_error(state: tauri::State<'_, super::hotkey::HotkeyState>) -> Option<String> {
+    state.error()
+}
+
 /// The only URLs `open_url` opens: the Ollama download page, the Claude Code install docs and
 /// this repo's releases (plan §4.6). A URL matches when it equals an entry or continues it with
 /// a `/`, `?` or `#`.
