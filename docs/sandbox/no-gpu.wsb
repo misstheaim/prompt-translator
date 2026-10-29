@@ -1,0 +1,11 @@
+<Configuration>
+  <vGPU>Disable</vGPU>
+  <Networking>Enable</Networking>
+  <MappedFolders>
+    <MappedFolder>
+      <HostFolder>..\..\src-tauri\target\release\bundle\nsis</HostFolder>
+      <SandboxFolder>C:\Users\WDAGUtilityAccount\Desktop\installer</SandboxFolder>
+      <ReadOnly>true</ReadOnly>
+    </MappedFolder>
+  </MappedFolders>
+</Configuration>
