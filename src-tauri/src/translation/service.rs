@@ -21,6 +21,7 @@ use super::model::{ProviderKind, TranslationRequest, TranslationResult};
 use super::prompt_builder::{self, BuiltPrompt};
 use super::{output_parser, token_check};
 use crate::error::{AppError, AppResult};
+use crate::history::HistoryDb;
 use crate::presets::PresetStore;
 use crate::settings::{Settings, SettingsStore};
 
@@ -73,6 +74,8 @@ pub struct TranslationService {
     settings: SettingsStore,
     presets: PresetStore,
     providers: Vec<Arc<dyn TranslationProvider>>,
+    /// `None` when the history database couldn't be opened: nothing is saved then.
+    history: Option<HistoryDb>,
     /// Running requests by `request_id`. Every entry is removed when its request finishes.
     cancels: Mutex<HashMap<String, CancellationToken>>,
 }
@@ -82,11 +85,13 @@ impl TranslationService {
         settings: SettingsStore,
         presets: PresetStore,
         providers: Vec<Arc<dyn TranslationProvider>>,
+        history: Option<HistoryDb>,
     ) -> Self {
         Self {
             settings,
             presets,
             providers,
+            history,
             cancels: Mutex::new(HashMap::new()),
         }
     }
@@ -183,10 +188,23 @@ impl TranslationService {
     /// leave `history_id` as `None`.
     fn on_result(
         &self,
-        _req: &TranslationRequest,
-        _settings: &Settings,
-        _result: &mut TranslationResult,
+        req: &TranslationRequest,
+        settings: &Settings,
+        result: &mut TranslationResult,
     ) {
+        if !settings.history_enabled {
+            return;
+        }
+        let Some(history) = &self.history else {
+            return;
+        };
+        let saved = history
+            .conn()
+            .and_then(|conn| crate::history::repo::insert(&conn, result, req));
+        match saved {
+            Ok(id) => result.history_id = Some(id),
+            Err(e) => log::warn!("Couldn't save the translation to history: {e:?}"),
+        }
     }
 
     /// The provider for `kind`, if it is registered and allowed.

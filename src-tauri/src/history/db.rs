@@ -2,7 +2,7 @@
 //! managed state.
 
 use std::path::Path;
-use std::sync::{Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use rusqlite::Connection;
 use rusqlite::functions::FunctionFlags;
@@ -67,14 +67,16 @@ pub fn open(path: &Path) -> AppResult<Connection> {
 }
 
 /// The history database as managed state. Repo functions are sync; callers use `spawn_blocking`.
+/// Cloning gives another handle to the same connection.
+#[derive(Clone)]
 pub struct HistoryDb {
-    conn: Mutex<Connection>,
+    conn: Arc<Mutex<Connection>>,
 }
 
 impl HistoryDb {
     pub fn open(path: &Path) -> AppResult<Self> {
         Ok(Self {
-            conn: Mutex::new(open(path)?),
+            conn: Arc::new(Mutex::new(open(path)?)),
         })
     }
 
