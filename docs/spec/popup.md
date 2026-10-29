@@ -40,13 +40,13 @@ When `autoCopySelection` is on (default), pressing the hotkey first tries to cop
 1. If the foreground window is a terminal, nothing is sent (Ctrl+C would interrupt the running command). A terminal is a window of class `CASCADIA_HOSTING_WINDOW_CLASS` (Windows Terminal) or `ConsoleWindowClass` (conhost), or of a process named `WindowsTerminal.exe`, `wezterm-gui.exe`, `alacritty.exe` or `mintty.exe` (names compared ignoring case). Terminals embedded in IDEs can't be told apart from the editor, so Ctrl+C is sent there.
 2. It waits up to 500 ms for every modifier key (Shift, Ctrl, Alt, Win) to be released; if one is still down, nothing is sent (Ctrl+Shift+C would open DevTools in Chromium apps).
 3. It saves the clipboard text, and gives up unless the same window is still in front and no modifier is down. It sends Ctrl+C and waits up to 300 ms for the clipboard to change.
-4. The new clipboard text is the captured source, and the saved text is put back on the clipboard. The restore is marked (`ExcludeClipboardContentFromMonitorProcessing`, `CanIncludeInClipboardHistory` = 0) so it does not appear in Windows clipboard history.
+4. The new clipboard text is the captured source, and the saved text is put back on the clipboard. The restore is marked (`ExcludeClipboardContentFromMonitorProcessing`, `CanIncludeInClipboardHistory` = 0) so it does not appear in Windows clipboard history. If the copy is VS Code's (or another Monaco editor's) whole-line copy, made by the editor because nothing was selected (recognised by the `"isFromEmptySelection":true` marker in the copied data), it counts as no selection: the saved text is put back and POPUP-008 applies. Other editors that copy the whole line without that marker (JetBrains IDEs, Sublime) are not recognised.
 Only one capture runs at a time, and not while a layout fix is using the clipboard (LAYOUT-004). When `autoCopySelection` is off, the clipboard is used as it is.
-Since: #59 · Changed: #78
+Since: #59 · Changed: #78, #128
 
 ### POPUP-008 Fallback to the clipboard
-Whenever auto-copy gives nothing (a terminal, modifiers held, the clipboard busy, the input blocked by Windows, no selection so the clipboard did not change, or an empty copy), the source is the text currently on the clipboard, left untouched. This is not an error.
-Since: #59
+Whenever auto-copy gives nothing (a terminal, modifiers held, the clipboard busy, the input blocked by Windows, no selection so the clipboard did not change, a whole-line copy from VS Code or another Monaco editor (POPUP-007), or an empty copy), the source is the text that was on the clipboard before, left untouched. This is not an error.
+Since: #59 · Changed: #128
 
 ### POPUP-009 Running and showing the result
 For a non-blank text the page runs `translate` (TRANS-008) at once with a new request id, the detected mode, and the provider and preset from the current settings (`defaultProvider`, `defaultPresetId`). While it runs the area shows a spinner and "Working... Esc to cancel".

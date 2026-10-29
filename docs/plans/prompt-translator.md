@@ -114,7 +114,7 @@ The owner's machine below is the **development** machine. Target machines vary, 
 | D35 | Prompt prefix guard | If the accepted text starts with `!`, `/` or `#` (after trimming whitespace) and the target is a session, Accept asks for explicit confirmation ("This will run as a shell command / slash command / memory note in Claude Code. Send anyway?"). Never sent silently | Block outright; strip the character | These prefixes trigger bash mode, slash commands and memory in Claude Code; model output from untrusted source text could start with them, but a user may also want to send a slash command on purpose |
 | D36 | Keyboard layout fix | A **stand-alone tool** with its own hotkey, outside the translate flow. A fixed key-position mapping between the Windows Russian (ЙЦУКЕН) and US (QWERTY) layouts: no LLM, instant, offline. Direction by majority of Cyrillic vs Latin letters in the text. Only characters of the source layout change, so correctly typed words in the other script stay as they are. No history, no window. Only ru ↔ en in v1; the tables are data so other pairs (e.g. Ukrainian) can be added later | Convert through the LLM; per-word direction | Deterministic and instant; per-word direction is ambiguous for short words |
 | D37 | Layout fix input and output | Selection via Ctrl+C (same rules as D5). **No selection** → send Ctrl+Shift+Left to select the previous word, then convert it. The result is pasted with Ctrl+V and the previous clipboard text is restored. **In terminals** (or when `autoCopySelection` is off) it converts the clipboard text in place and shows a notification; the user pastes | Keyboard hook that buffers typed keys (Punto Switcher style); terminals unsupported | User's choice. Reuses T25b's code; a global keyboard hook is heavier and looks like a keylogger to antivirus tools |
-| D38 | Layout fix extras | After converting, switch the Windows input language to the target layout (only if it's installed; setting, on by default). Default hotkey **Ctrl+Alt+Space**, configurable, must differ from the translate hotkey | Shift+Home (rejected: it's "select to line start" in every app); Shift+Pause (rejected: many laptops have no Pause key) | User's choice; works on every keyboard |
+| D38 | Layout fix extras | After converting, switch the Windows input language to the target layout (only if it's installed; setting, on by default). Default hotkey **Shift+Pause** (changed in #79, owner decision: Ctrl+Alt+Space was taken by another app on the owner's machine), configurable, must differ from the translate hotkey | Shift+Home (rejected: it's "select to line start" in every app); Ctrl+Alt+Space (the first default; often taken by other apps) | User's choice; works on every keyboard |
 | D39 | Branching and releases | Git Flow as in `docs/development.md`: `main` holds released code only; `develop` is the default and integration branch; one ticket = one branch = one PR squash-merged into `develop`; `release/X.Y.Z` and `hotfix/*` merge into `main` with a merge commit and a `vX.Y.Z` tag. **One milestone, `v0.1.0`, for the whole v1 plan** | Trunk-based on `main`; several smaller milestones | The coordinator needs a stable integration branch, and `main` stays releasable for hotfixes; v1 ships once, after T7's smoke test |
 | D40 | Prompt templates vs. the local model spike | T11 writes provider-neutral templates from §4.4 without waiting for T13. T13 runs in wave 4, once Ollama is installed, with T11's templates as its baseline; T44 applies its findings to the templates | T11 waits for T13 | Ollama wasn't ready in wave 0; this unblocks the core path and the Claude Code provider, and the templates are plain files that are cheap to change later |
 | D41 | Claude isolation (spike T16 outcome, owner decision 2026-10-24) | Invocation **candidate 1**: `claude -p --safe-mode --setting-sources ""` plus the flags in `docs/spikes/claude-invocation.json` (the contract T17b builds from: args, env added, explicit `envRemove` list, cwd under the app data dir via `system/paths.rs`, `TEMP`/`TMP` redirect, UTF-8 stdin, `CREATE_NO_WINDOW`), using the user's normal subscription login. No dedicated `CLAUDE_CONFIG_DIR`, no separate sign-in, no `claude_open_login`. Sign-in check: `claude auth status` (exit 0 = signed in); its output contains the e-mail, so **never log it**. **Safety:** a running translator run is listed by `claude agents --json` as `kind: "interactive"` (name from `--name prompt-translator`, via a transient `~/.claude/sessions/<pid>.json`). Session discovery (D30), injection (D31, D35) and the picker therefore exclude the app's own translator runs by **both** `name == "prompt-translator"` **and** PIDs in the translator-run registry (`TranslatorPids`, T17a) | Dedicated config dir (separate sign-in, hides runs from `agents`, but costs the user a login); `--bare` + API key; accept leakage | Spike showed candidate 1 loads none of the user's CLAUDE.md, hooks, skills, plugins or MCP servers, leaves no history, and needs no extra step; the `agents` listing is handled by filtering, with two independent checks so one failing (rename, registry race) can't send text into a translator run |
@@ -265,7 +265,7 @@ Built-ins: `general`, `technical-development`, `code-review`, `work-communicatio
   "setupCompleted": false, "autoCheckUpdates": true,
   "autoCopySelection": true, "sessionAppendHintShown": false, "lastPopupMode": "correct",
   "devMockProvider": false,
-  "layoutFix": { "enabled": true, "hotkey": "Ctrl+Alt+Space", "switchInputLanguage": true } }
+  "layoutFix": { "enabled": true, "hotkey": "Shift+Pause", "switchInputLanguage": true } }
 ```
 
 Unknown or missing fields fall back to defaults (`#[serde(default)]`). A corrupt file is renamed to `settings.json.bak` and defaults are used.
@@ -453,7 +453,8 @@ No automated tests (owner's decision, 2026-10-15). A ticket is done when build a
     ├── [Task][backend]  T25a Global hotkey and popup window (#58)
     ├── [Task][backend]  T25b Auto-copy selection outside terminals (#59)
 │   ├── [Task][backend]  T25c Mode detection (#60)
-│   └── [Task][frontend] T26 Popup UI (#61)
+│   ├── [Task][frontend] T26 Popup UI (#61)
+│   └── [Task][backend]  T45 Auto-copy: treat VS Code's whole-line copy as no selection (#128)
 └── [Story] S6.3 Fix text typed in the wrong keyboard layout with a hotkey (#76)
     ├── [Task][backend]  T41 Keyboard layout conversion module (#77)
     ├── [Task][backend]  T42 Layout-fix hotkey: capture, replace and switch layout (#78)
@@ -934,6 +935,7 @@ Write `docs/spikes/local-model-eval.md` with:
   - `.github/workflows/release.yml`: on tag `v*`, on `windows-latest`, `permissions: contents: write` (nothing else), actions pinned to commit SHAs. Run the CI checks, then `tauri-apps/tauri-action` with `tagName`, `releaseName`, `releaseDraft: true`, `includeUpdaterJson: true`. The user publishes the draft after checking it.
   - Version bump procedure: one source of truth (`package.json` version synced to `tauri.conf.json` and `Cargo.toml` by a small `scripts/bump-version.mjs`).
   - `docs/release.md`: the signing key (generation, offline backup, repo secrets), the bump script, and what to do when `release.yml` fails. The release flow itself (`release/X.Y.Z` from `develop` → PR into `main` → tag `vX.Y.Z` on `main` → draft → publish) is in `docs/development.md` §5: link to it instead of repeating it, and correct §5 if the workflow ends up different.
+  **Changed in #66 (PR #133, repo part; the ticket stays open for the owner's key, secrets and test tag):** `release.yml` also fails early when `TAURI_SIGNING_PRIVATE_KEY` is unset and marks tags containing `-` as prereleases; `tauri-action` runs with `--bundles nsis`. `tauri.conf.json` has `createUpdaterArtifacts: true` and `plugins.updater` (endpoint as in T32) with a **placeholder** `pubkey` until the owner pastes the real one. Because of `createUpdaterArtifacts`, a local `npm run tauri build` needs the signing key (unsigned workaround in `docs/release.md`).
 - **Acceptance criteria:**
   - [ ] A test tag (e.g. `v0.0.1-test`, on a commit of this task's branch, never on `main`; deleted afterwards with the user's approval) produces a draft release with the `-setup.exe`, its `.sig` and `latest.json`.
   - [ ] `latest.json` points to the release asset URLs.
@@ -945,6 +947,7 @@ Write `docs/spikes/local-model-eval.md` with:
 - **Goal:** the app can find, download and install a newer release.
 - **Details:**
   - Add `tauri-plugin-updater`. Endpoint `https://github.com/misstheaim/prompt-translator/releases/latest/download/latest.json`; pubkey from T31; set `plugins.updater.windows.installMode: "passive"` explicitly.
+    **Changed in #66:** the endpoint, `createUpdaterArtifacts` and `plugins.updater` are already in `tauri.conf.json`; the pubkey is a placeholder until #66 closes, and T32 must not land with it.
   - `updater.rs` commands: `check_update` → `{ available, version, notes }`; `install_update` downloads with `update://progress` events and installs. On Windows the NSIS installer exits and relaunches the app itself (verify against the current plugin docs); `tauri-plugin-process` relaunch is only a fallback if that isn't the case.
   - On startup, if `autoCheckUpdates`, check once after 10 s in the background. If an update exists, emit `update://available` (no auto-install).
   - Network errors are silent at startup and shown when the user checks manually.
@@ -959,6 +962,7 @@ Write `docs/spikes/local-model-eval.md` with:
 - **Goal:** users see the version, can update with one click, and can re-run setup.
 - **Details:**
   - Settings → About tab: version; config and data folder paths with "Open" buttons; "Check for updates" (spinner, "You're up to date" or update card); "Run setup again" (navigates to the wizard from T36, or a placeholder until it exists); "Check for updates on startup" toggle (`autoCheckUpdates`).
+    **Changed in #71:** the About tab placeholder already has a working "Run setup again" button (`openSetup` in `src/store/app.ts`); keep it.
   - A global dismissible **update banner** on `update://available`: version, notes (Markdown rendered as plain text), **Install and restart** with a progress bar from `update://progress`.
 - **Acceptance criteria:**
   - [ ] Check states (checking, none, available, error), install progress and banner dismiss work.
@@ -1124,7 +1128,7 @@ Write `docs/spikes/local-model-eval.md` with:
 ### T42. Layout-fix hotkey: capture, replace and switch layout  `backend` · parent: S6.3 · issue: #78
 - **Goal:** pressing the layout-fix hotkey anywhere replaces the selected text (or the last typed word) with the converted text, as a stand-alone tool outside the translate flow (D36–D38).
 - **Details:**
-  - **Settings** (extend T8's model, `#[serde(default)]`): `"layoutFix": { "enabled": true, "hotkey": "Ctrl+Alt+Space", "switchInputLanguage": true }` (§4.3). `save_settings` rejects a layout-fix hotkey equal to the translate hotkey with a validation error naming the field.
+  - **Settings** (extend T8's model, `#[serde(default)]`): `"layoutFix": { "enabled": true, "hotkey": "Shift+Pause", "switchInputLanguage": true }` (§4.3; default changed from Ctrl+Alt+Space in #79, no migration). `save_settings` rejects a layout-fix hotkey equal to the translate hotkey with a validation error naming the field.
   - **Hotkey** (`system/hotkey.rs`, from T25a): register both shortcuts and dispatch by which one fired. On `settings://changed`, re-register what changed; when `layoutFix.enabled` is false, the layout-fix shortcut is unregistered. Registration failures are reported the same way as in T25a.
   - **Reuse T25b's Win32 helpers** (terminal classifier, waiting for modifiers to be released, clipboard save/restore with `ExcludeClipboardContentFromMonitorProcessing`, waiting on `GetClipboardSequenceNumber`). If they're private to `system/clipboard.rs`, move the shared pieces into `system/input.rs`; T25b's behaviour must not change.
   - **Flow** in `layout_fix/hotkey.rs`, run off the main thread; ignore the hotkey while a previous run is still in progress:
@@ -1147,12 +1151,22 @@ Write `docs/spikes/local-model-eval.md` with:
 
 ### T43. Layout-fix settings  `frontend` · parent: S6.3 · issue: #79
 - **Goal:** the user can turn the layout fix on or off, change its hotkey and choose whether the input language switches.
-- **Details:** in Settings → System (T22), add a "Keyboard layout fix" group: enabled toggle; hotkey capture input (the same component as the translate hotkey); "Switch input language after fixing" toggle; one help line: "Select mistyped text, or put the cursor right after a word, and press the hotkey. In terminals: copy the text first, then paste the result." The duplicate-hotkey validation error from `save_settings` is shown inline. The hotkey and language toggles are disabled while the tool is off.
+- **Details:** in Settings (T22), add a "Keyboard layout fix" group (changed in #79: its own section right after System, not inside it): enabled toggle; hotkey capture input (the same component as the translate hotkey); "Switch input language after fixing" toggle; one help line: "Select mistyped text, or put the cursor right after a word, and press the hotkey. In terminals: copy the text first, then paste the result." The duplicate-hotkey validation error from `save_settings` is shown inline. The hotkey and language toggles are disabled while the tool is off.
 - **Acceptance criteria:**
   - [ ] Load and save the group, toggles and the disabled state work; a duplicate-hotkey error is shown.
   - [ ] Manual: changes take effect without restarting the app.
 - **Depends on:** T22, T42. **Can run in parallel with:** T33, T36.
 - **Suggested model:** Haiku 5.5 (confidence: High). A small form section that reuses T22's components.
+  **Changed in #79:** also changed the default hotkey to `Shift+Pause` (D38) and taught the hotkey recorder the Pause key; a hotkey equal to the translate hotkey shows an inline error and blocks Save before `save_settings` rejects it.
+
+### T45. Auto-copy: treat VS Code's whole-line copy as no selection  `backend` · parent: S6.2 · issue: #128
+- **Goal:** with auto-copy on and nothing selected in VS Code, the popup hotkey uses the clipboard instead of the whole current line.
+- **Details:** follow-up from #78. In `system/clipboard.rs` `copy_selection_win()`, after Ctrl+C changed the clipboard, check `input::clipboard_is_empty_selection_copy()` (Chromium's `"isFromEmptySelection":true` marker, the T42 helper) before the saved clipboard is restored; when present, restore and return no selection, so `capture_source()` falls back to the clipboard (POPUP-007, POPUP-008).
+- **Acceptance criteria:**
+  - [x] The marker check runs before the restore; a normal copy still returns the selection.
+  - [ ] Manual: in VS Code with no selection, the popup shows the earlier clipboard text and the clipboard is unchanged.
+- **Depends on:** T25b, T42. **Can run in parallel with:** any wave 7 task.
+- **Suggested model:** Sonnet 5.5 (confidence: High). Small, contained change that reuses #78's helper.
 
 ### T44. Tune prompt templates for local models  `backend` · parent: S3.1 · issue: #81
 - **Goal:** the prompt templates work well with the local Ollama models chosen by T13, without making them worse for Claude Code.
@@ -1172,7 +1186,7 @@ Done: waves 0, 2-6 (see git history of this file). Wave 1 keeps its row for T37 
 | Wave | Tasks (parallel within a wave) | Notes |
 |---|---|---|
 | 1 | T2 → T3, T5; T37 | Scaffold, then core skeleton and icons; T37 (needs Rust from T1) is the **gate** for E9 |
-| 7 | T6 → T31 → T32 → T33; T36; T43 | Installer + uninstall, release pipeline, updater, wizard, layout-fix settings |
+| 7 | T6 → T31 → T32 → T33; T36; T43; T45 | Installer + uninstall, release pipeline, updater, wizard, layout-fix settings |
 | 7b | T38 → T39 → T40 | **On hold (D42):** T37 has no verdict, so S9.2 is skipped in v0.1.0 |
 | 8 | T7 | README, install guide, full smoke test including Windows Sandbox |
 
@@ -1219,6 +1233,7 @@ Critical path: T1 → T2 → T3 → T11 → T12 → T20 → T21 → T26 → T7. 
 
 ## 8. Review notes
 
+- **Changed 2026-10-30 (wave 7, part 1):** D38 default layout-fix hotkey → Shift+Pause (owner, #79; §4.3, T42, T43). T31 (#66) repo part: early secret check, prerelease tags, `createUpdaterArtifacts` + `plugins.updater` with a placeholder pubkey (T31, T32). T36 (#71): "Run setup again" already in the About placeholder (T33). Follow-up T45 (#128) added under S6.2.
 - **Changed 2026-10-30:** wave 6 outcomes folded in. T34 (#69): `recommend(gpus)` without RAM, nullable `model`/`downloadMb` for tier `none`, `ramAvailableMb` in `EnvironmentReport`, tolerant VRAM bounds. T26/T35 (#61, #70): Start Ollama button in the shared `ErrorBanner` (main window and popup).
 - **Changed 2026-10-29:** wave 4 outcomes folded in. Spike T13 (#45, owner decisions): one model `qwen3.5:9b`, no CPU tiers (no usable GPU → tier `none`, Claude Code), no per-mode provider default (D28, T13, T34, T36, §4.6, risks). T14 (#46): `think: false`, too-long guard. T44 (#81): per-mode output schema and parser drop of no-op issues. T17b (#50): `is_error` → `ClaudeAuth` only for sign-in errors. T6: autostart value name `Prompt Translator`, unquoted path (from T24, #57).
 - **Changed 2026-10-27:** CI runs for release builds only (owner's decision): PRs into and pushes to `release/**` and `main`, no longer `develop`; ticket PRs rely on the local full check (T4, `docs/development.md` §9, APP-019).

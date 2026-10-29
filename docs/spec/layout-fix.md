@@ -1,6 +1,6 @@
 # Layout fix
 
-Converting text typed with the wrong keyboard layout (US QWERTY vs Russian ЙЦУКЕН). A global hotkey replaces the selected text, or the word before the cursor, in the foreground app with the same keys typed on the other layout, and switches the input language. It uses no model, no popup and no history. The settings block `layoutFix` (SETTINGS-001) holds its options; the Settings screen does not edit it yet.
+Converting text typed with the wrong keyboard layout (US QWERTY vs Russian ЙЦУКЕН). A global hotkey replaces the selected text, or the word before the cursor, in the foreground app with the same keys typed on the other layout, and switches the input language. It uses no model, no popup and no history. The settings block `layoutFix` (SETTINGS-001) holds its options; the Settings screen edits it in the Keyboard layout fix section (SETTINGS-008).
 
 > Code: `src-tauri/src/layout_fix/convert.rs`, `src-tauri/src/layout_fix/hotkey.rs`, `src-tauri/src/system/hotkey.rs`, `src-tauri/src/system/input.rs`
 
@@ -15,8 +15,8 @@ The direction is guessed by counting ASCII letters against Cyrillic letters (U+0
 Since: #77
 
 ### LAYOUT-003 Hotkey
-The layout-fix hotkey is `layoutFix.hotkey` (default `Ctrl+Alt+Space`). It is registered at startup and after every settings change, only while `layoutFix.enabled` is on (off unregisters it); a failure to register is reported with the popup hotkey's error (POPUP-002, "The layout fix hotkey is off. Choose another combination in Settings."). It runs on key press. A press while an earlier run is still going is ignored. Saving settings is refused when the layout fix is enabled and its hotkey is the same combination as the popup hotkey, in any modifier order or case (SETTINGS-004).
-Since: #78
+The layout-fix hotkey is `layoutFix.hotkey` (default `Shift+Pause`; settings files saved earlier keep their stored hotkey). It is registered at startup and after every settings change, only while `layoutFix.enabled` is on (off unregisters it); a failure to register is reported with the popup hotkey's error (POPUP-002, "The layout fix hotkey is off. Choose another combination in Settings."). It runs on key press. A press while an earlier run is still going is ignored. Saving settings is refused when the layout fix is enabled and its hotkey is the same combination as the popup hotkey, in any modifier order or case (SETTINGS-004).
+Since: #78 · Changed: #79
 
 ### LAYOUT-004 Replacing the selection
 When the foreground window is not a terminal (POPUP-007) and `autoCopySelection` is on:
