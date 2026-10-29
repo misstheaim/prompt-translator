@@ -1,6 +1,6 @@
 # Providers
 
-The two real translation providers, Ollama (a local model over HTTP) and Claude Code (an isolated, short-lived `claude -p` process), and the status check that reports on both. Both are equal choices in every mode: nothing picks a provider per mode. The request's `provider` field selects one (TRANS-008); no screen lets the user choose yet, and nothing in the UI shows the status yet. The mock provider is in TRANS-011.
+The two real translation providers, Ollama (a local model over HTTP) and Claude Code (an isolated, short-lived `claude -p` process), and the status check that reports on both. Both are equal choices in every mode: nothing picks a provider per mode. The request's `provider` field selects one (TRANS-008); the Translate screen lets the user choose (TRANS-013) and the Settings screen shows the status (SETTINGS-009). The mock provider is in TRANS-011.
 
 > Code: `src-tauri/src/translation/providers/` (`ollama.rs`, `claude_code/`), `src-tauri/src/translation/commands.rs`, `docs/spikes/claude-invocation.json` (the Claude Code contract)
 
@@ -72,6 +72,12 @@ Since: #49 · Changed: #50
 ### PROV-013 Provider status command
 `provider_status` (wrapper `providerStatus`) returns `{ ollama, claude }` for the current settings: the Ollama status (PROV-004) and the Claude Code status (PROV-006). It never fails because of an unreachable provider.
 Since: #46 · Changed: #49
+
+## Text generation only
+
+### PROV-014 No tools
+The providers only generate text. The Ollama `/api/chat` request never includes `tools`, only `message.content` of the reply is read and any tool calls in it are ignored, and no setting enables tools. The Claude Code provider runs with `--tools ""` (PROV-007), so it has no tools either.
+Since: #46
 
 ## Known issues
 

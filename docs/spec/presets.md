@@ -1,8 +1,8 @@
 # Presets
 
-A preset is a named set of domain rules plus a default mode, kept as one JSON file per preset. Four built-in presets are seeded on first run. The core can list, save, delete and reset them; no screen or `api.ts` wrapper uses them yet.
+A preset is a named set of domain rules plus a default mode, kept as one JSON file per preset. Four built-in presets are seeded on first run. The core can list, save, delete and reset them, and the Presets sub-tab of Settings edits them (PRESETS-009).
 
-> Code: `src-tauri/src/presets/`, `src-tauri/resources/presets/`, `src/bindings/Preset.ts`
+> Code: `src-tauri/src/presets/`, `src-tauri/resources/presets/`, `src/bindings/Preset.ts`, `src/screens/Settings/PresetsSettings.tsx`
 
 ## Behaviour
 
@@ -46,6 +46,14 @@ Since: #41
 ### PRESETS-008 Resetting
 `reset_presets` rewrites the four built-ins from the bundled versions (replacing any edited or missing built-in) and keeps every other preset, then returns the full list.
 Since: #41
+
+### PRESETS-009 Preset editor
+Settings > Presets shows the presets in a list (name, with a "Built-in" badge) and an editor on the side; "Select a preset to edit, or create a new one." shows until one is opened.
+- Fields: name, id (read-only), description, default mode and rules (one rule per line; blank lines dropped, lines trimmed; hint "At most 30 rules, 500 characters each" with a rule count).
+- "New preset" opens an empty editor (mode Translate). The id is made from the name: lowercase, every run of other characters becomes `-`, ends trimmed, "preset" if nothing is left; if a preset already uses it, `-2`, `-3`... is appended. After the first save the id cannot change.
+- Save is disabled while the name is blank (error "Enter a name") and, for an existing preset, without changes. On success the toast "Preset saved" shows and the editor reloads the saved preset. Revert restores the last saved values. A backend validation error (PRESETS-005) appears as an error banner in the editor and keeps the draft.
+- Delete (existing presets only) asks "Delete preset?" and then shows "Preset deleted" and closes the editor; errors such as "You can't delete the last preset" show as a banner. "Reset built-ins" asks "Reset built-in presets?" (presets the user created are kept), then shows "Built-in presets restored" and reloads the open preset. Every change refreshes the preset list in the app, including the Translate screen's preset select.
+Since: #56
 
 ## Known issues
 

@@ -1,18 +1,18 @@
 # App core
 
-The application shell: what launches, the main window with its tabs, error banner and toasts, the tray, close-to-tray, single instance and autostart, app identity and icons, where data lives, logging, the error payload every command returns, the exported TypeScript contracts, and webview security. The UI is still a shell: the four tabs exist but their screens are placeholders (plus a dev-only mock panel on Translate). Behind it the core holds settings, presets, the history database, mode detection, the technical-token check and a translation service with the Ollama, Claude Code and mock providers (see the other area files), but no real screen uses them yet; the popup and hotkeys are not implemented.
+The application shell: what launches, the main window with its tabs, error banner and toasts, the tray, close-to-tray, single instance and autostart, app identity and icons, where data lives, logging, the error payload every command returns, the exported TypeScript contracts, and webview security. The four tabs show real screens: Translate (`translation.md`), History and Mistakes (`history.md`) and Settings (`settings.md`, `presets.md`); the Settings About tab is a placeholder, and in dev builds a mock panel sits above Translate. Behind them the core holds settings, presets, the history database, mode detection, the technical-token check and a translation service with the Ollama, Claude Code and mock providers (see the other area files). The global hotkey and the popup window are in `popup.md`; the popup page is still a placeholder.
 
 > Code: `src-tauri/src/lib.rs`, `src-tauri/src/error.rs`, `src-tauri/src/system/`, `src-tauri/src/translation/model.rs`, `src-tauri/tauri.conf.json`, `src-tauri/capabilities/default.json`, `src/App.tsx`, `src/store/app.ts`, `src/components/`, `src/lib/api.ts`, `src/bindings/`, `package.json`
 
 ## Behaviour
 
 ### APP-001 Main window
-The window `main` (title "Prompt Translator", 800x600) is created hidden and shown right after startup, unless the app was started by autostart (APP-029). It has a top bar with four tabs, Translate, History, Mistakes and Settings (Translate selected at start), and below it the selected screen. Every screen is a placeholder: the tab's name as a heading and the text "This screen isn't built yet." In dev builds of the UI (`npm run dev`) the Translate tab also shows the "Mock provider (dev)" panel above the placeholder (TRANS-011).
-Since: #34 · Changed: #35, #44, #52, #57
+The window `main` (title "Prompt Translator", 800x600) is created hidden and shown right after startup, unless the app was started by autostart (APP-029). It has a top bar with four tabs, Translate, History, Mistakes and Settings (Translate selected at start), and below it the selected screen: Translate (TRANS-013), History (HISTORY-010), Mistakes (HISTORY-011) or Settings (SETTINGS-007). While the hotkey registration has failed, a warning banner is shown under the tab bar (POPUP-002). In dev builds of the UI (`npm run dev`) the Translate tab also shows the "Mock provider (dev)" panel above the screen (TRANS-011).
+Since: #34 · Changed: #35, #44, #52, #57, #53, #55, #58, #64, #65
 
-### APP-003 Popup page is a placeholder
-A second page (`popup.html`, title "Prompt Translator Popup") exists and shows the text "Popup placeholder". No popup window is created at startup, and nothing opens it yet.
-Since: #34
+### APP-003 Popup page
+A second page (`popup.html`, title "Prompt Translator Popup") is the content of the hidden `popup` window created at startup; the hotkey opens it (`popup.md`). The page is still a placeholder.
+Since: #34 · Changed: #58
 
 ### APP-004 App identity
 Product name "Prompt Translator", version 0.1.0, bundle identifier `com.misstheaim.prompttranslator`. Bundle targets: all; bundle icons: 32x32.png, 128x128.png, 128x128@2x.png, icon.icns, icon.ico (from `src-tauri/icons/`).
@@ -88,16 +88,16 @@ Since: #35 · Changed: #60, #44, #49
 Since: #35 · Changed: #88
 
 ### APP-015 UI-to-core access
-The UI calls Rust only through typed wrappers in `src/lib/api.ts`; a rejected call always throws an error of the APP-011 shape. Wrappers: `ping()` (returns "pong"; nothing in the UI calls it), `getSettings`, `saveSettings`, `setLastPopupMode`, `listPresets`, `savePreset`, `deletePreset`, `resetPresets`, `detectMode`, `translate`, `cancelTranslation`, `providerStatus`, `copyResult`, `historyList`, `historyGet`, `historyDelete`, `historyClear`, `mistakesSummary`, `pickFile` and `openUrl`. Registered commands: `ping`, `pick_file`, `open_url`, `get_settings`, `save_settings`, `set_last_popup_mode`, `detect_mode`, `translate`, `cancel_translation`, `provider_status`, `copy_result`, `list_presets`, `save_preset`, `delete_preset`, `reset_presets`, `history_list`, `history_get`, `history_delete`, `history_clear`, `mistakes_summary`.
-Since: #35 · Changed: #40, #41, #60, #44, #49, #52, #63
+The UI calls Rust only through typed wrappers in `src/lib/api.ts`; a rejected call always throws an error of the APP-011 shape. Wrappers: `ping()` (returns "pong"; nothing in the UI calls it), `getSettings`, `saveSettings`, `setLastPopupMode`, `listPresets`, `savePreset`, `deletePreset`, `resetPresets`, `detectMode`, `translate`, `cancelTranslation`, `providerStatus`, `copyResult`, `historyList`, `historyGet`, `historyDelete`, `historyClear`, `mistakesSummary`, `hotkeyError`, `pickFile` and `openUrl`. Registered commands: `ping`, `hotkey_error`, `pick_file`, `open_url`, `get_settings`, `save_settings`, `set_last_popup_mode`, `detect_mode`, `translate`, `cancel_translation`, `provider_status`, `copy_result`, `list_presets`, `save_preset`, `delete_preset`, `reset_presets`, `history_list`, `history_get`, `history_delete`, `history_clear`, `mistakes_summary`.
+Since: #35 · Changed: #40, #41, #60, #44, #49, #52, #63, #58
 
 ### APP-016 Webview security
 Release CSP: `default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src ipc: http://ipc.localhost` (no remote network, no inline scripts). The dev CSP additionally allows inline scripts and connections to `http://localhost:1420` and `ws://localhost:1420`.
 Since: #34
 
 ### APP-017 Capabilities
-One capability `default` applies to windows `main` and `popup` with only `core:default` and `core:event:default`. No shell, fs, http or sql plugin permissions are granted to the webview.
-Since: #34 · Changed: #35
+The capability `default` applies to windows `main` and `popup` with only `core:default` and `core:event:default`. The capability `popup` adds, for the window `popup` only, `core:window:allow-hide`, `allow-show` and `allow-set-focus`. No shell, fs, http, sql, clipboard, dialog or global-shortcut plugin permissions are granted to the webview.
+Since: #34 · Changed: #35, #58
 
 ### APP-018 Developer scripts
 `npm run dev` (Vite on fixed port 1420, fails if taken), `build` (`tsc && vite build`, producing both `index.html` and `popup.html` pages into `dist/`), `lint` (`eslint .`), `typecheck` (`tsc --noEmit` for the app and the node config), `format` (`prettier --write .`), `bindings` (APP-014), `tauri` (Tauri CLI). `tauri dev` runs `npm run dev` first and `tauri build` runs `npm run build` first.
@@ -112,8 +112,8 @@ Clicking a tab selects it (the current one is marked as the current page). Ctrl+
 Since: #52
 
 ### APP-021 UI state loaded at start
-When the window opens the UI loads settings, presets and the provider status (PROV-013). Whenever `settings://changed` fires it replaces its settings and re-checks the provider status; a failed status check keeps the previous status. If loading settings fails, an error banner (APP-022) with a Retry action is shown under the tab bar; Retry loads the settings again. If loading presets fails, an error toast shows the error's message.
-Since: #52
+When the window opens the UI loads settings, presets, the provider status (PROV-013) and the hotkey error (POPUP-002), and listens to `hotkey://error`. Whenever `settings://changed` fires it replaces its settings and re-checks the provider status; a failed status check keeps the previous status. If loading settings fails, an error banner (APP-022) with a Retry action is shown under the tab bar; Retry loads the settings again. If loading presets fails, an error toast shows the error's message.
+Since: #52 · Changed: #58
 
 ### APP-022 Error banner
 An error is shown as a banner with the message in bold, the hint below it when not empty, and a collapsed "Details" section when the error has a `detail`. By kind:
@@ -132,8 +132,8 @@ Since: #52
 Since: #52
 
 ### APP-025 File picker
-`pick_file(filter)` (wrapper `pickFile`) opens the native file dialog and returns the chosen path, or null if the user cancels. `filter` is a list of extensions without dots (e.g. `["exe", "cmd"]`, shown as "Files"); null or empty allows any file. A dialog failure fails with `Io`. Nothing in the UI calls it yet.
-Since: #49
+`pick_file(filter)` (wrapper `pickFile`) opens the native file dialog and returns the chosen path, or null if the user cancels. `filter` is a list of extensions without dots (e.g. `["exe", "cmd"]`, shown as "Files"); null or empty allows any file. A dialog failure fails with `Io`. The Settings screen calls it for the Claude executable "Browse" button (SETTINGS-009).
+Since: #49 · Changed: #55
 
 ### APP-026 Tray icon
 The app puts an icon in the notification area (monochrome `tray.png`, tooltip "Prompt Translator"). A left click shows the main window: it is shown, restored if minimized and focused. A right click opens a menu with "Open" (same as left click) and "Quit" (exits the app).
@@ -150,6 +150,10 @@ Since: #57
 ### APP-029 Autostart
 The setting `autostart` is applied at startup and after every saved settings change. On: a value `Prompt Translator` is added under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` with the data `<exe path> --autostart`. Off: that value is removed. Nothing is changed when the entry already matches; a failure is only logged. A process started with `--autostart` keeps the main window hidden (the app sits in the tray); a normal start shows it.
 Since: #57
+
+### APP-030 Eval harness
+`cargo run --bin eval -- --provider ollama|claude-code` (in `src-tauri`) runs the cases of `eval/cases.jsonl` through the real translation service and a real provider, without a Tauri runtime, and writes a Markdown report. `cargo run` with no `--bin` still starts the app (`default-run`). Arguments: `--provider` (required), `--model` (default: the app's default model), `--cases <file>` (default `eval/cases.jsonl`), `--out <file>` (default `eval/reports/<UTC timestamp>.md`, git-ignored), `--preset <id>` (default `technical-development`); `--help` prints the usage; it, an unknown argument, an unknown provider, a missing value, an unreadable or empty cases file and an unknown preset all end with a message on stderr and a non-zero exit. A case is a JSON line with `id`, `mode`, `source`, `mustKeep` (tokens that must appear verbatim in the output) and `notes`. It uses its own scratch settings and presets under `%TEMP%\prompt-translator-eval` (presets re-seeded on every run), never the user's app data; history is off and timeouts are 180 s (Ollama) and 120 s (Claude). The report lists per case the source, output, issues, token warnings, `mustKeep` misses, duration or error, and a summary: JSON-valid rate (provider failures such as timeout are not counted as invalid), `mustKeep` pass rate, average and p95 latency of the successful cases. Details: `eval/README.md`.
+Since: #47
 
 ## Known issues
 

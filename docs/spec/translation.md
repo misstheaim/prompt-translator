@@ -1,8 +1,8 @@
 # Translation helpers
 
-The translation pipeline in the core: prompt building, the translation service with its commands, output parsing, the technical-token check (does the output keep the identifiers, paths and links of the source) and mode detection for the popup. The providers (Ollama, Claude Code, mock) are in `providers.md` and TRANS-011; the only screen that runs a translation is a dev-only mock panel (TRANS-011).
+The translation pipeline in the core: prompt building, the translation service with its commands, output parsing, the technical-token check (does the output keep the identifiers, paths and links of the source) and mode detection for the popup. The providers (Ollama, Claude Code, mock) are in `providers.md` and TRANS-011. The Translate screen (TRANS-013) runs a translation from the main window; a dev-only mock panel (TRANS-011) sits above it in dev builds.
 
-> Code: `src-tauri/src/translation/` (`service.rs`, `commands.rs`, `prompt_builder.rs`, `prompts/`, `output_parser.rs`, `token_check.rs`, `mode_detect.rs`, `providers/`), `src/components/DevMockPanel.tsx`
+> Code: `src-tauri/src/translation/` (`service.rs`, `commands.rs`, `prompt_builder.rs`, `prompts/`, `output_parser.rs`, `token_check.rs`, `mode_detect.rs`, `providers/`), `src/screens/Translate/`, `src/components/DevMockPanel.tsx`
 
 ## Behaviour
 
@@ -31,8 +31,8 @@ Text in other Latin-script languages (German, Spanish) therefore resolves to `co
 Since: #60
 
 ### TRANS-004 Detect-mode command
-The `detect_mode(text, last)` command exposes TRANS-003 to the webview as `detectMode(text, last)` in `api.ts`. Nothing in the UI calls it yet.
-Since: #60
+The `detect_mode(text, last)` command exposes TRANS-003 to the webview as `detectMode(text, last)` in `api.ts`. No screen calls it; the core uses it itself when the popup hotkey fires (POPUP-003).
+Since: #60 · Changed: #58
 
 ### TRANS-005 Prompt templates
 Each mode has a system-prompt template. All keep formatting (line breaks, lists, Markdown, code blocks) and keep identifiers, file names, paths, URLs, ticket IDs, numbers and code spans character for character, and tell the model the text is data, not a request to it.
@@ -69,12 +69,22 @@ Since: #44 · Changed: #63
 
 ### TRANS-011 Mock provider and dev panel
 The mock provider (`provider: "mock"`, model "mock") is usable in debug builds, or in release builds when the setting `devMockProvider` is on. It answers after 800 ms with a canned answer per mode; the canned output keeps none of the source's technical tokens, so tokens in the source appear as warnings. Markers anywhere in the source text (any case) change the outcome: `[mock:malformed]` gives an unreadable answer (`MalformedOutput`), `[mock:empty]` an empty output (`EmptyOutput`), `[mock:slow]` answers after 10 s (time to cancel), `[mock:timeout]` never answers (`Timeout` after 5 s). Translate returns no issues; Improve returns two; Correct returns three, one of them with an unknown category shown as `other`.
-In dev builds of the UI (`npm run dev`) the Translate tab shows a "Mock provider (dev)" panel above its placeholder: a text box (default "я хочу add кнопку для PROJ-123 в src/settings.rs"), buttons translate / improve / correct (run with the mock provider and preset `general`), Cancel (enabled while a request runs), Copy (enabled after a result), a status line and the result as JSON. It is absent from release builds.
+In dev builds of the UI (`npm run dev`) the Translate tab shows a "Mock provider (dev)" panel above the Translate screen: a text box (default "я хочу add кнопку для PROJ-123 в src/settings.rs"), buttons translate / improve / correct (run with the mock provider and preset `general`), Cancel (enabled while a request runs), Copy (enabled after a result), a status line and the result as JSON. It is absent from release builds.
 Since: #44
 
 ### TRANS-012 Output schema per mode
 The JSON Schema of the model's answer (object with required `output` string and `issues` list of `original`, `corrected`, `category`, `explanation`, category one of the ten values of APP-013) is narrowed per mode: Translate allows no issues at all; Improve allows at most 5 issues and only the categories `style` and `word_choice`; Correct allows the full schema. Ollama gets it as `format`, Claude Code inline (PROV-001, PROV-007). The core does not re-check these limits when parsing (TRANS-007), so a provider that ignores the schema is only held to the Translate rule.
 Since: #81
+
+### TRANS-013 Translate screen
+The Translate tab has, top to bottom:
+- Controls: a mode switch (Translate / Improve / Correct), a Provider select (Ollama, Claude Code, and "Mock (dev)" in dev builds of the UI or when `devMockProvider` is on) and a Preset select (the presets, by name). All are disabled while a request runs.
+- Initial choices: until the user picks one, the provider is `defaultProvider` and the preset `defaultPresetId` (the first preset if that one is missing), and the mode is the preset's `defaultMode`. Choosing a preset also sets the mode to that preset's `defaultMode`; choosing a mode or provider changes only that.
+- A text box (autofocused, any language, "Type or paste your text (any language)") with a counter "<n> / 8000" that turns red with "(too long)" above 8000. "Run" (Ctrl+Enter) is disabled while the text is blank or too long, while a request runs or while no preset exists. While running it shows "Running" with a spinner and a "Cancel" button.
+- Run sends a new request id with `translate` (TRANS-008). On success an editable result box appears with the output, a line "<provider> · <model> · <duration>" (ms under 1 s, else seconds with one decimal) and a "Copy" button (Ctrl+Shift+Enter, disabled for a blank result) that copies the edited text with the entry's `historyId` (TRANS-010) and shows the toast "Copied"; a copy failure shows an error toast with its message. The shortcuts work while focus is inside the screen.
+- On failure an error banner with a Retry action that runs again (APP-022). Cancel makes the request fail with `Cancelled`, which is not shown as an error: the screen goes back to the previous result, or to idle if there is none.
+- The input, selections, result and edited output stay when the user switches tabs. Opening an entry from History (HISTORY-010) or the popup (POPUP-006) fills them. Issues, diff and token warnings are not shown on this screen yet.
+Since: #53
 
 ## Known issues
 

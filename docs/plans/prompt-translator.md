@@ -318,7 +318,7 @@ Extract candidate tokens from the source with regexes: ticket IDs `[A-Z][A-Z0-9]
 | `open_url` | `{ url }` | `()`: only allow-listed URLs (ollama.com download, Claude Code install docs, the repo's releases); via `tauri-plugin-opener` (T19) |
 | `pick_file` | `{ filter }` | `string \| null` (native file dialog via `tauri-plugin-dialog`; used for the claude.exe path in T22) |
 
-Events: `popup://source` (Rust → popup: captured text when the hotkey fires), `settings://changed`, `setup://progress`, `update://available`, `update://progress`, `sessions://changed` (session list or binding state changed: bound session closed, status idle↔busy), `main://open-entry` (popup → main window: show this input/result).
+Events: `popup://source` (Rust → popup: captured text when the hotkey fires), `settings://changed`, `setup://progress`, `update://available`, `update://progress`, `sessions://changed` (session list or binding state changed: bound session closed, status idle↔busy), `main://open-entry` (popup → main window: show this input/result; payload `{ input, mode, result: TranslationResult | null }`, changed in #58), `hotkey://error` (Rust → main: popup hotkey registration error, string or null; also readable via the `hotkey_error` command, changed in #58).
 
 **Errors** (`AppError`, serialized as `{ kind, message, hint }`):
 
@@ -379,7 +379,8 @@ Migrations via `rusqlite_migration`; `PRAGMA foreign_keys = ON`. Stored at `app_
 - **Privacy:** in Ollama mode nothing leaves the machine. **In Claude mode the native text is sent to Anthropic** (through the isolated translator process, under the user's own Claude account), never into the user's working sessions. The only thing ever written into a bound session is the accepted English text, and only on an explicit Accept. Auto-copy may capture whatever is selected, including secrets, which would then be translated and stored in history; the README says so. The keyboard layout fix is entirely local and stores nothing.
 - **Console injection safety:** inject only into a PID that `claude agents --json` currently reports as an interactive session (re-checked right before writing), **and never into one of the app's own translator runs**: those are also listed as interactive while they run (D41), so exclude entries named `prompt-translator` **and** PIDs in `TranslatorPids`, both checks, in discovery and again in the pre-write re-check. Never inject into any other process. Injection runs in a short-lived helper process (D31). The text is written exactly as accepted, with control characters other than newline stripped. Leading `!`, `/`, `#` need confirmation (D35).
 - **History:** local and unencrypted, with an off switch and Clear all.
-- **Webview permissions:** no shell, fs, http or sql plugin permissions for the webview. Only the app's own commands, `core:event` (listen/emit) and the window APIs each window needs. Clipboard, opener, dialog, global-shortcut and updater are used from Rust only. Capabilities in `src-tauri/capabilities/` list windows `main` and `popup` explicitly. A strict CSP is set in `tauri.conf.json`.
+- **Local model is text-only (owner rule, 2026-10-29):** the Ollama provider only generates text. The `/api/chat` request never includes `tools`, tool calls in a reply are ignored, and no setting or request field may give the model tools or let it execute anything. The Claude provider runs with `--tools ""` (T17b).
+- **Webview permissions:** no shell, fs, http or sql plugin permissions for the webview. Only the app's own commands, `core:event` (listen/emit) and the window APIs each window needs. Clipboard, opener, dialog, global-shortcut and updater are used from Rust only. Capabilities in `src-tauri/capabilities/` list windows `main` and `popup` explicitly; the popup's window permissions (hide, show, setFocus) are in their own `popup.json`, scoped to `popup` only (changed in #58). A strict CSP is set in `tauri.conf.json`.
 - **Process hygiene (Windows):** spawn `claude.exe` (native exe preferred over `.cmd`) with `CREATE_NO_WINDOW`; pass the system prompt as a file and the user text over stdin (avoids command-line length and quoting limits); set `DISABLE_AUTOUPDATER=1` and `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1` (confirmed in T16), redirect `TEMP`/`TMP` to the app tmp dir, and remove the parent-session `CLAUDE_*` variables listed in the contract's `envRemove`, so translator runs never update the shared `claude.exe` or inherit a parent session; kill the **whole process tree** on timeout or cancel (Job Object, or `taskkill /T /F` fallback).
 - **Performance:** Ollama Translate under 3 s for a typical prompt with a warm model on the dev machine (T13 measured 3.9 s median with `qwen3.5:9b` at `num_ctx` 8192, 3.3 s at 4096: accepted by the owner, changed in #45); UI stays responsive (all I/O async).
 - **Portability:** Windows 10 22H2+ and 11, x64. No admin rights needed (per-user install; Ollama's installer is per-user too). Works without a dedicated GPU (small model tier) and without Claude Code.
@@ -803,6 +804,7 @@ Write `docs/spikes/local-model-eval.md` with:
 ### T21. Result details: diff, issues, token warnings  `frontend` · parent: S5.1 · issue: #54
 - **Goal:** the user sees what changed and why, which is the core of the learning value.
 - **Details:** `DiffView`: word-level diff between source and output using the `diff` npm package (`diffWords`), with insertions and deletions highlighted. Shown only in Improve and Correct. `IssueList`: each item shows a CategoryChip (colour from the design spec), `original → corrected`, explanation; collapsible when there are more than 5. `TokenWarningBanner`: lists missing tokens with **Ignore** (dismiss) and **Retry** (re-run the same request). Don't call it "Accept", which is the main action (D13). Reusable by the popup (T26), so keep components prop-driven and free of store access.
+- **Note:** The History screen (#64) has a temporary `src/screens/History/IssueList.tsx`: make this task's issues list the shared component and switch History to it, deleting the copy (changed in #64).
 - **Acceptance criteria:**
   - [ ] The diff renders correctly for a known pair; the issue list renders and collapses; warning banner actions work.
   - [ ] Translate mode shows no diff and no issues section.
@@ -838,11 +840,11 @@ Write `docs/spikes/local-model-eval.md` with:
 ### T25a. Global hotkey and popup window  `backend` · parent: S6.2 · issue: #58
 - **Goal:** pressing the hotkey anywhere opens the popup with the clipboard text.
 - **Details:**
-  - `system/hotkey.rs` with `tauri-plugin-global-shortcut`: register `settings.hotkey` at startup; on `settings://changed`, unregister the old one and register the new one. A registration failure (hotkey taken) surfaces as a toast or banner in the main window with a hint to choose another.
+  - `system/hotkey.rs` with `tauri-plugin-global-shortcut`: register `settings.hotkey` at startup; on `settings://changed`, unregister the old one and register the new one. A registration failure (hotkey taken) surfaces as a banner in the main window with an "Open settings" button (event `hotkey://error`, command `hotkey_error`); the old hotkey is unregistered first, so a failure leaves no popup hotkey (changed in #58).
   - `system/popup.rs`: a `popup` window from `popup.html`, created hidden at startup, frameless, always-on-top, `skip_taskbar`, about 520×360, centered on the monitor under the cursor when shown; hide on blur.
-  - Extend `capabilities/default.json` for the `popup` window: `core:event` listen/emit, and the window permissions the popup's JS needs (hide, show, setFocus).
-  - On hotkey, a `capture_source()` function returns the text. In this task it reads the clipboard (`tauri-plugin-clipboard-manager`, Rust side); T25b plugs auto-copy into it. Then show the popup and emit `popup://source { text, mode }`, with `mode` from `detect_mode` (T25c; until it lands, use `settings.lastPopupMode`). Empty or non-text input → emit with empty text (the popup shows "Select or copy some text first").
-  - Handle the `main://open-entry` event: show the main window and load the given input and result.
+  - A separate `capabilities/popup.json` for the `popup` window only, with the window permissions the popup's JS needs (hide, show, setFocus); `default.json` keeps `core:default`/`core:event` for both windows (changed in #58).
+  - On hotkey, a `capture_source()` function returns the text. In this task it reads the clipboard (`tauri-plugin-clipboard-manager`, Rust side); it runs in `spawn_blocking` so T25b's Ctrl+C wait doesn't block the event loop, and T25b plugs auto-copy into it (changed in #58). Then show the popup and emit `popup://source { text, mode }`, with `mode` from `detect_mode` (T25c; until it lands, use `settings.lastPopupMode`). Empty or non-text input → emit with empty text (the popup shows "Select or copy some text first").
+  - Handle the `main://open-entry` event (payload `{ input, mode, result: TranslationResult | null }`): show the main window, hide the popup, load the entry into the Translate screen (changed in #58).
 - **Acceptance criteria:**
   - [ ] Manual: the hotkey works from a terminal, browser and IDE; the popup appears on the monitor under the cursor; changing the hotkey takes effect without restart; a conflicting hotkey shows an error; the popup can receive events and hide itself (capabilities correct).
 - **Depends on:** T24, T8. **Can run in parallel with:** T20–T23, T25c, T29, T30.
@@ -884,6 +886,7 @@ Write `docs/spikes/local-model-eval.md` with:
 ### T26. Popup UI  `frontend` · parent: S6.2 · issue: #61
 - **Goal:** a fast keyboard-only review-and-copy flow.
 - **Details:** `src/popup/`. On `popup://source`: show a source excerpt (3 lines, expandable), mode chips (detected mode preselected), and auto-run `translate` with the default provider and preset. While loading: spinner + Esc to cancel and close. Result: output text, compact issue count ("3 fixes") expanding to `IssueList`, and `TokenWarningBanner` (reuse T21 components). Keys: **Enter** → `copy_result` then hide (T40 switches this to `accept_result`); **Esc** → hide (cancels if running); **Ctrl+R** → retry; **Tab** cycles mode and re-runs; link "Open in main window" emits `main://open-entry` with this input and result. Remember the mode the user ended on (`lastPopupMode`, T25c). Errors via ErrorBanner; `OllamaUnreachable` shows a **Start Ollama** button once T35 exists.
+- **Note:** Popup permissions are in `capabilities/popup.json` (popup only); `main://open-entry` takes `{ input, mode, result: TranslationResult | null }`; #58 left a placeholder in `src/popup/main.tsx` that shows the captured text and hides on Esc (changed in #58).
 - **Acceptance criteria:**
   - [ ] Auto-run on event, keyboard handling, cancel on Esc and the error state work.
   - [ ] Manual: copy text in a terminal → hotkey → Enter → paste gives the English result; the whole flow works without the mouse.
@@ -1133,6 +1136,7 @@ Write `docs/spikes/local-model-eval.md` with:
     6. If `switchInputLanguage`: find an installed layout for the target language with `GetKeyboardLayoutList` (primary language Russian for `ToRussian`, English for `ToEnglish`) and post `WM_INPUTLANGCHANGEREQUEST` with that HKL to the foreground window. Not installed → skip silently.
   - Never writes history, never shows the popup or the main window, never calls a provider.
   - Add `tauri-plugin-notification` and only the permissions it needs from Rust; no webview permission.
+- **Note:** Extend `system/hotkey.rs`: its shortcut handler already checks which shortcut fired. The Win32 SendInput/clipboard helpers from T25b are in a private `win` module of `system/clipboard.rs`; move them to `system/input.rs` (changed in #58, #59).
 - **Acceptance criteria:**
   - [ ] `layoutFix` defaults, and an old `settings.json` without `layoutFix` loads with defaults; the same-hotkey validation; the decision logic (terminal or auto-copy off → clipboard flow; selection; no selection → word select; no direction → no paste), with the Win32 calls behind a small trait so the logic stays separate from them.
   - [ ] Manual, in Notepad, a browser text field and the VS Code editor: select `ghbdtn` → hotkey → `привет` and the input language switches to Russian; with the cursor right after a mistyped word and no selection, that word is converted; the app's own Ctrl+Z undoes it; the previous clipboard text is restored afterwards.
@@ -1163,12 +1167,11 @@ Write `docs/spikes/local-model-eval.md` with:
 
 ## 6. Order of work
 
-Done: waves 0, 2-4 (see git history of this file). Wave 1 keeps its row for T37 (on hold).
+Done: waves 0, 2-5 (see git history of this file). Wave 1 keeps its row for T37 (on hold).
 
 | Wave | Tasks (parallel within a wave) | Notes |
 |---|---|---|
 | 1 | T2 → T3, T5; T37 | Scaffold, then core skeleton and icons; T37 (needs Rust from T1) is the **gate** for E9 |
-| 5 | T15, T20, T22, T23, T25a → T25b, T29, T30 | Screens and hotkey |
 | 6 | T21 → T26; T34 (after T13 + T8 + T17a), T35 (after T14 + T34); T42 (after T25b + T41) | Result details, popup, setup backend, layout-fix hotkey |
 | 7 | T6 → T31 → T32 → T33; T36; T43 | Installer + uninstall, release pipeline, updater, wizard, layout-fix settings |
 | 7b | T38 → T39 → T40 | **On hold (D42):** T37 has no verdict, so S9.2 is skipped in v0.1.0 |
