@@ -82,21 +82,24 @@ export function Toggle({
   description,
   checked,
   onChange,
+  disabled,
 }: {
   label: string;
   description?: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
+  disabled?: boolean;
 }) {
   const id = useId();
   return (
-    <div className="flex items-start gap-2">
+    <div className={cx("flex items-start gap-2", disabled && "opacity-50")}>
       <input
         id={id}
         type="checkbox"
         checked={checked}
+        disabled={disabled}
         onChange={(e) => onChange(e.target.checked)}
-        className="mt-0.5 size-4 accent-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        className="mt-0.5 size-4 accent-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed"
       />
       <label htmlFor={id} className="flex flex-col">
         <span className="text-sm text-text">{label}</span>
@@ -139,23 +142,26 @@ function keyName(e: KeyboardEvent): string | null {
     PageDown: "PageDown",
     Insert: "Insert",
     Delete: "Delete",
+    Pause: "Pause",
   };
   return named[code] ?? null;
 }
 
-/** Read-only input that records the pressed key combination as e.g. `Ctrl+Alt+Space`. */
+/** Read-only input that records the pressed key combination as e.g. `Ctrl+Alt+Space` or `Shift+Pause`. */
 export function HotkeyField({
   label,
   value,
   onChange,
   hint,
   error,
+  disabled,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   hint?: string;
   error?: string;
+  disabled?: boolean;
 }) {
   function onKeyDown(e: KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Tab" && !e.ctrlKey && !e.altKey && !e.metaKey) return; // keep keyboard navigation
@@ -180,6 +186,7 @@ export function HotkeyField({
       onChange={() => undefined}
       onKeyDown={onKeyDown}
       readOnly
+      disabled={disabled}
       hint={hint ?? "Click the field and press the new combination (at least one modifier)."}
       error={error}
     />

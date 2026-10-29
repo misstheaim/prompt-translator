@@ -46,7 +46,23 @@ function validate(s: Settings): Errors {
     errors.numCtx = `Enter ${NUM_CTX_MIN} to ${NUM_CTX_MAX}`;
   }
   if (s.hotkey.trim() === "") errors.hotkey = "Press a key combination";
+  if (s.layoutFix.enabled) {
+    if (s.layoutFix.hotkey.trim() === "") {
+      errors.layoutFixHotkey = "Press a key combination";
+    } else if (normalizeHotkey(s.layoutFix.hotkey) === normalizeHotkey(s.hotkey)) {
+      errors.layoutFixHotkey = "Must be different from the global hotkey";
+    }
+  }
   return errors;
+}
+
+/** Order- and case-insensitive form of a hotkey string, for the duplicate check. */
+function normalizeHotkey(hotkey: string): string {
+  return hotkey
+    .split("+")
+    .map((p) => p.trim().toLowerCase())
+    .sort()
+    .join("+");
 }
 
 function StatusBadge({ tone, children }: { tone: "ok" | "bad" | "neutral"; children: string }) {
@@ -105,6 +121,10 @@ function SettingsForm({ initial }: { initial: Settings }) {
   }
   function patchClaude(update: Partial<Settings["claude"]>) {
     setDraft((d) => ({ ...d, claude: { ...d.claude, ...update } }));
+  }
+
+  function patchLayoutFix(update: Partial<Settings["layoutFix"]>) {
+    setDraft((d) => ({ ...d, layoutFix: { ...d.layoutFix, ...update } }));
   }
 
   async function save() {
@@ -388,6 +408,34 @@ function SettingsForm({ initial }: { initial: Settings }) {
           checked={draft.closeToTray}
           onChange={(v) => patch({ closeToTray: v })}
         />
+      </Section>
+
+      <Section
+        title="Keyboard layout fix"
+        description="Fixes text typed in the wrong keyboard layout (ghbdtn / привет)."
+      >
+        <Toggle
+          label="Enable the layout fix hotkey"
+          checked={draft.layoutFix.enabled}
+          onChange={(v) => patchLayoutFix({ enabled: v })}
+        />
+        <HotkeyField
+          label="Layout fix hotkey"
+          value={draft.layoutFix.hotkey}
+          onChange={(v) => patchLayoutFix({ hotkey: v })}
+          error={errors.layoutFixHotkey}
+          disabled={!draft.layoutFix.enabled}
+        />
+        <Toggle
+          label="Switch input language after fixing"
+          checked={draft.layoutFix.switchInputLanguage}
+          onChange={(v) => patchLayoutFix({ switchInputLanguage: v })}
+          disabled={!draft.layoutFix.enabled}
+        />
+        <p className="text-xs text-muted">
+          Select mistyped text, or put the cursor right after a word, and press the hotkey. In
+          terminals: copy the text first, then paste the result.
+        </p>
       </Section>
 
       {saveError && <ErrorBanner error={saveError} />}

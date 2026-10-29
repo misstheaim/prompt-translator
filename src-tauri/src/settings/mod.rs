@@ -74,7 +74,7 @@ impl Default for LayoutFixSettings {
     fn default() -> Self {
         Self {
             enabled: true,
-            hotkey: "Ctrl+Alt+Space".into(),
+            hotkey: "Shift+Pause".into(),
             switch_input_language: true,
         }
     }
