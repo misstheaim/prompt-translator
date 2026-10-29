@@ -42,6 +42,17 @@ interface AppState {
   /** Mistake the History screen is filtered by (set from the Mistakes screen). */
   historyIssue: IssueFilter | null;
 
+  /** The wizard was opened on purpose ("Run setup again") although setup is completed. */
+  setupRequested: boolean;
+  /** The user left the first-run wizard; the shell shows a "Resume setup" banner instead. */
+  setupDismissed: boolean;
+  /** Opens the setup wizard (Settings → About "Run setup again", or the resume banner). */
+  openSetup: () => void;
+  /** Leaves the wizard without finishing; its step is kept for resuming. */
+  leaveSetup: () => void;
+  /** Called when the wizard finishes. */
+  finishSetup: () => void;
+
   setScreen: (screen: Screen) => void;
   setHistoryIssue: (issue: IssueFilter | null) => void;
   /** Replaces the settings (after `save_settings`, or from `settings://changed`). */
@@ -65,6 +76,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   hotkeyError: null,
 
   historyIssue: null,
+
+  setupRequested: false,
+  setupDismissed: false,
+  openSetup: () => set({ setupRequested: true, setupDismissed: false }),
+  leaveSetup: () => set({ setupRequested: false, setupDismissed: true }),
+  finishSetup: () => set({ setupRequested: false, setupDismissed: false }),
 
   setScreen: (screen) => set({ screen }),
   setHistoryIssue: (historyIssue) => set({ historyIssue }),
