@@ -5,6 +5,8 @@ description = "Windows tray app for practising English while working with Claude
 authors = ["misstheaim"]
 license = "MIT"
 edition = "2024"
+# `cargo run` starts the app; the eval harness is `cargo run --bin eval`.
+default-run = "prompt-translator"
 
 [lib]
 # The `_lib` suffix is needed to keep the lib name unique from the bin name on Windows,

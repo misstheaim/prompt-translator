@@ -23,9 +23,15 @@ static ROOTS: OnceLock<Roots> = OnceLock::new();
 pub fn init(app: &AppHandle) -> AppResult<()> {
     let config = app.path().app_config_dir()?;
     let local = app.path().app_local_data_dir()?;
-    // A second call keeps the first value, which is fine: the roots never change at runtime.
-    let _ = ROOTS.set(Roots { config, local });
+    init_roots(config, local);
     Ok(())
+}
+
+/// Sets the two root directories directly, for code that runs without a Tauri app (the eval
+/// binary). A second call keeps the first value, which is fine: the roots never change at
+/// runtime.
+pub fn init_roots(config: PathBuf, local: PathBuf) {
+    let _ = ROOTS.set(Roots { config, local });
 }
 
 fn roots() -> AppResult<&'static Roots> {
