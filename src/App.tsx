@@ -11,6 +11,7 @@ import { ToastHost } from "./components/Toast";
 import { cx } from "./lib/cx";
 import { HistoryScreen } from "./screens/History/HistoryScreen";
 import { MistakesScreen } from "./screens/Mistakes/MistakesScreen";
+import { SetupScreen } from "./screens/Setup/SetupScreen";
 import { SettingsScreen } from "./screens/Settings/SettingsScreen";
 import { TranslateScreen } from "./screens/Translate/TranslateScreen";
 import { useTranslateStore } from "./screens/Translate/store";
@@ -93,6 +94,21 @@ function App() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [setScreen]);
 
+  const setupCompleted = useAppStore((s) => s.settings?.setupCompleted);
+  const setupRequested = useAppStore((s) => s.setupRequested);
+  const setupDismissed = useAppStore((s) => s.setupDismissed);
+  const openSetup = useAppStore((s) => s.openSetup);
+
+  // First run (or "Run setup again"): the wizard replaces the main UI.
+  if (setupCompleted !== undefined && (setupRequested || (!setupCompleted && !setupDismissed))) {
+    return (
+      <>
+        <SetupScreen />
+        <ToastHost />
+      </>
+    );
+  }
+
   return (
     <div className="flex h-full flex-col bg-bg text-text">
       <nav
@@ -125,6 +141,21 @@ function App() {
             error={loadError}
             onRetry={() => void useAppStore.getState().loadSettings()}
           />
+        </div>
+      )}
+
+      {setupCompleted === false && (
+        <div className="shrink-0 px-4 pt-4">
+          <Banner
+            variant="info"
+            actions={
+              <Button size="sm" variant="primary" onClick={openSetup}>
+                Resume setup
+              </Button>
+            }
+          >
+            Setup isn&apos;t finished. Translating needs a working provider.
+          </Banner>
         </div>
       )}
 
