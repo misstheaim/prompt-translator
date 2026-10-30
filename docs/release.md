@@ -10,9 +10,13 @@ The in-app updater only installs updates signed with the project's minisign key 
 
 ### Generate (once, by the owner)
 
+In PowerShell:
+
 ```
-npm run tauri signer generate -- -w "%USERPROFILE%\.tauri\prompt-translator.key"
+npm run tauri signer generate -- -w "$env:USERPROFILE\.tauri\prompt-translator.key"
 ```
+
+(`%USERPROFILE%` only expands in cmd.exe; in PowerShell or Git Bash it creates a literal `%USERPROFILE%` folder in the current directory, so never run that form inside the repo.)
 
 Choose a strong password when asked. This writes the private key (`prompt-translator.key`) and the public key (`prompt-translator.key.pub`).
 
@@ -31,10 +35,7 @@ In the repo's Settings, Secrets and variables, Actions, add:
 
 ### Public key
 
-Paste the contents of `prompt-translator.key.pub` into `plugins.updater.pubkey` in `src-tauri/tauri.conf.json`, replacing the `REPLACE_WITH_UPDATER_PUBLIC_KEY` placeholder, and commit it. The public key is not secret. Until it is replaced:
-
-- the app builds, lints and runs (nothing reads the key before the updater backend, T32, #67, adds `tauri-plugin-updater`);
-- once the plugin is added, the app fails to start its updater with the placeholder, so the real key must be in place by then.
+`plugins.updater.pubkey` in `src-tauri/tauri.conf.json` holds the contents of `prompt-translator.key.pub` (set in #66). The public key is not secret. If the key pair is ever replaced, paste the new `.pub` contents there and commit it; installs with the old key can then no longer update.
 
 ### Local builds
 
