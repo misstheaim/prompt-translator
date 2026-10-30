@@ -150,6 +150,7 @@ fn load_cases(path: &Path) -> Result<Vec<Case>, String> {
 
 #[tokio::main]
 async fn main() -> ExitCode {
+    prompt_translator_lib::install_crypto_provider();
     match run().await {
         Ok(()) => ExitCode::SUCCESS,
         Err(message) => {

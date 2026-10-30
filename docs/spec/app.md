@@ -190,6 +190,6 @@ Since: #68
 
 ## Known issues
 
-- The app panics at startup with "No rustls crypto provider is configured" when the updater's HTTP client is created in the startup setup, so it does not launch (#138). Introduced with #67; the updater, the About tab and the banner are therefore unreachable in a build of this commit.
+None.
 
 Retired IDs: APP-002
