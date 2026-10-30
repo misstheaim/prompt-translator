@@ -39,6 +39,8 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         // Used from Rust only (layout-fix hints); the webview gets no notification permission.
         .plugin(tauri_plugin_notification::init())
+        // Registered from Rust only (`updater`); the webview gets no updater permission.
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             system::paths::init(app.handle())?;
 
@@ -101,6 +103,7 @@ pub fn run() {
             // is registered after the settings are managed.
             system::popup::init(app.handle())?;
             system::hotkey::init(app.handle());
+            updater::spawn_startup_check(app.handle());
             // Started by the autostart entry: stay in the tray (the main window is created
             // hidden).
             if !system::autostart::launched_by_autostart() {
@@ -114,6 +117,10 @@ pub fn run() {
             system::commands::hotkey_error,
             system::commands::pick_file,
             system::commands::open_url,
+            system::commands::app_info,
+            system::commands::open_folder,
+            updater::check_update,
+            updater::install_update,
             settings::commands::get_settings,
             settings::commands::save_settings,
             settings::commands::set_last_popup_mode,
