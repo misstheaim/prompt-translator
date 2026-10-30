@@ -16,8 +16,16 @@ use tauri_plugin_log::{RotationStrategy, Target, TargetKind};
 const LOG_FILE_MAX_BYTES: u128 = 1_000_000;
 const LOG_FILES_KEPT: usize = 5;
 
+/// Installs the process-wide rustls crypto provider (ring, the one `tauri-plugin-updater` already
+/// pulls in). reqwest is built with `rustls-no-provider`, so any `reqwest::Client` panics without
+/// it. Call once at the very start of every binary; an "already installed" error is ignored.
+pub fn install_crypto_provider() {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    install_crypto_provider();
     tauri::Builder::default()
         // Must be the first plugin: a second launch focuses the main window and exits.
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {

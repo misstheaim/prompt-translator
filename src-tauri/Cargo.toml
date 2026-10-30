@@ -42,6 +42,8 @@ tauri-plugin-opener = "=2.7.2"
 tauri-plugin-global-shortcut = "=2.4.1"
 tauri-plugin-notification = "=2.8.0"
 tauri-plugin-updater = "=2.14.1"
+# Crypto provider for reqwest's rustls (installed in lib.rs); ring is what the updater already uses.
+rustls = { version = "=0.23.46", default-features = false, features = ["ring", "std"] }
 
 [target.'cfg(windows)'.dependencies]
 # Job Objects for the Claude Code translator runs (kill the whole process tree); foreground
