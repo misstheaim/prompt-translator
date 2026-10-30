@@ -8,6 +8,7 @@ import { Button } from "./components/Button";
 import { DevMockPanel } from "./components/DevMockPanel";
 import { ErrorBanner } from "./components/ErrorBanner";
 import { ToastHost } from "./components/Toast";
+import { UpdateBanner } from "./components/UpdateBanner";
 import { cx } from "./lib/cx";
 import { HistoryScreen } from "./screens/History/HistoryScreen";
 import { MistakesScreen } from "./screens/Mistakes/MistakesScreen";
@@ -16,6 +17,7 @@ import { SettingsScreen } from "./screens/Settings/SettingsScreen";
 import { TranslateScreen } from "./screens/Translate/TranslateScreen";
 import { useTranslateStore } from "./screens/Translate/store";
 import { initAppStore, SCREENS, useAppStore, type Screen } from "./store/app";
+import { initUpdateStore } from "./store/update";
 
 const TAB_LABELS: Record<Screen, string> = {
   translate: "Translate",
@@ -49,6 +51,13 @@ function App() {
 
   useEffect(() => {
     const unlisten = initAppStore();
+    return () => {
+      void unlisten.then((fn) => fn());
+    };
+  }, []);
+
+  useEffect(() => {
+    const unlisten = initUpdateStore();
     return () => {
       void unlisten.then((fn) => fn());
     };
@@ -143,6 +152,8 @@ function App() {
           />
         </div>
       )}
+
+      <UpdateBanner />
 
       {setupCompleted === false && (
         <div className="shrink-0 px-4 pt-4">
