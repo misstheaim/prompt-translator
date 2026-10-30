@@ -1,6 +1,6 @@
 # Settings
 
-The app's user settings, stored in one `settings.json`. The core loads them at startup and serves them to the webview through commands; the Settings screen (SETTINGS-007 to SETTINGS-010) edits most of them. The app reads them as follows: `lastPopupMode` (the popup's mode fallback), `hotkey` and `autoCopySelection` (`popup.md`), `layoutFix.enabled`, `layoutFix.hotkey` and `layoutFix.switchInputLanguage` (`layout-fix.md`; edited in the Keyboard layout fix section, SETTINGS-008), `setupCompleted` (set to true by `complete_setup`, SETUP-005; while false the setup wizard shows, SETUP-008), `closeToTray` (APP-027), `autostart` (APP-029), `historyEnabled` (HISTORY-007), `defaultProvider` and `defaultPresetId` (the Translate screen's initial choices, TRANS-013), `ollama.*` and `claude.*` (the providers, `providers.md`) and `devMockProvider` (TRANS-008). There is no per-mode provider default. `autoCheckUpdates` and `sessionAppendHintShown` are not read or editable yet. `ollama.model` is also set by the model download (SETUP-003).
+The app's user settings, stored in one `settings.json`. The core loads them at startup and serves them to the webview through commands; the Settings screen (SETTINGS-007 to SETTINGS-010) edits most of them. The app reads them as follows: `lastPopupMode` (the popup's mode fallback), `hotkey` and `autoCopySelection` (`popup.md`), `layoutFix.enabled`, `layoutFix.hotkey` and `layoutFix.switchInputLanguage` (`layout-fix.md`; edited in the Keyboard layout fix section, SETTINGS-008), `setupCompleted` (set to true by `complete_setup`, SETUP-005; while false the setup wizard shows, SETUP-008), `closeToTray` (APP-027), `autostart` (APP-029), `historyEnabled` (HISTORY-007), `defaultProvider` and `defaultPresetId` (the Translate screen's initial choices, TRANS-013), `ollama.*` and `claude.*` (the providers, `providers.md`) and `devMockProvider` (TRANS-008). There is no per-mode provider default. `autoCheckUpdates` is read by the startup update check (APP-034) and edited in Settings, About (SETTINGS-011). `sessionAppendHintShown` is not read or editable yet. `ollama.model` is also set by the model download (SETUP-003).
 
 > Code: `src-tauri/src/settings/`, `src/screens/Settings/`, `src/lib/api.ts`, `src/bindings/Settings.ts`
 
@@ -45,8 +45,8 @@ Since: #40
 Since: #40 · Changed: #60
 
 ### SETTINGS-007 Settings screen
-The Settings tab has three sub-tabs: General, Presets (PRESETS-009) and About. About shows a placeholder, "Coming with the About tab (T33).", and a "Run setup again" button that opens the setup wizard (SETUP-009). General holds the form and stays loaded when the user switches sub-tabs, so unsaved edits survive. Until the settings are loaded it shows "Loading settings...".
-Since: #55 · Changed: #71
+The Settings tab has three sub-tabs: General, Presets (PRESETS-009) and About. About is SETTINGS-011. General holds the form and stays loaded when the user switches sub-tabs, so unsaved edits survive. Until the settings are loaded it shows "Loading settings...".
+Since: #55 · Changed: #71, #68
 
 ### SETTINGS-008 General form
 The form edits a draft of the settings in these sections:
@@ -66,6 +66,13 @@ Since: #55 · Changed: #79
 ### SETTINGS-010 Hotkey capture
 The hotkey field is read-only: clicking it and pressing a combination records it as modifiers in the order Ctrl, Alt, Shift, Super and then the key, e.g. `Ctrl+Alt+Space`. Keys: letters, digits, function keys (F1...), Space, Enter, Tab, ` - = [ ] \ ; ' , . /, the arrow keys (`Up`, `Down`, `Left`, `Right`), Home, End, PageUp, PageDown, Insert, Delete and Pause (e.g. `Shift+Pause`). A press without a modifier, or with an unsupported key, is ignored; Tab alone still moves focus. Saving applies the new hotkey at once (POPUP-001). The same field records the layout fix hotkey (LAYOUT-003).
 Since: #55 · Changed: #79
+
+### SETTINGS-011 About tab
+Settings, About has three sections:
+- **About**: "Prompt Translator v<version>", then the "Settings folder" and "Data folder (history, logs)" paths, each with an "Open" button that opens it in Explorer (an error toast on failure); see `app_info` and `open_folder` in APP-034.
+- **Updates**: a "Check for updates" button (disabled while installing) that calls `check_update` (APP-034). States: "Checking..." with a spinner; "You're up to date."; "Couldn't check for updates: <message>" (red); or, when a release exists, a box "Version <x> is available." with the notes, an "Install and restart" button and, while installing, the progress bar and any "Update failed: <message>" (same behaviour as APP-035). A release already known when the tab opens shows the box at once. A found release also raises the global banner (APP-035). The toggle "Check for updates on startup" shows `autoCheckUpdates` (default on), saves immediately on change (not through the General form's draft) and is disabled while saving; a failed save shows an error toast.
+- **Setup**: "Reopens the setup wizard: provider, model and hotkey." with a "Run setup again" button that opens the setup wizard (SETUP-009).
+Since: #68
 
 ## Known issues
 
