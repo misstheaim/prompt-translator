@@ -1,9 +1,12 @@
 //! Tauri commands of the `system` module.
 
+use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_opener::OpenerExt;
+use ts_rs::TS;
 
+use super::paths;
 use crate::error::{AppError, AppResult};
 
 /// Round-trip check between the UI and the Rust core.
@@ -46,6 +49,47 @@ pub fn open_url(app: AppHandle, url: String) -> AppResult<()> {
     app.opener()
         .open_url(url, None::<&str>)
         .map_err(|e| AppError::Io(format!("Can't open the link: {e}")))
+}
+
+/// Version and the two app folders (Settings, About tab).
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct AppInfo {
+    pub version: String,
+    /// Settings and presets.
+    pub config_dir: String,
+    /// History, logs and temp files.
+    pub data_dir: String,
+}
+
+#[tauri::command]
+pub fn app_info(app: AppHandle) -> AppResult<AppInfo> {
+    Ok(AppInfo {
+        version: app.package_info().version.to_string(),
+        config_dir: paths::config_dir()?.to_string_lossy().into_owned(),
+        data_dir: paths::local_dir()?.to_string_lossy().into_owned(),
+    })
+}
+
+/// Which app folder `open_folder` opens.
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum AppFolder {
+    Config,
+    Data,
+}
+
+/// Opens the config or the data folder in Explorer.
+#[tauri::command]
+pub fn open_folder(app: AppHandle, folder: AppFolder) -> AppResult<()> {
+    let dir = match folder {
+        AppFolder::Config => paths::config_dir()?,
+        AppFolder::Data => paths::local_dir()?,
+    };
+    app.opener()
+        .open_path(dir.to_string_lossy(), None::<&str>)
+        .map_err(|e| AppError::Io(format!("Can't open the folder: {e}")))
 }
 
 /// Native file picker (Settings, "Browse" for the claude.exe path). `filter` lists the allowed

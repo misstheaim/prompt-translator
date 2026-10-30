@@ -58,7 +58,10 @@
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDdFQzI0OThFNTgxOUM0NjMKUldSanhCbFlqa25DZmdUQjBsQk1LSW5LVGRCSCttOExiek9FdFNFbXZjRWd4QXFGNTIwSm9aaU0K",
       "endpoints": [
         "https://github.com/misstheaim/prompt-translator/releases/latest/download/latest.json"
-      ]
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
     }
   }
 }

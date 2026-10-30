@@ -4,6 +4,9 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
 import type { AppErrorPayload } from "../bindings/AppErrorPayload";
+import type { AppInfo } from "../bindings/AppInfo";
+import type { UpdateInfo } from "../bindings/UpdateInfo";
+import type { UpdateProgress } from "../bindings/UpdateProgress";
 import type { BenchmarkResult } from "../bindings/BenchmarkResult";
 import type { ErrorKind } from "../bindings/ErrorKind";
 import type { EnvironmentReport } from "../bindings/EnvironmentReport";
@@ -232,4 +235,36 @@ export function completeSetup(): Promise<void> {
 /** Listens to `setup://progress`; resolves with the function that stops listening. */
 export function onSetupProgress(handler: (progress: SetupProgress) => void): Promise<UnlistenFn> {
   return listen<SetupProgress>("setup://progress", (event) => handler(event.payload));
+}
+
+// ---- updater and app info ----
+
+/** Version and the config and data folder paths. */
+export function appInfo(): Promise<AppInfo> {
+  return call<AppInfo>("app_info");
+}
+
+/** Opens the config or the data folder in Explorer. */
+export function openFolder(folder: "config" | "data"): Promise<void> {
+  return call<void>("open_folder", { folder });
+}
+
+/** Asks GitHub for a newer release. Rejects when offline; show the error to the user. */
+export function checkUpdate(): Promise<UpdateInfo> {
+  return call<UpdateInfo>("check_update");
+}
+
+/** Downloads and installs the newest release; the app exits and the installer restarts it. */
+export function installUpdate(): Promise<void> {
+  return call<void>("install_update");
+}
+
+/** Listens to `update://available` (sent once, 10 s after startup, if a release is newer). */
+export function onUpdateAvailable(handler: (info: UpdateInfo) => void): Promise<UnlistenFn> {
+  return listen<UpdateInfo>("update://available", (event) => handler(event.payload));
+}
+
+/** Listens to `update://progress` while `installUpdate` downloads. */
+export function onUpdateProgress(handler: (progress: UpdateProgress) => void): Promise<UnlistenFn> {
+  return listen<UpdateProgress>("update://progress", (event) => handler(event.payload));
 }
