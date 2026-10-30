@@ -412,6 +412,7 @@ No automated tests (owner's decision, 2026-10-15). A ticket is done when build a
     ├── [Task][cloud]    T31 Release workflow and updater signing (#66)
     ├── [Task][backend]  T32 In-app updater backend (#67)
     ├── [Task][frontend] T33 About section and update UI (#68)
+    ├── [Task][backend]  T46 Fix startup panic: no rustls crypto provider for reqwest (#138)
     └── [Task][docs]     T7 README, install guide and smoke-test checklist (#39)
 [Epic] E2 Translation core (#2)
 ├── [Story] S2.1 Settings persist between runs (#12)
@@ -936,6 +937,7 @@ Write `docs/spikes/local-model-eval.md` with:
   - Version bump procedure: one source of truth (`package.json` version synced to `tauri.conf.json` and `Cargo.toml` by a small `scripts/bump-version.mjs`).
   - `docs/release.md`: the signing key (generation, offline backup, repo secrets), the bump script, and what to do when `release.yml` fails. The release flow itself (`release/X.Y.Z` from `develop` → PR into `main` → tag `vX.Y.Z` on `main` → draft → publish) is in `docs/development.md` §5: link to it instead of repeating it, and correct §5 if the workflow ends up different.
   **Changed in #66 (PR #133, repo part; the ticket stays open for the owner's key, secrets and test tag):** `release.yml` also fails early when `TAURI_SIGNING_PRIVATE_KEY` is unset and marks tags containing `-` as prereleases; `tauri-action` runs with `--bundles nsis`. `tauri.conf.json` has `createUpdaterArtifacts: true` and `plugins.updater` (endpoint as in T32) with a **placeholder** `pubkey` until the owner pastes the real one. Because of `createUpdaterArtifacts`, a local `npm run tauri build` needs the signing key (unsigned workaround in `docs/release.md`).
+  **Changed in #66 (PR #135):** the real `pubkey` is set; a test tag `v0.0.1-test` produced a correct signed draft (deleted afterwards).
 - **Acceptance criteria:**
   - [ ] A test tag (e.g. `v0.0.1-test`, on a commit of this task's branch, never on `main`; deleted afterwards with the user's approval) produces a draft release with the `-setup.exe`, its `.sig` and `latest.json`.
   - [ ] `latest.json` points to the release asset URLs.
@@ -947,11 +949,12 @@ Write `docs/spikes/local-model-eval.md` with:
 - **Goal:** the app can find, download and install a newer release.
 - **Details:**
   - Add `tauri-plugin-updater`. Endpoint `https://github.com/misstheaim/prompt-translator/releases/latest/download/latest.json`; pubkey from T31; set `plugins.updater.windows.installMode: "passive"` explicitly.
-    **Changed in #66:** the endpoint, `createUpdaterArtifacts` and `plugins.updater` are already in `tauri.conf.json`; the pubkey is a placeholder until #66 closes, and T32 must not land with it.
+    **Changed in #66:** the endpoint, `createUpdaterArtifacts`, `plugins.updater` and the real pubkey are already in `tauri.conf.json`.
   - `updater.rs` commands: `check_update` → `{ available, version, notes }`; `install_update` downloads with `update://progress` events and installs. On Windows the NSIS installer exits and relaunches the app itself (verify against the current plugin docs); `tauri-plugin-process` relaunch is only a fallback if that isn't the case.
   - On startup, if `autoCheckUpdates`, check once after 10 s in the background. If an update exists, emit `update://available` (no auto-install).
   - Network errors are silent at startup and shown when the user checks manually.
   - `app_info` and `open_folder` commands (§4.6); `open_folder` uses `tauri-plugin-opener` from Rust.
+  **Changed in #67 (PR #136):** `tauri-plugin-updater` `=2.14.1`, registered from Rust only (no webview permission). `check_update` → `UpdateInfo { available, version?, notes? }`; `install_update` re-checks, then downloads with throttled `update://progress` (`UpdateProgress { downloadedBytes, totalBytes?, finished }`) and the NSIS installer exits and relaunches the app (no process plugin). Startup check emits `update://available` with `UpdateInfo`. `app_info` → `AppInfo { version, configDir, dataDir }` (`dataDir` = `paths::local_dir()`), `open_folder(folder: "config"|"data")`, both in `system/commands.rs`. Updater errors map to `AppError::Io("Update failed: …")`. Adding the plugin brought rustls into `reqwest`, which panics at startup without a crypto provider: fixed by T46.
 - **Acceptance criteria:**
   - [ ] Version comparison and notes mapping use the plugin's types where possible.
   - [ ] Manual (Sandbox): install release N-1, start it, see the update, install it, and the app restarts on N with history kept.
@@ -963,6 +966,7 @@ Write `docs/spikes/local-model-eval.md` with:
 - **Details:**
   - Settings → About tab: version; config and data folder paths with "Open" buttons; "Check for updates" (spinner, "You're up to date" or update card); "Run setup again" (navigates to the wizard from T36, or a placeholder until it exists); "Check for updates on startup" toggle (`autoCheckUpdates`).
     **Changed in #71:** the About tab placeholder already has a working "Run setup again" button (`openSetup` in `src/store/app.ts`); keep it.
+    **Changed in #68 (PR #137):** shared state in `src/store/update.ts`; the startup toggle saves immediately (no Save button in About); the banner lives in the main UI only (not the wizard), stays visible while installing, and a dismissed banner reappears for a different version.
   - A global dismissible **update banner** on `update://available`: version, notes (Markdown rendered as plain text), **Install and restart** with a progress bar from `update://progress`.
 - **Acceptance criteria:**
   - [ ] Check states (checking, none, available, error), install progress and banner dismiss work.
@@ -1168,6 +1172,16 @@ Write `docs/spikes/local-model-eval.md` with:
 - **Depends on:** T25b, T42. **Can run in parallel with:** any wave 7 task.
 - **Suggested model:** Sonnet 5.5 (confidence: High). Small, contained change that reuses #78's helper.
 
+### T46. Fix startup panic: no rustls crypto provider for reqwest  `backend` · parent: S1.2 · issue: #138
+- **Goal:** the app starts again after T32 added the updater plugin.
+- **Details:** follow-up from the wave 7 smoke check. `tauri-plugin-updater` pulls rustls into the tree, so feature unification turns on rustls in our `reqwest` (`default-features = false`), and `reqwest::Client::new()` in `OllamaProvider::new` panics with "No rustls crypto provider is configured". Install one default provider at the start of `run()` (and in the `eval` binary), matching the backend the updater already uses; no second crypto backend.
+- **Acceptance criteria:**
+  - [ ] The custom-protocol debug build starts, stays running, and the startup update check logs its result.
+  - [ ] The `eval` binary doesn't panic when it builds providers.
+  - [ ] No second crypto backend in `Cargo.lock`.
+- **Depends on:** T32. **Must run before:** T7 and the release branch.
+- **Suggested model:** Sonnet 5.5 (confidence: High). Small dependency/startup fix with a known cause.
+
 ### T44. Tune prompt templates for local models  `backend` · parent: S3.1 · issue: #81
 - **Goal:** the prompt templates work well with the local Ollama models chosen by T13, without making them worse for Claude Code.
 - **Details:** read `docs/spikes/local-model-eval.md` (T13): its template findings, failure cases (especially "answered instead of translated", invalid JSON, dropped technical tokens) and the recommended default model. Apply the changes to `translation/prompts/{translate,improve,correct}.md`. Keep the shared templates provider-neutral where possible; only if the report shows a local model needs wording that would hurt Claude, add local-model variants selected by `ProviderKind::Ollama` in `prompt_builder.rs` (every variant keeps the "data, not a request" rule and the shared rules). Re-run `eval/spike_eval.py` against the recommended model with the final templates and record before/after numbers in the report's template section. Re-check T11's `numCtx` estimate comment if the templates grew.
@@ -1181,14 +1195,13 @@ Write `docs/spikes/local-model-eval.md` with:
 
 ## 6. Order of work
 
-Done: waves 0, 2-6 (see git history of this file). Wave 1 keeps its row for T37 (on hold).
+Done: waves 0, 2-7 (see git history of this file). Wave 1 keeps its row for T37 (on hold).
 
 | Wave | Tasks (parallel within a wave) | Notes |
 |---|---|---|
 | 1 | T2 → T3, T5; T37 | Scaffold, then core skeleton and icons; T37 (needs Rust from T1) is the **gate** for E9 |
-| 7 | T6 → T31 → T32 → T33; T36; T43; T45 | Installer + uninstall, release pipeline, updater, wizard, layout-fix settings |
 | 7b | T38 → T39 → T40 | **On hold (D42):** T37 has no verdict, so S9.2 is skipped in v0.1.0 |
-| 8 | T7 | README, install guide, full smoke test including Windows Sandbox |
+| 8 | T46 → T7 | Startup panic fix (from the wave 7 smoke check), then README, install guide, full smoke test including Windows Sandbox |
 
 Critical path: T1 → T2 → T3 → T11 → T12 → T20 → T21 → T26 → T7. The distribution chain is T24 → T6 → T31 → T32 → T33 → T7.
 
@@ -1233,6 +1246,7 @@ Critical path: T1 → T2 → T3 → T11 → T12 → T20 → T21 → T26 → T7. 
 
 ## 8. Review notes
 
+- **Changed 2026-10-30 (wave 7, part 2):** T31 (#66): real pubkey set, test tag checked. T32 (#67): updater commands, events and `AppInfo` as merged. T33 (#68): `store/update.ts`, banner rules. Follow-up T46 (#138, startup panic from the updater's rustls) added under S1.2, first in wave 8. Wave 7 collapsed.
 - **Changed 2026-10-30 (wave 7, part 1):** D38 default layout-fix hotkey → Shift+Pause (owner, #79; §4.3, T42, T43). T31 (#66) repo part: early secret check, prerelease tags, `createUpdaterArtifacts` + `plugins.updater` with a placeholder pubkey (T31, T32). T36 (#71): "Run setup again" already in the About placeholder (T33). Follow-up T45 (#128) added under S6.2.
 - **Changed 2026-10-30:** wave 6 outcomes folded in. T34 (#69): `recommend(gpus)` without RAM, nullable `model`/`downloadMb` for tier `none`, `ramAvailableMb` in `EnvironmentReport`, tolerant VRAM bounds. T26/T35 (#61, #70): Start Ollama button in the shared `ErrorBanner` (main window and popup).
 - **Changed 2026-10-29:** wave 4 outcomes folded in. Spike T13 (#45, owner decisions): one model `qwen3.5:9b`, no CPU tiers (no usable GPU → tier `none`, Claude Code), no per-mode provider default (D28, T13, T34, T36, §4.6, risks). T14 (#46): `think: false`, too-long guard. T44 (#81): per-mode output schema and parser drop of no-op issues. T17b (#50): `is_error` → `ClaudeAuth` only for sign-in errors. T6: autostart value name `Prompt Translator`, unquoted path (from T24, #57).
