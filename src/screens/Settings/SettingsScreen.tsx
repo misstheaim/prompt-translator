@@ -1,8 +1,7 @@
 import { useState } from "react";
 
-import { Button } from "../../components/Button";
 import { cx } from "../../lib/cx";
-import { useAppStore } from "../../store/app";
+import { AboutSettings } from "./AboutSettings";
 import { GeneralSettings } from "./GeneralSettings";
 import { PresetsSettings } from "./PresetsSettings";
 
@@ -13,18 +12,8 @@ const TABS = [
 ] as const;
 type TabId = (typeof TABS)[number]["id"];
 
-function TabPlaceholder({ title, ticket }: { title: string; ticket: string }) {
-  return (
-    <div className="flex flex-col items-center gap-2 py-12 text-center">
-      <h2 className="text-base font-semibold text-text">{title}</h2>
-      <p className="text-muted">Coming with {ticket}.</p>
-    </div>
-  );
-}
-
 export function SettingsScreen() {
   const [tab, setTab] = useState<TabId>("general");
-  const openSetup = useAppStore((s) => s.openSetup);
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4">
@@ -70,10 +59,7 @@ export function SettingsScreen() {
       )}
       {tab === "about" && (
         <div role="tabpanel" id="settings-panel-about" aria-labelledby="settings-tab-about">
-          <TabPlaceholder title="About" ticket="the About tab (T33)" />
-          <div className="flex justify-center">
-            <Button onClick={openSetup}>Run setup again</Button>
-          </div>
+          <AboutSettings />
         </div>
       )}
     </div>
