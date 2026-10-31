@@ -9,8 +9,8 @@ The two real translation providers, Ollama (a local model over HTTP) and Claude 
 ## Ollama
 
 ### PROV-001 Ollama request
-A run sends `POST <ollama.endpoint>/api/chat` (trailing `/` of the endpoint removed) with the model `ollama.model` (default `qwen3.5:9b`), the system prompt and the user message as chat messages, `stream: false`, `think: false`, `format` set to the output JSON Schema of the mode (TRANS-012), `keep_alive` from `ollama.keepAlive` (default `30m`), `options.temperature` 0.2 and `options.num_ctx` from `ollama.numCtx` (default 8192). The answer is the `message.content` text, which is then parsed (TRANS-007); the result's model is the configured model. A response that is not JSON or has no `message.content` fails with `MalformedOutput` (the first 2000 characters as detail). The run is limited by `ollama.timeoutSecs` (default 60 s, TRANS-009).
-Since: #46
+A run sends `POST <ollama.endpoint>/api/chat` (trailing `/` of the endpoint removed) with the model `ollama.model` (default `qwen3.5:9b`), the system prompt and the user message as chat messages, `stream: false`, `think: false`, `format` set to the output JSON Schema of the mode (TRANS-012), `keep_alive` from `ollama.keepAlive` (default `10m`), `options.temperature` 0.2 and `options.num_ctx` from `ollama.numCtx` (default 8192). The answer is the `message.content` text, which is then parsed (TRANS-007); the result's model is the configured model. A response that is not JSON or has no `message.content` fails with `MalformedOutput` (the first 2000 characters as detail). The run is limited by `ollama.timeoutSecs` (default 60 s, TRANS-009).
+Since: #46 · Changed: #146
 
 ### PROV-002 Too-long prompts are refused
 Before anything is sent, the prompt size is estimated in tokens: system characters / 4, plus user-message characters / 3, plus the expected answer (user-message characters times 0.3 for Translate, 0.6 for Improve, 1.25 for Correct, rounded up). If the estimate is above `ollama.numCtx`, the run fails with `InvalidInput` "The text is too long for the local model in this mode. Shorten it, split it into parts, switch to Translate mode, or use Claude Code." and nothing is sent.
@@ -78,6 +78,12 @@ Since: #46 · Changed: #49
 ### PROV-014 No tools
 The providers only generate text. The Ollama `/api/chat` request never includes `tools`, only `message.content` of the reply is read and any tool calls in it are ignored, and no setting enables tools. The Claude Code provider runs with `--tools ""` (PROV-007), so it has no tools either.
 Since: #46
+
+## Unloading the model
+
+### PROV-015 Unloading the model
+`unload_model` (wrapper `unloadModel`) asks Ollama to unload the configured model `ollama.model`: it lists the loaded models (`GET /api/ps`) and, if the model is among them, sends `POST /api/generate` with `keep_alive: 0`. Each request waits at most 3 s. It returns true when the model was unloaded and false when it was not loaded or Ollama is not running (neither is an error); another failure (for example an HTTP error status) fails with `Io`.
+Since: #146
 
 ## Known issues
 

@@ -15,8 +15,8 @@ The direction is guessed by counting ASCII letters against Cyrillic letters (U+0
 Since: #77
 
 ### LAYOUT-003 Hotkey
-The layout-fix hotkey is `layoutFix.hotkey` (default `Shift+Pause`; settings files saved earlier keep their stored hotkey). It is registered at startup and after every settings change, only while `layoutFix.enabled` is on (off unregisters it); a failure to register is reported with the popup hotkey's error (POPUP-002, "The layout fix hotkey is off. Choose another combination in Settings."). It runs on key press. A press while an earlier run is still going is ignored. Saving settings is refused when the layout fix is enabled and its hotkey is the same combination as the popup hotkey, in any modifier order or case (SETTINGS-004).
-Since: #78 · Changed: #79
+The layout-fix hotkey is `layoutFix.hotkey` (default ``Ctrl+Shift+` ``; settings files saved earlier keep their stored hotkey). It is registered at startup and after every settings change, only while `layoutFix.enabled` is on (off unregisters it); a failure to register is reported with the popup hotkey's error (POPUP-002, "The layout fix hotkey is off. Choose another combination in Settings."). It runs on key press. A press while an earlier run is still going is ignored. Saving settings is refused when the layout fix is enabled and its hotkey is the same combination as the popup hotkey, in any modifier order or case (SETTINGS-004).
+Since: #78 · Changed: #79, #146
 
 ### LAYOUT-004 Replacing the selection
 When the foreground window is not a terminal (POPUP-007) and `autoCopySelection` is on:
@@ -27,9 +27,14 @@ When the foreground window is not a terminal (POPUP-007) and `autoCopySelection`
 Clipboard use is exclusive with the popup's auto-copy (POPUP-007): only one runs at a time.
 Since: #78
 
-### LAYOUT-005 No selection: previous word
-When Ctrl+C copies nothing (the clipboard did not change, the copy was empty, or the app is VS Code or another Monaco editor that copied the whole current line because nothing was selected), Ctrl+Shift+Left is sent to select the word before the cursor and it is copied again; that word is then converted and replaced as in LAYOUT-004. If that copies nothing either, nothing changes and the saved clipboard is restored.
-Since: #78
+### LAYOUT-005 No selection: wrong-layout words before the cursor
+When Ctrl+C copies nothing (the clipboard did not change, the copy was empty, or the app is VS Code or another Monaco editor that copied the whole current line because nothing was selected), Ctrl+Shift+Left is sent to select the word before the cursor and it is copied again. The word before the cursor is always converted. The selection then grows to the left, one word per Ctrl+Shift+Left press, while the words look wrong-layout (LAYOUT-008) in the same direction; words too short to tell (undecided) join only if a wrong-layout word lies further left. It stops at the first right-layout word (or one wrong the other way round), at a line break, at the start of the line or field (the selection stops growing) and after 15 words. Then the selection shrinks back with Ctrl+Shift+Right, copying after each press, to the first converted word; whatever cannot be dropped that way is pasted back unchanged. The words to convert are replaced as in LAYOUT-004.
+If the first word copies nothing, nothing changes and the saved clipboard is restored. If a later copy fails or the selection changes unexpectedly while growing or shrinking, the run ends without pasting and the text stays selected (the saved clipboard is restored).
+Since: #78 · Changed: #147
+
+### LAYOUT-008 Wrong-layout word test
+A word is judged by comparing how likely its letter pairs (word start and end included, averaged per pair) are in its own language with those of its conversion (LAYOUT-001) in the other language, English and Russian: the word is wrong-layout when the conversion is the likelier one. A word with fewer than 3 letters, or with as many Latin as Cyrillic letters (including none), is undecided. Brackets, quotes and punctuation that are letters on the other layout may open or close a word without counting against it (`[link`, `word,`); an apostrophe inside a word only splits it.
+Since: #147
 
 ### LAYOUT-006 Terminals and auto-copy off
 When the foreground window is a terminal, there is no foreground window, or `autoCopySelection` is off, no keys are sent. The current clipboard text is converted and written back to the clipboard (not hidden from clipboard history) and a Windows notification titled "Prompt Translator" says "Layout fixed: paste with Ctrl+V"; the user pastes it. If the clipboard holds no text, no direction, or text the conversion does not change, the notification says "Copy some text first" and the clipboard is left as it is.

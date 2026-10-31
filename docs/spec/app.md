@@ -137,8 +137,8 @@ Since: #52
 Since: #49 · Changed: #55
 
 ### APP-026 Tray icon
-The app puts an icon in the notification area (monochrome `tray.png`, tooltip "Prompt Translator"). A left click shows the main window: it is shown, restored if minimized and focused. A right click opens a menu with "Open" (same as left click) and "Quit" (exits the app).
-Since: #57
+The app puts an icon in the notification area (monochrome `tray.png`, tooltip "Prompt Translator"). A left click shows the main window: it is shown, restored if minimized and focused. A right click opens a menu with "Open" (same as left click), "Unload model" and "Quit" (exits the app). "Unload model" unloads the Ollama model (PROV-015) and the main window shows the toast "Model unloaded" or "No model loaded", or an error toast with the failure text.
+Since: #57 · Changed: #146
 
 ### APP-027 Close to tray
 Closing the main window never destroys it. When `closeToTray` is on (default) the window is hidden and the app keeps running in the tray; when it is off the app exits. The setting is read at the moment of closing.
@@ -187,6 +187,18 @@ Since: #67
 ### APP-035 Update banner
 When `update://available` arrives, or a manual check in Settings, About finds a release (SETTINGS-011), a dismissible info banner appears under the tab bar on every screen: "Version <x> is available." with the release notes as plain text (scrolling above 6rem), and the buttons "Install and restart" and "Dismiss". Dismiss hides it (Settings, About still shows the update); it comes back only when a different version is reported, and a check that finds no release clears the update. "Install and restart" calls `install_update`; while installing the buttons are replaced by a progress bar with "Downloading... <n>%" (a pulsing bar and "Downloading..." while the total is unknown) and, at the end, "Starting the installer..."; the banner stays visible while installing even if dismissed. A failure turns the banner red and adds "Update failed: <message>" with the buttons back.
 Since: #68
+
+### APP-036 Unload model button
+The right end of the main window's tab bar always shows a small "Unload model" button (tooltip "Unload model (<ollama.model>) from memory"). It calls `unload_model` (PROV-015) and shows the toast "Model unloaded" or "No model loaded", or an error toast with the failure message. It shows a spinner while it works and is disabled while a translation runs on the Translate screen.
+Since: #146
+
+### APP-037 Unloading on quit
+When the app really exits (tray "Quit", closing the main window with `closeToTray` off, or the in-app uninstall) it asks Ollama to unload the model first, best effort: it waits at most about 2 s and never blocks the exit on a failure. Close-to-tray only hides the window and unloads nothing.
+Since: #146
+
+### APP-038 Crypto provider at startup
+The app installs the process-wide rustls crypto provider (ring) before anything else, so HTTP clients can be created and the app starts without a panic. The `eval` binary does the same.
+Since: #138
 
 ## Known issues
 
