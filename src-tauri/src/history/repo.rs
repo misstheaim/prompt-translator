@@ -4,6 +4,8 @@
 //! Text comparisons use the `ulower` SQL function (see `db.rs`) so they fold case for any
 //! script, not just ASCII.
 
+use std::collections::{HashMap, HashSet};
+
 use rusqlite::types::Type;
 use rusqlite::{Connection, Row, ToSql, params};
 use serde::Serialize;
@@ -15,11 +17,13 @@ use super::{
     RecurringMistake, VocabularyItem,
 };
 use crate::error::{AppError, AppResult};
-use crate::translation::model::{Issue, TokenWarning, TranslationRequest, TranslationResult};
+use crate::translation::model::{
+    Issue, IssueCategory, Mode, TokenWarning, TranslationRequest, TranslationResult,
+};
 
 const PREVIEW_CHARS: usize = 120;
-const MAX_RECURRING: i64 = 50;
-const MAX_VOCABULARY: i64 = 100;
+const MAX_RECURRING: usize = 50;
+const MAX_VOCABULARY: usize = 100;
 
 /// Enums are stored as their serde string (`"translate"`, `"claudeCode"`, `"word_choice"`).
 fn enum_to_str<T: Serialize>(value: &T) -> AppResult<String> {
@@ -130,15 +134,34 @@ fn preview(text: &str) -> String {
     text.chars().take(PREVIEW_CHARS).collect()
 }
 
-/// Newest first. `query` matches source or output text; `issue` keeps entries that contain that
-/// mistake. Both are case-insensitive.
+/// Filters of [`list`]; all the given ones must match.
+#[derive(Default)]
+pub struct ListFilters<'a> {
+    /// Matches source or output text, case-insensitive.
+    pub query: Option<&'a str>,
+    /// Keeps entries that contain this mistake.
+    pub issue: Option<&'a IssueFilter>,
+    pub mode: Option<Mode>,
+    /// Keeps entries with at least one issue of this category.
+    pub category: Option<IssueCategory>,
+    /// Keeps entries of the last N days.
+    pub since_days: Option<u32>,
+}
+
+/// Newest first.
 pub fn list(
     conn: &Connection,
-    query: Option<&str>,
-    issue: Option<&IssueFilter>,
+    filters: &ListFilters<'_>,
     limit: u32,
     offset: u32,
 ) -> AppResult<Vec<HistoryEntrySummary>> {
+    let ListFilters {
+        query,
+        issue,
+        mode,
+        category,
+        since_days,
+    } = *filters;
     let mut sql = String::from(
         "SELECT t.id, t.created_at, t.mode, t.provider, t.model, t.source_text, t.output_text, \
          (SELECT COUNT(*) FROM issues i WHERE i.translation_id = t.id), \
@@ -163,6 +186,25 @@ pub fn list(
             " AND EXISTS (SELECT 1 FROM issues i WHERE i.translation_id = t.id \
              AND ulower(i.original) = ?{} AND ulower(i.corrected) = ?{n})",
             n - 1
+        ));
+    }
+    if let Some(m) = mode {
+        args.push(Box::new(enum_to_str(&m)?));
+        sql.push_str(&format!(" AND t.mode = ?{}", args.len()));
+    }
+    if let Some(c) = category {
+        args.push(Box::new(enum_to_str(&c)?));
+        sql.push_str(&format!(
+            " AND EXISTS (SELECT 1 FROM issues i WHERE i.translation_id = t.id \
+             AND i.category = ?{})",
+            args.len()
+        ));
+    }
+    if let Some(d) = since_days {
+        args.push(Box::new(format!("-{d} days")));
+        sql.push_str(&format!(
+            " AND t.created_at >= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', ?{})",
+            args.len()
         ));
     }
     args.push(Box::new(i64::from(limit)));
@@ -258,61 +300,143 @@ pub fn clear(conn: &Connection) -> AppResult<()> {
     Ok(())
 }
 
+/// Source text as compared for "the same text": trimmed, whitespace runs collapsed, lower-cased.
+fn normalize_source(text: &str) -> String {
+    text.split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase()
+}
+
+/// Running total of one (original, corrected) pair; `sources` holds the distinct source texts.
+struct PairAgg {
+    original: String,
+    corrected: String,
+    category: IssueCategory,
+    last_seen: String,
+    sources: HashSet<String>,
+}
+
+fn add_pair(
+    map: &mut HashMap<(String, String), PairAgg>,
+    category: IssueCategory,
+    original: &str,
+    corrected: &str,
+    source: &str,
+    created_at: &str,
+) {
+    // Rows arrive newest first, so the first one seen supplies the displayed spelling.
+    let agg = map
+        .entry((original.to_lowercase(), corrected.to_lowercase()))
+        .or_insert_with(|| PairAgg {
+            original: original.to_owned(),
+            corrected: corrected.to_owned(),
+            category,
+            last_seen: created_at.to_owned(),
+            sources: HashSet::new(),
+        });
+    agg.sources.insert(source.to_owned());
+}
+
 /// The "my mistakes" aggregates, over entries of the last `since_days` days (all when `None`).
+/// Every count is per distinct source text, so re-running one text never inflates it.
 pub fn mistakes_summary(conn: &Connection, since_days: Option<u32>) -> AppResult<MistakesSummary> {
     // `-N days` modifier for strftime; NULL cut-off means "no limit".
     let since: Option<String> = since_days.map(|d| format!("-{d} days"));
-    let filter = "(?1 IS NULL OR t.created_at >= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', ?1))";
 
-    let mut stmt = conn.prepare(&format!(
-        "SELECT i.category, COUNT(*) FROM issues i JOIN translations t ON t.id = i.translation_id \
-         WHERE {filter} GROUP BY i.category ORDER BY COUNT(*) DESC, i.category"
-    ))?;
-    let by_category = stmt
-        .query_map([&since], |row| {
-            Ok(CategoryCount {
-                category: col_enum(row, 0)?,
-                count: row.get(1)?,
-            })
-        })?
-        .collect::<Result<_, _>>()?;
-
-    // Bare columns next to MAX() take their values from the row holding the maximum, so the
-    // displayed spelling and category are those of the latest occurrence.
-    let mut stmt = conn.prepare(&format!(
-        "SELECT i.original, i.corrected, i.category, COUNT(*) AS n, MAX(t.created_at) \
+    let mut stmt = conn.prepare(
+        "SELECT i.category, i.original, i.corrected, t.source_text, t.created_at \
          FROM issues i JOIN translations t ON t.id = i.translation_id \
-         WHERE {filter} GROUP BY ulower(i.original), ulower(i.corrected) HAVING COUNT(*) >= 2 \
-         ORDER BY n DESC, MAX(t.created_at) DESC LIMIT {MAX_RECURRING}"
-    ))?;
-    let recurring = stmt
-        .query_map([&since], |row| {
-            Ok(RecurringMistake {
-                original: row.get(0)?,
-                corrected: row.get(1)?,
-                category: col_enum(row, 2)?,
-                count: row.get(3)?,
-            })
-        })?
-        .collect::<Result<_, _>>()?;
+         WHERE (?1 IS NULL OR t.created_at >= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', ?1)) \
+         ORDER BY t.created_at DESC, t.id DESC, i.id",
+    )?;
+    let rows = stmt.query_map([&since], |row| {
+        let category: IssueCategory = col_enum(row, 0)?;
+        let original: String = row.get(1)?;
+        let corrected: String = row.get(2)?;
+        let source: String = row.get(3)?;
+        let created_at: String = row.get(4)?;
+        Ok((category, original, corrected, source, created_at))
+    })?;
 
-    let mut stmt = conn.prepare(&format!(
-        "SELECT i.original, i.corrected, COUNT(*) AS n, MAX(t.created_at) AS last_seen \
-         FROM issues i JOIN translations t ON t.id = i.translation_id \
-         WHERE i.category = 'vocabulary' AND {filter} \
-         GROUP BY ulower(i.original), ulower(i.corrected) \
-         ORDER BY n DESC, last_seen DESC LIMIT {MAX_VOCABULARY}"
-    ))?;
-    let vocabulary = stmt
-        .query_map([&since], |row| {
-            Ok(VocabularyItem {
-                original: row.get(0)?,
-                corrected: row.get(1)?,
-                count: row.get(2)?,
-                last_seen: row.get(3)?,
-            })
-        })?
-        .collect::<Result<_, _>>()?;
+    let mut category_seen: HashSet<(String, String, String, String)> = HashSet::new();
+    let mut category_counts: HashMap<String, (IssueCategory, u32)> = HashMap::new();
+    let mut pairs: HashMap<(String, String), PairAgg> = HashMap::new();
+    let mut words: HashMap<(String, String), PairAgg> = HashMap::new();
+
+    for row in rows {
+        let (category, original, corrected, source, created_at) = row?;
+        let source = normalize_source(&source);
+        let (lo, lc) = (original.to_lowercase(), corrected.to_lowercase());
+        let key = enum_to_str(&category)?;
+        if category_seen.insert((source.clone(), key.clone(), lo, lc)) {
+            category_counts.entry(key).or_insert((category, 0)).1 += 1;
+        }
+        add_pair(
+            &mut pairs,
+            category,
+            &original,
+            &corrected,
+            &source,
+            &created_at,
+        );
+        if category == IssueCategory::Vocabulary {
+            add_pair(
+                &mut words,
+                category,
+                &original,
+                &corrected,
+                &source,
+                &created_at,
+            );
+        }
+    }
+
+    let mut by_category: Vec<(String, CategoryCount)> = category_counts
+        .into_iter()
+        .map(|(key, (category, count))| (key, CategoryCount { category, count }))
+        .collect();
+    by_category.sort_by(|a, b| b.1.count.cmp(&a.1.count).then_with(|| a.0.cmp(&b.0)));
+    let by_category = by_category.into_iter().map(|(_, c)| c).collect();
+
+    let mut recurring: Vec<PairAgg> = pairs
+        .into_values()
+        .filter(|p| p.sources.len() >= 2)
+        .collect();
+    recurring.sort_by(|a, b| {
+        b.sources
+            .len()
+            .cmp(&a.sources.len())
+            .then_with(|| b.last_seen.cmp(&a.last_seen))
+    });
+    let recurring = recurring
+        .into_iter()
+        .take(MAX_RECURRING)
+        .map(|p| RecurringMistake {
+            count: u32::try_from(p.sources.len()).unwrap_or(u32::MAX),
+            original: p.original,
+            corrected: p.corrected,
+            category: p.category,
+        })
+        .collect();
+
+    let mut vocabulary: Vec<PairAgg> = words.into_values().collect();
+    vocabulary.sort_by(|a, b| {
+        b.sources
+            .len()
+            .cmp(&a.sources.len())
+            .then_with(|| b.last_seen.cmp(&a.last_seen))
+    });
+    let vocabulary = vocabulary
+        .into_iter()
+        .take(MAX_VOCABULARY)
+        .map(|p| VocabularyItem {
+            count: u32::try_from(p.sources.len()).unwrap_or(u32::MAX),
+            original: p.original,
+            corrected: p.corrected,
+            last_seen: p.last_seen,
+        })
+        .collect();
 
     Ok(MistakesSummary {
         by_category,

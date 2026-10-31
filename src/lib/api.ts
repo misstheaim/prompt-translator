@@ -12,6 +12,7 @@ import type { ErrorKind } from "../bindings/ErrorKind";
 import type { EnvironmentReport } from "../bindings/EnvironmentReport";
 import type { HistoryEntry } from "../bindings/HistoryEntry";
 import type { HistoryEntrySummary } from "../bindings/HistoryEntrySummary";
+import type { IssueCategory } from "../bindings/IssueCategory";
 import type { IssueFilter } from "../bindings/IssueFilter";
 import type { MistakesSummary } from "../bindings/MistakesSummary";
 import type { Mode } from "../bindings/Mode";
@@ -135,16 +136,25 @@ export function copyResult(text: string, historyId: number | null = null): Promi
 
 // ---- history ----
 
-/** Newest first. `query` searches source and output; `issue` keeps entries with that mistake. */
+/**
+ * Newest first. `query` searches source and output; `issue` keeps entries with that mistake;
+ * `mode`, `category` (entries with an issue of it) and `sinceDays` narrow further.
+ */
 export function historyList(args: {
   query?: string | null;
   issue?: IssueFilter | null;
+  mode?: Mode | null;
+  category?: IssueCategory | null;
+  sinceDays?: number | null;
   limit: number;
   offset: number;
 }): Promise<HistoryEntrySummary[]> {
   return call<HistoryEntrySummary[]>("history_list", {
     query: args.query ?? null,
     issue: args.issue ?? null,
+    mode: args.mode ?? null,
+    category: args.category ?? null,
+    sinceDays: args.sinceDays ?? null,
     limit: args.limit,
     offset: args.offset,
   });

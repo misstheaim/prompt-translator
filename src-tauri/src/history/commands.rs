@@ -8,6 +8,7 @@ use tauri::{AppHandle, Manager};
 
 use super::{HistoryDb, HistoryEntry, HistoryEntrySummary, IssueFilter, MistakesSummary, repo};
 use crate::error::{AppError, AppResult};
+use crate::translation::model::{IssueCategory, Mode};
 
 /// Rows per page when the UI asks for more than this (or for nothing sensible).
 const MAX_LIMIT: u32 = 500;
@@ -40,18 +41,30 @@ pub async fn mark_accepted(app: &AppHandle, id: i64, target: super::AcceptedTarg
     }
 }
 
-/// Newest first; `query` searches source and output, `issue` keeps entries with that mistake.
+/// Newest first; `query` searches source and output, `issue` keeps entries with that mistake,
+/// `mode`, `category` and `since_days` narrow further (all must match).
 #[tauri::command]
+#[allow(clippy::too_many_arguments)] // flat arguments are the command's contract with the UI
 pub async fn history_list(
     app: AppHandle,
     query: Option<String>,
     issue: Option<IssueFilter>,
+    mode: Option<Mode>,
+    category: Option<IssueCategory>,
+    since_days: Option<u32>,
     limit: u32,
     offset: u32,
 ) -> AppResult<Vec<HistoryEntrySummary>> {
     let limit = limit.clamp(1, MAX_LIMIT);
     run(&app, move |conn| {
-        repo::list(conn, query.as_deref(), issue.as_ref(), limit, offset)
+        let filters = repo::ListFilters {
+            query: query.as_deref(),
+            issue: issue.as_ref(),
+            mode,
+            category,
+            since_days,
+        };
+        repo::list(conn, &filters, limit, offset)
     })
     .await
 }

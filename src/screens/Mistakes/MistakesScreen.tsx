@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import type { IssueCategory } from "../../bindings/IssueCategory";
+import type { IssueFilter } from "../../bindings/IssueFilter";
 import type { MistakesSummary } from "../../bindings/MistakesSummary";
 import { ErrorBanner } from "../../components/ErrorBanner";
 import { Spinner } from "../../components/Spinner";
@@ -39,7 +40,7 @@ function SectionTitle({ children }: { children: string }) {
 
 export function MistakesScreen() {
   const setScreen = useAppStore((s) => s.setScreen);
-  const setHistoryIssue = useAppStore((s) => s.setHistoryIssue);
+  const setHistoryFilter = useAppStore((s) => s.setHistoryFilter);
 
   const [periodIndex, setPeriodIndex] = useState(1);
   const [summary, setSummary] = useState<MistakesSummary | null>(null);
@@ -72,8 +73,12 @@ export function MistakesScreen() {
     summary.vocabulary.length === 0;
   const maxCount = Math.max(1, ...(summary?.byCategory.map((c) => c.count) ?? []));
 
-  function openHistory(original: string, corrected: string) {
-    setHistoryIssue({ original, corrected });
+  function openHistory(filter: { issue?: IssueFilter; category?: IssueCategory }) {
+    setHistoryFilter({
+      issue: filter.issue ?? null,
+      category: filter.category ?? null,
+      sinceDays: PERIODS[periodIndex].days,
+    });
     setScreen("history");
   }
 
@@ -122,15 +127,23 @@ export function MistakesScreen() {
             <SectionTitle>By category</SectionTitle>
             <ul className="flex flex-col gap-1.5">
               {summary.byCategory.map((c) => (
-                <li key={c.category} className="flex items-center gap-3 text-sm">
-                  <span className="w-24 shrink-0 text-muted">{c.category.replace("_", " ")}</span>
-                  <span className="h-3 min-w-0 flex-1 rounded bg-surface-raised">
-                    <span
-                      className={cx("block h-full rounded", CATEGORY_BG[c.category])}
-                      style={{ width: `${(c.count / maxCount) * 100}%` }}
-                    />
-                  </span>
-                  <span className="w-8 shrink-0 text-right tabular-nums text-text">{c.count}</span>
+                <li key={c.category}>
+                  <button
+                    type="button"
+                    onClick={() => openHistory({ category: c.category })}
+                    className="flex w-full items-center gap-3 rounded text-left text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                  >
+                    <span className="w-24 shrink-0 text-muted">{c.category.replace("_", " ")}</span>
+                    <span className="h-3 min-w-0 flex-1 rounded bg-surface-raised">
+                      <span
+                        className={cx("block h-full rounded", CATEGORY_BG[c.category])}
+                        style={{ width: `${(c.count / maxCount) * 100}%` }}
+                      />
+                    </span>
+                    <span className="w-8 shrink-0 text-right tabular-nums text-text">
+                      {c.count}
+                    </span>
+                  </button>
                 </li>
               ))}
             </ul>
@@ -146,7 +159,7 @@ export function MistakesScreen() {
                   <li key={`${m.original}\u0000${m.corrected}`}>
                     <button
                       type="button"
-                      onClick={() => openHistory(m.original, m.corrected)}
+                      onClick={() => openHistory({ issue: { original: m.original, corrected: m.corrected } })}
                       className="flex w-full items-baseline gap-2 rounded-md border border-border bg-surface p-2 text-left text-sm transition-colors duration-150 hover:bg-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent motion-reduce:transition-none"
                     >
                       <span className="text-muted line-through">{m.original}</span>
@@ -170,17 +183,22 @@ export function MistakesScreen() {
             ) : (
               <ul className="flex flex-col gap-1.5">
                 {summary.vocabulary.map((v) => (
-                  <li
-                    key={`${v.original}\u0000${v.corrected}`}
-                    className="flex items-baseline gap-2 rounded-md border border-border bg-surface p-2 text-sm"
-                  >
-                    <span className="text-muted">{v.original}</span>
-                    <span aria-hidden="true">→</span>
-                    <span className="font-medium text-text">{v.corrected}</span>
-                    <span className="ml-auto text-xs text-muted">
-                      last seen {formatDate(v.lastSeen)}
-                    </span>
-                    <span className="tabular-nums text-text">×{v.count}</span>
+                  <li key={`${v.original}\u0000${v.corrected}`}>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        openHistory({ issue: { original: v.original, corrected: v.corrected } })
+                      }
+                      className="flex w-full items-baseline gap-2 rounded-md border border-border bg-surface p-2 text-left text-sm transition-colors duration-150 hover:bg-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent motion-reduce:transition-none"
+                    >
+                      <span className="text-muted">{v.original}</span>
+                      <span aria-hidden="true">→</span>
+                      <span className="font-medium text-text">{v.corrected}</span>
+                      <span className="ml-auto text-xs text-muted">
+                        last seen {formatDate(v.lastSeen)}
+                      </span>
+                      <span className="tabular-nums text-text">×{v.count}</span>
+                    </button>
                   </li>
                 ))}
               </ul>
