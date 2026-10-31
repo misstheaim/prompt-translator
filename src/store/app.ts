@@ -1,6 +1,7 @@
 import { listen } from "@tauri-apps/api/event";
 import { create } from "zustand";
 
+import type { IssueCategory } from "../bindings/IssueCategory";
 import type { IssueFilter } from "../bindings/IssueFilter";
 import type { Preset } from "../bindings/Preset";
 import type { ProviderStatus } from "../bindings/ProviderStatus";
@@ -28,6 +29,14 @@ const TOAST_MS: Record<ToastKind, number> = { info: 3000, success: 3000, error: 
 const MAX_TOASTS = 3;
 let nextToastId = 1;
 
+/** A History filter coming from the Mistakes screen: a category or a pair, for a period. */
+export interface HistoryFilter {
+  issue: IssueFilter | null;
+  category: IssueCategory | null;
+  /** Last N days; null for all time. */
+  sinceDays: number | null;
+}
+
 interface AppState {
   screen: Screen;
   settings: Settings | null;
@@ -39,8 +48,8 @@ interface AppState {
   /** Why the popup hotkey isn't registered; the shell shows it as a banner. */
   hotkeyError: string | null;
 
-  /** Mistake the History screen is filtered by (set from the Mistakes screen). */
-  historyIssue: IssueFilter | null;
+  /** What the History screen is filtered by (set from the Mistakes screen). */
+  historyFilter: HistoryFilter | null;
 
   /** The wizard was opened on purpose ("Run setup again") although setup is completed. */
   setupRequested: boolean;
@@ -54,7 +63,7 @@ interface AppState {
   finishSetup: () => void;
 
   setScreen: (screen: Screen) => void;
-  setHistoryIssue: (issue: IssueFilter | null) => void;
+  setHistoryFilter: (filter: HistoryFilter | null) => void;
   /** Replaces the settings (after `save_settings`, or from `settings://changed`). */
   setSettings: (settings: Settings) => void;
   setPresets: (presets: Preset[]) => void;
@@ -75,7 +84,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   toasts: [],
   hotkeyError: null,
 
-  historyIssue: null,
+  historyFilter: null,
 
   setupRequested: false,
   setupDismissed: false,
@@ -84,7 +93,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   finishSetup: () => set({ setupRequested: false, setupDismissed: false }),
 
   setScreen: (screen) => set({ screen }),
-  setHistoryIssue: (historyIssue) => set({ historyIssue }),
+  setHistoryFilter: (historyFilter) => set({ historyFilter }),
   setSettings: (settings) => set({ settings }),
   setPresets: (presets) => set({ presets }),
 
