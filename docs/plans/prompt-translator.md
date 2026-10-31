@@ -123,7 +123,7 @@ The owner's machine below is the **development** machine. Target machines vary, 
 | D44 | Language pair (owner, 2026-10-31) | Two settings, native (default `ru`) and target (default `en`) language, chosen in the wizard and in Settings; the Translate tab can switch the pair for the session only. Languages = those `whatlang` detects. Templates, mode detection and history use the pair; explanations, the UI and the layout fix (US ↔ Russian) stay as they are (T52, T53) | Hard-wired ru → en; all ISO languages | Detection bounds the list; with the defaults nothing changes |
 | D45 | Popup starting mode and Enter (owner, 2026-10-31) | At capture, UI Automation classifies the source as editable, read-only or unknown. Read-only → Translate into the **opposite** language of the text (first word decides); editable/unknown → the "Popup starts in" setting (Auto = TRANS-003, fixed mode, or Last used). In the popup, **Enter replaces** an editable selection (paste + clipboard restore) and **Ctrl+Enter copies**; otherwise Enter copies (T54, T55) | Language-only detection; Enter = copy | Owner's choice; reading foreign text and fixing one's own text are different jobs |
 | D46 | Local model memory (owner, 2026-10-31) | `ollama.keepAlive` default **10m** (was 30m, D10); the app unloads the model on exit and offers an always-visible "Unload model" button (top bar and tray) (T56) | 30m only; stop Ollama on exit | A 9b model holds about 6.4 GB of VRAM; unloading isn't stopping Ollama, which stays out of scope |
-| D47 | Delivery into a session, revised (owner, 2026-10-31; replaces D31, D34 and D42) | **No console injection.** VS Code extension sessions get the text through the extension's link `vscode://anthropic.claude-code/open?session=<id>&prompt=<text>` (opens the session, fills its input); terminal sessions: a Translate tab is bound to **one terminal window** (one session per window), and delivery brings it to the front, selects the bound Windows Terminal tab (UI Automation) and pastes once with Ctrl+V, restoring the clipboard. **Never sends Enter**: the user reviews and sends in Claude. Bindings are **per Translate tab**: one default unbound tab plus at most 5 bound ones, not restored after a restart; a tab closes when its terminal window closes. D32/D33/D35 still apply. Spike T58 (#148) confirms the recipe; T37 (#72) is dropped | Console input injection (blocked, D42); Claude Code channels (research preview, start flag, arrives as an event, not as reviewable input); Remote Control (no API) | Uses only actions a user could do (focus, paste, open a link), so nothing writes into another process; the owner checked by hand that a paste waits in Claude's input while it works |
+| D47 | Delivery into a session, revised (owner, 2026-10-31; replaces D31, D34 and D42) | **No console injection.** VS Code extension sessions get the text through the extension's link `vscode://anthropic.claude-code/open?session=<id>&prompt=<text>` (opens the session, fills its input); terminal sessions: a Translate tab is bound to **one terminal window** (one session per window), and delivery brings it to the front, selects the bound Windows Terminal tab (UI Automation) and pastes once with Ctrl+V, restoring the clipboard. **Never sends Enter**: the user reviews and sends in Claude. Bindings are **per Translate tab**: one default unbound tab plus at most 5 bound ones, not restored after a restart; a tab closes when its terminal window closes. D32/D33/D35 still apply. Spike T58 (#148) confirms the recipe; T37 (#72) is dropped. **Changed in #148 (owner, 2026-10-31):** the VS Code link is NO-GO (it only opens a new conversation; PR #166 found no other supported route into an open chat), so v0.1.0 binds **terminal windows only** and VS Code sessions use the clipboard (VS Code focus-and-paste: T60, #167). Windows Terminal pastes with Ctrl+V; conhost through its Edit > Paste (`WM_COMMAND 0xFFF1`), single-line only. Delivery runs only right after the user's own input in the app, with D35's guard for `!` and `/` and a quiet-keyboard check (`GetLastInputInfo`); recipe in `docs/spikes/session-paste.md` | Console input injection (blocked, D42); Claude Code channels (research preview, start flag, arrives as an event, not as reviewable input); Remote Control (no API) | Uses only actions a user could do (focus, paste, open a link), so nothing writes into another process; the owner checked by hand that a paste waits in Claude's input while it works |
 
 ## 4. Architecture and design
 
@@ -453,7 +453,8 @@ No automated tests (owner's decision, 2026-10-15). A ticket is done when build a
 │   ├── [Task][frontend] T19 App shell, API layer, error banner (#52)
 │   ├── [Task][frontend] T20 Translate screen (#53)
 │   ├── [Task][frontend] T21 Result details: diff, issues, token warnings (#54)
-│   └── [Task][frontend] T49 Fix the Settings save bar gap and add a clear button to the Translate box (#144)
+│   ├── [Task][frontend] T49 Fix the Settings save bar gap and add a clear button to the Translate box (#144)
+│   └── [Task][frontend] T61 Compact mode for the Translate screen (#168)
 └── [Story] S5.2 Configure providers, defaults and presets (#22)
     ├── [Task][frontend] T22 Settings screen (#55)
     ├── [Task][frontend] T23 Preset editor (#56)
@@ -468,7 +469,7 @@ No automated tests (owner's decision, 2026-10-15). A ticket is done when build a
 │   ├── [Task][frontend] T26 Popup UI (#61)
 │   ├── [Task][backend]  T45 Auto-copy: treat VS Code's whole-line copy as no selection (#128)
 │   ├── [Task][frontend] T50 Popup: keep each mode's result, movable, resizable, remembers size and position (#145)
-│   ├── [Task][backend]  T59 Popup hides when dragged or resized (#162)
+│   ├── [Task][backend]  T59 Remove popup drag and resize (#162)   (changed in #162)
 │   ├── [Task][backend]  T54 Popup starting mode from where the text was selected (#152)
 │   └── [Task][backend]  T55 Popup: Enter replaces the selection, Ctrl+Enter copies (#153)
 └── [Story] S6.3 Fix text typed in the wrong keyboard layout with a hotkey (#76)
@@ -498,7 +499,8 @@ No automated tests (owner's decision, 2026-10-15). A ticket is done when build a
 └── [Story] S9.2 Bind a session and send accepted prompts to it (#31)
     ├── [Task][backend]  T38 Session targets: list, bind and watch Claude sessions (#73)
     ├── [Task][backend]  T39 Deliver accepted text into a bound Claude session (#74)
-    └── [Task][frontend] T40 Translate tabs bound to Claude sessions (#75)
+    ├── [Task][frontend] T40 Translate tabs bound to Claude sessions (#75)
+    └── [Task][research] T60 Spike: paste into an open VS Code Claude chat by focusing its window (#167)   (no milestone)
 ```
 
 Totals: **9 epics, 23 stories, 59 tasks** (T37 dropped).
@@ -1047,23 +1049,26 @@ Write `docs/spikes/local-model-eval.md` with:
 ### T38. Session targets: list, bind and watch Claude sessions  `backend` · parent: S9.2 · issue: #73
 > **Rewritten 2026-10-31 (D47).** The console-injection version (`claude agents --json` poller, app-wide binding) is replaced.
 
-- **Goal:** the core lists the Claude sessions a Translate tab can be bound to (VS Code extension sessions and terminal windows), binds one, and notices when a bound terminal window closes.
-- **Details:** `target/sessions.rs` + `target/commands.rs`. Contract `SessionTarget` = `{ kind: "vscode", sessionId, title, cwd }` | `{ kind: "terminal", hwnd, pid, tabRuntimeId?, title }`. `list_session_targets()`: top-level terminal windows (POPUP-007's terminal check) with titles, Windows Terminal tabs via UI Automation (`TabItem` name, RuntimeId); VS Code sessions as T58 recommends (fallback: "New VS Code conversation" only); translator runs (D41) are never listed. `bind_terminal_by_focus(timeoutMs)` returns the next terminal window brought to the front (~10 s). While terminal bindings exist, a ~2 s liveness check (`IsWindow`, same pid, WT tab still there) emits `target://closed`; no polling without bindings.
+> **Changed in #148 (D47):** terminal windows only; VS Code sessions are not listed for binding (T60 may add them later).
+
+- **Goal:** the core lists the Claude sessions a Translate tab can be bound to (terminal windows), binds one, and notices when a bound terminal window closes.
+- **Details:** `target/sessions.rs` + `target/commands.rs`. Contract `SessionTarget` = `{ kind: "terminal", hwnd, pid, tabRuntimeId?, title, host: "windowsTerminal" | "conhost" }`. `list_session_targets()`: top-level terminal windows (POPUP-007's terminal check) with titles, Windows Terminal tabs via UI Automation (`TabItem` name, RuntimeId); all WT windows share one pid, so a WT window is identified by its HWND; translator runs (D41) are never listed. `bind_terminal_by_focus(timeoutMs)` returns the next terminal window brought to the front (~10 s). While terminal bindings exist, a ~2 s liveness check (`IsWindow`, same pid, WT tab still there) emits `target://closed`; no polling without bindings.
 - **Acceptance criteria:**
   - [ ] Two WT windows and a conhost window are listed with titles and WT tabs; translator runs aren't.
   - [ ] Bind by focus works within the timeout; closing a bound window emits `target://closed` within ~2 s.
-  - [ ] VS Code sessions listed as T58 recommends.
 - **Depends on:** T58. **Can run in parallel with:** T47–T57.
 - **Suggested model:** Opus 5.5 (confidence: Medium). Win32 windows, UI Automation and a watcher; depends on the spike.
 
 ### T39. Deliver accepted text into a bound Claude session  `backend` · parent: S9.2 · issue: #74
 > **Rewritten 2026-10-31 (D47).** Replaces console injection and the app-wide `accept_result` routing.
 
+> **Changed in #148 (D47):** terminal windows only; conhost uses its menu paste, single-line; extra guards from the spike.
+
 - **Goal:** Accept in a bound tab puts the text into the bound session's input box without sending it.
-- **Details:** `deliver_to_target(target, text, historyId, confirmed?)`: D35 prefix guard first. VS Code → open `vscode://anthropic.claude-code/open?session=<id>&prompt=<url-encoded>` through `open_url` (fall back to copy above the URL limit T58 found). Terminal → under the input lock: check the window (same pid), restore if minimised, `SetForegroundWindow`, select the WT tab, verify foreground + no modifier, write the text hidden from clipboard history, Ctrl+V once, restore the clipboard after the layout fix's delay (LAYOUT-004). **No Enter.** Any failure → copy + message. Marks the entry accepted with `Session { id, name }` (HISTORY-009). Only the accepted target-language output is delivered (§4.9).
+- **Details:** `deliver_to_target(target, text, historyId, confirmed?)`: D35 prefix guard first (`!` switches Claude to shell mode, `/` runs a command). Runs only right after the user's own input in the app (the Send click or key, so `SetForegroundWindow` is allowed), and only when the keyboard has been quiet (`GetLastInputInfo`), since keys typed during the switch land in Claude's input. Under the input lock: check the window (same pid), restore if minimised, `SetForegroundWindow`, select the WT tab, verify foreground + no modifier, write the text hidden from clipboard history, paste once (Windows Terminal: Ctrl+V; conhost: Edit > Paste via `WM_COMMAND 0xFFF1`, and multi-line text is refused there → copy + message), restore the clipboard after the layout fix's delay (LAYOUT-004). **No Enter.** Any failure → copy + message. Marks the entry accepted with `Session { id, name }` (HISTORY-009). Only the accepted target-language output is delivered (§4.9).
 - **Acceptance criteria:**
   - [ ] Terminal: idle and busy Claude, window minimised / behind / bound tab not selected: the text waits in Claude's input; clipboard restored.
-  - [ ] VS Code: the session opens with the text in its input.
+  - [ ] conhost: a single line arrives through the menu paste; multi-line → copied with a message.
   - [ ] Prefix confirmation; failure → copied with a message; history marked.
 - **Depends on:** T38. **Can run in parallel with:** T40's UI against mocked commands.
 - **Suggested model:** Sonnet 5.5 (confidence: Medium). Follows T58's recipe and the layout fix's paste code.
@@ -1186,6 +1191,8 @@ Write `docs/spikes/local-model-eval.md` with:
 - **Suggested model:** Haiku 5.5 (confidence: High).
 
 ### T50. Popup: keep each mode's result, movable, resizable, remembers size and position  `frontend` · parent: S6.2 · issue: #145
+> **Changed in #162:** dragging, resizing and `popupBounds` were removed again (owner, 2026-10-31); the per-mode results stay.
+
 - **Goal:** switching back to a mode that already ran shows its result without a new run (I1); the popup can be dragged and resized and reopens where it was left (I17).
 - **Details:** per-capture map mode → result (cleared by a new capture, Ctrl+R replaces the current mode's); drag region (`core:window:allow-start-dragging` for `popup` only), `resizable(true)` with a minimum size; new setting `popupBounds`, used when on a connected monitor, else centred as today.
 - **Acceptance criteria:**
@@ -1257,7 +1264,9 @@ Write `docs/spikes/local-model-eval.md` with:
 - **Depends on:** none. **Must run before:** T38.
 - **Suggested model:** Opus 5.5 (confidence: Medium).
 
-### T59. Popup hides when dragged or resized  `backend` · parent: S6.2 · issue: #162
+### T59. Remove popup drag and resize  `backend` · parent: S6.2 · issue: #162
+> **Changed in #162 (owner, 2026-10-31):** instead of fixing the hide-on-drag bug, the popup's drag and resize were removed. As merged: `system/popup.rs` and `capabilities/popup.json` back to their pre-T50 versions (fixed 520×360, not resizable, centred on the cursor's monitor, no `core:window:allow-start-dragging`), no drag strip in `Popup.tsx`, `Settings.popupBounds` and `PopupBounds` removed (old files still load); hide on `Focused(false)` unchanged; T50's per-mode results kept. The text below is the original bug fix, not built.
+
 - **Goal:** fix T50 (#145): pressing the popup's header strip or dragging an edge hides it, so it can't be moved or resized and `popupBounds` is never saved (found by the wave 9 smoke check).
 - **Details:** `system/popup.rs` `on_window_event` hides on every `Focused(false)`; the system move/size loop fires a transient one while the popup is still in front. Hide only on a real loss of focus (e.g. re-check `GetForegroundWindow` after ~150 ms, or ignore blur between `WM_ENTERSIZEMOVE` and `WM_EXITSIZEMOVE`). A real blur (another app, Alt+Tab) still hides at once.
 - **Acceptance criteria:**
@@ -1265,20 +1274,36 @@ Write `docs/spikes/local-model-eval.md` with:
 - **Depends on:** T50. **Must run before:** T54, T55.
 - **Suggested model:** Sonnet 5.5 (confidence: Medium).
 
+### T60. Spike: paste into an open VS Code Claude chat by focusing its window  `research` · parent: S9.2 · issue: #167
+- **Goal:** GO / NO-GO for delivering into an open VS Code Claude chat by bringing the bound VS Code window to the front and pasting (owner's idea; no milestone).
+- **Details:** follow-up of T58: no supported route into an open chat exists (PR #166). The user keeps the chat input focused; the app brings the window to the front (HWND + the session's `cwd` folder in its title), checks modifiers and a quiet keyboard, Ctrl+V, **never Enter**. Risks: `claude-vscode.focus` (Ctrl+Esc) toggles and can insert an `@file` mention, Ctrl+Esc may open the Start menu, split views and several chat tabs, `useTerminal`. Cells W-1 to W-10 in `docs/spikes/session-paste.md`; throwaway code in `spikes/paste/`; agent run on its own VS Code windows with the owner off the PC.
+- **Acceptance criteria:**
+  - [ ] Every W cell has a result; GO needs the text in the bound window's chat input only (in front, behind, minimised) and detectable failures; recipe documented.
+- **Depends on:** T39.
+- **Suggested model:** Opus 5.5 (confidence: Medium).
+
+### T61. Compact mode for the Translate screen  `frontend` · parent: S5.1 · issue: #168
+- **Goal:** a compact mode showing only the input and output boxes (smaller, smaller font), toggled by an always-visible button and turned on when the window is shrunk to its height limit (owner, 2026-10-31).
+- **Details:** toggle button at the right end of the tab bar and in the top-right corner in compact mode (switches to the Translate tab); compact hides the tab bar, banners, controls, counter, Run/Cancel, result line, Changes and Issues; Ctrl+Enter / Ctrl+Shift+Enter keep working, spinner in the output box while running, errors as a toast; same screen state in both modes. Normal mode gets a minimum size (~640×480); the button resizes to a compact size (~420×300, minimum ~320×200) and back to the remembered size; dragging the height down to the normal minimum turns compact on, and only a resize-entered compact turns off again when the window is made taller than the minimum plus a margin (~40 px). Window size through a Rust command (no `core:window:*` webview permission). Not saved across restarts. Spec: new TRANS-015, APP-001 changed.
+- **Acceptance criteria:**
+  - [ ] Button toggles in every tab; compact shows only the two boxes; shortcuts, spinner and error toast work; auto-enter at the minimum height, auto-exit only for a resize-entered compact; state kept; no new webview window permission.
+- **Depends on:** none (same screen as T53 and T40).
+- **Suggested model:** Sonnet 5.5 (confidence: Medium).
+
 ## 6. Order of work
 
-Done: waves 0-9 (see git history of this file). T37 was dropped (D47). Waves 10 and 11 were merged into one (owner, 2026-10-31).
+Done: waves 0-9 (see git history of this file). T37 was dropped (D47). Waves 10 and 11 were merged into one (owner, 2026-10-31). From wave 10, T58 and T59 are merged (2026-10-31). T60 (#167) has no milestone and no wave yet.
 
 | Wave | Tasks (parallel within a wave) | Notes |
 |---|---|---|
-| 10 | T58, T59, T51, T38, T52, T39 | T58 first: an agent runs its matrix (owner-approved 2026-10-31; never presses Enter in a Claude session; the owner stays off the PC during the run). T59 (popup drag bug, after T50); T51 after T47; T52 after T51; T38 after T58's verdict; T39 after T38 |
-| 11 | T53, T54 | UI for the pair; popup starting mode (needs T50, T52) |
+| 10 | T51, T52, T38, T39 | T58 (verdicts accepted for terminals, D47) and T59 (drag and resize removed) are merged. T51 after T47; T52 after T51; T38 (terminal windows only); T39 after T38 |
+| 11 | T53, T54, T61 | UI for the pair; popup starting mode (needs T50, T52); compact mode (same screen as T53) |
 | 12 | T55, T40 | Enter replaces (after T54); bound tabs (after T39, T53) |
 | 13 | T7 | Docs for the new behaviour (README, smoke-test), then the full smoke test including Windows Sandbox; #39 closes when it passes |
 
 Critical path: T1 → T2 → T3 → T11 → T12 → T20 → T21 → T26 → T7; for the follow-ups T47 → T51 → T52 → T53 → T40 → T7. The distribution chain is T24 → T6 → T31 → T32 → T33 → T7.
 
-**First public release** (`v0.1.0`) only after T47–T58, T59 and T38–T40 are merged and T7's smoke test passes (the manual test of 2026-10-31 did not pass). A test tag in T31 is fine before that, but it must stay a draft. The release follows `docs/development.md` §5: `release/0.1.0` is cut from `develop`, merged into `main` and tagged there.
+**First public release** (`v0.1.0`) only after T47–T59, T61 and T38–T40 are merged and T7's smoke test passes (the manual test of 2026-10-31 did not pass). A test tag in T31 is fine before that, but it must stay a draft. The release follows `docs/development.md` §5: `release/0.1.0` is cut from `develop`, merged into `main` and tagged there.
 
 ## 7. Risks and open questions
 

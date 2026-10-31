@@ -19,8 +19,8 @@ On key press (not release) the hotkey captures the source text (POPUP-007), pick
 Since: #58 · Changed: #59
 
 ### POPUP-004 Popup window
-The window `popup` (title "Prompt Translator Popup", 520x360 at first, resizable with a minimum of 420x280, frameless, always on top, not in the taskbar, not minimizable or maximizable) is created hidden at startup from `popup.html`. It has a thin header strip labelled "Prompt Translator" meant for dragging it. Showing it uses the saved bounds (POPUP-011) when at least half of that rectangle lies on a connected monitor's work area; otherwise it is centred in the work area of the monitor under the cursor (the primary monitor if that can't be found) with the saved size (520x360 when none). Then it is shown and focused. It hides when it loses focus, and closing it only hides it. `popup://source` is sent after it is shown.
-Since: #58 · Changed: #145
+The window `popup` (title "Prompt Translator Popup", 520x360, not resizable, frameless, always on top, not in the taskbar, not minimizable or maximizable) is created hidden at startup from `popup.html`. It has no header or drag area, so it cannot be moved or resized by the mouse. Every show centres it in the work area of the monitor under the cursor (the primary monitor if that can't be found), then shows and focuses it. It hides when it loses focus, and closing it only hides it. `popup://source` is sent after it is shown.
+Since: #58 · Changed: #145, #162
 
 ### POPUP-005 Popup page
 Until it receives `popup://source` the page shows "Waiting for text...". After it, an empty or blank text shows "Select or copy some text first"; otherwise it shows, top to bottom:
@@ -62,12 +62,4 @@ Since: #61 · Changed: #145
 - Tab and Shift+Tab move the mode forward and back through Translate, Improve, Correct, wrapping around.
 Since: #61
 
-### POPUP-011 Popup size and position
-When the user moves or resizes the popup while it is visible, its outer position and size (physical pixels) are saved to `popupBounds` (SETTINGS-001) 600 ms after the last change, and `settings://changed` is sent. The saved bounds are reused on the next show (POPUP-004). Moves and size changes the app makes itself when showing the popup are not saved.
-Since: #145
-
-## Known issues
-
-- The popup hides when its header is pressed or dragged, or when an edge is dragged, so moving and resizing it by the mouse does not work yet (#162).
-
-Retired IDs: none
+Retired IDs: POPUP-011
