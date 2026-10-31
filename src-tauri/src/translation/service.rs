@@ -156,12 +156,18 @@ impl TranslationService {
             RawOutput::Text(raw) => output_parser::parse(&raw, req.mode),
             RawOutput::Json(value) => output_parser::parse_value(value, req.mode),
         }?;
+        let issues = output_parser::validate_issues(
+            parsed.issues,
+            &req.source_text,
+            &parsed.output,
+            req.mode,
+        );
         let token_warnings = token_check::check_tokens(&req.source_text, &parsed.output);
 
         let mut result = TranslationResult {
             history_id: None,
             output: parsed.output,
-            issues: parsed.issues,
+            issues,
             token_warnings,
             provider: req.provider,
             model: output.model,
