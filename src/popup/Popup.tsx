@@ -3,6 +3,9 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { Mode } from "../bindings/Mode";
+import type { PopupLanguagePair } from "../bindings/PopupLanguagePair";
+import type { PopupSource } from "../bindings/PopupSource";
+import type { SourceKind } from "../bindings/SourceKind";
 import type { TranslationResult } from "../bindings/TranslationResult";
 import { Button } from "../components/Button";
 import { ErrorBanner } from "../components/ErrorBanner";
@@ -20,11 +23,13 @@ import {
   type AppError,
 } from "../lib/api";
 import { cx } from "../lib/cx";
+import { languageName, useLanguages } from "../lib/useLanguages";
 
-/** Payload of `popup://source`: the captured text (empty when nothing usable) and the mode. */
-interface PopupSource {
-  text: string;
-  mode: Mode;
+/** Where the current capture came from, read by `run` and the mode-memory calls. */
+interface Capture {
+  sourceKind: SourceKind;
+  /** The reversed pair of a reverse translation; Translate only, `null` for the settings' pair. */
+  languagePair: PopupLanguagePair | null;
 }
 
 type Status = "idle" | "loading" | "success" | "error";
@@ -54,6 +59,8 @@ export function Popup() {
   const [excerptOpen, setExcerptOpen] = useState(false);
   const [issuesOpen, setIssuesOpen] = useState(false);
   const [warningsIgnored, setWarningsIgnored] = useState(false);
+  const [languagePair, setLanguagePair] = useState<PopupLanguagePair | null>(null);
+  const languages = useLanguages();
 
   /** Id of the request whose answer the popup is waiting for; other answers are stale. */
   const requestIdRef = useRef<string | null>(null);
@@ -61,10 +68,22 @@ export function Popup() {
   /** Finished results of the current capture, by mode; cleared by a new capture. */
   const resultsRef = useRef<Partial<Record<Mode, TranslationResult>>>({});
 
+  /** The current capture's source; set synchronously on `popup://source`. */
+  const captureRef = useRef<Capture>({ sourceKind: "unknown", languagePair: null });
+
   const cancelRunning = useCallback(() => {
     const id = requestIdRef.current;
     requestIdRef.current = null;
     if (id) void cancelTranslation(id).catch(() => undefined);
+  }, []);
+
+  /**
+   * Saves the mode the user ended on to `lastPopupMode`. Not for read-only sources: their
+   * Translate was not the user's choice, and "Last used" is about text the user writes.
+   */
+  const rememberMode = useCallback((used: Mode) => {
+    if (captureRef.current.sourceKind === "readOnly") return;
+    void setLastPopupMode(used).catch(() => undefined);
   }, []);
 
   const run = useCallback(
@@ -78,6 +97,9 @@ export function Popup() {
       setResult(null);
       setIssuesOpen(false);
       setWarningsIgnored(false);
+      // A reverse translation swaps the pair for Translate only; Improve and Correct always
+      // use the settings' pair.
+      const pair = runMode === "translate" ? captureRef.current.languagePair : null;
       try {
         const settings = await getSettings();
         if (requestIdRef.current !== requestId) return;
@@ -87,6 +109,7 @@ export function Popup() {
           mode: runMode,
           provider: settings.defaultProvider,
           presetId: settings.defaultPresetId,
+          ...(pair ?? {}),
         });
         if (requestIdRef.current !== requestId) return;
         requestIdRef.current = null;
@@ -119,7 +142,7 @@ export function Popup() {
       const { text: source, mode: current } = stateRef.current;
       if (source === null || source.trim() === "" || next === current) return;
       setMode(next);
-      void setLastPopupMode(next).catch(() => undefined);
+      rememberMode(next);
       const kept = resultsRef.current[next];
       if (kept) {
         // Already ran for this capture: show it, no new run.
@@ -134,7 +157,7 @@ export function Popup() {
       }
       void run(source, next);
     },
-    [run, cancelRunning],
+    [run, cancelRunning, rememberMode],
   );
 
   const accept = useCallback(async () => {
@@ -147,9 +170,9 @@ export function Popup() {
       setCopyError(toAppError(e));
       return;
     }
-    void setLastPopupMode(used).catch(() => undefined);
+    rememberMode(used);
     hidePopup();
-  }, []);
+  }, [rememberMode]);
 
   const openInMain = useCallback(() => {
     const { text: source, mode: used, result: res } = stateRef.current;
@@ -166,9 +189,11 @@ export function Popup() {
   // A new capture from the hotkey: reset and auto-run.
   useEffect(() => {
     const unlisten = listen<PopupSource>("popup://source", (event) => {
-      const { text: captured, mode: detected } = event.payload;
+      const { text: captured, mode: detected, sourceKind, languagePair: pair } = event.payload;
       cancelRunning();
       resultsRef.current = {};
+      captureRef.current = { sourceKind, languagePair: pair ?? null };
+      setLanguagePair(pair ?? null);
       setText(captured);
       setMode(detected);
       setExcerptOpen(false);
@@ -214,6 +239,11 @@ export function Popup() {
   const long = hasText && (text.length > EXCERPT_CHARS || text.split("\n").length > 3);
   const warnings = result && !warningsIgnored ? result.tokenWarnings : [];
   const issues = result?.issues ?? [];
+  // Shown only when the direction isn't the settings' pair (a reverse translation).
+  const direction =
+    mode === "translate" && languagePair
+      ? `${languageName(languages, languagePair.nativeLanguage)} → ${languageName(languages, languagePair.targetLanguage)}`
+      : null;
 
   return (
     <main className="flex h-full flex-col gap-2 bg-bg p-3 text-text">
@@ -244,12 +274,19 @@ export function Popup() {
             )}
           </section>
 
-          <SegmentedControl
-            aria-label="Mode"
-            options={MODE_OPTIONS}
-            value={mode}
-            onChange={changeMode}
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            <SegmentedControl
+              aria-label="Mode"
+              options={MODE_OPTIONS}
+              value={mode}
+              onChange={changeMode}
+            />
+            {direction && (
+              <span className="text-xs text-muted" title="Translation direction">
+                {direction}
+              </span>
+            )}
+          </div>
 
           <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-auto">
             {status === "loading" && (

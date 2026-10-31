@@ -3,12 +3,17 @@ import type { ClaudeSettings } from "./ClaudeSettings";
 import type { LayoutFixSettings } from "./LayoutFixSettings";
 import type { Mode } from "./Mode";
 import type { OllamaSettings } from "./OllamaSettings";
+import type { PopupStartMode } from "./PopupStartMode";
 import type { ProviderKind } from "./ProviderKind";
 
 /**
  * The contents of `settings.json`. Unknown or missing fields fall back to defaults.
  */
-export type Settings = { defaultProvider: ProviderKind, defaultPresetId: string, ollama: OllamaSettings, claude: ClaudeSettings, historyEnabled: boolean, hotkey: string, autostart: boolean, closeToTray: boolean, setupCompleted: boolean, autoCheckUpdates: boolean, autoCopySelection: boolean, sessionAppendHintShown: boolean, lastPopupMode: Mode, devMockProvider: boolean, layoutFix: LayoutFixSettings, 
+export type Settings = { defaultProvider: ProviderKind, defaultPresetId: string, ollama: OllamaSettings, claude: ClaudeSettings, historyEnabled: boolean, hotkey: string, autostart: boolean, closeToTray: boolean, setupCompleted: boolean, autoCheckUpdates: boolean, autoCopySelection: boolean, sessionAppendHintShown: boolean, lastPopupMode: Mode, 
+/**
+ * The popup's starting mode for text from an editable or unknown place (T54).
+ */
+popupStartMode: PopupStartMode, devMockProvider: boolean, layoutFix: LayoutFixSettings, 
 /**
  * ISO 639-1 code of the user's native language (T52): what Translate translates from.
  */
