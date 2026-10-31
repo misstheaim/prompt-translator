@@ -19,6 +19,8 @@ const CATEGORY_STYLES: Record<IssueCategory, string> = {
   vocabulary: "text-cat-vocabulary border-cat-vocabulary",
   punctuation: "text-cat-punctuation border-cat-punctuation",
   style: "text-cat-style border-cat-style",
+  idiom: "text-cat-idiom border-cat-idiom",
+  phrasing: "text-cat-phrasing border-cat-phrasing",
   other: "text-cat-other border-cat-other",
 };
 

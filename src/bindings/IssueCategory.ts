@@ -3,4 +3,4 @@
 /**
  * Matches the LLM output schema, so `snake_case`.
  */
-export type IssueCategory = "spelling" | "grammar" | "article" | "tense" | "preposition" | "word_choice" | "vocabulary" | "punctuation" | "style" | "other";
+export type IssueCategory = "spelling" | "grammar" | "article" | "tense" | "preposition" | "word_choice" | "vocabulary" | "punctuation" | "style" | "idiom" | "phrasing" | "other";

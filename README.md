@@ -32,7 +32,7 @@ You need at least one working provider: a local model through [Ollama](https://o
 | Mode | What it does |
 |---|---|
 | **Translate** | Faithful translation into English. No rewriting. |
-| **Improve** | Makes English (or a translation) clearer and more precise, keeping your intent. Lists the most useful changes. |
+| **Improve** | English practice: rewrites your text (or a translation) as natural, advanced English with the same meaning, using richer vocabulary, varied sentences and idioms where they fit. Every notable change is listed with why it sounds more natural. |
 | **Correct** | Smallest possible fixes to your English; any non-English words are translated. Every fix is explained in a simple sentence. |
 
 The hotkey popup picks Translate or Correct for you from the text (mostly non-English text gives Translate, mostly English gives Correct; very short text keeps your last mode). Improve is never picked automatically. You can switch the mode with one click. Code, file names, paths, URLs and numbers are kept exactly as you wrote them, and a warning appears if the result lost any of them.

@@ -332,7 +332,7 @@ All components live in `src/components/`. Variants listed are the full set for v
 
 ## 7. Colour per issue category
 
-The 10 categories come from the `IssueCategory` enum (plan §4.3). Colours are distinct hues so bars and chips can be told apart; each token has a light and a dark value (section 9).
+The 12 categories come from the `IssueCategory` enum (plan §4.3; `idiom` and `phrasing` are used only by Improve). Colours are distinct hues so bars and chips can be told apart; each token has a light and a dark value (section 9).
 
 | Category | Label | Hue |
 |---|---|---|
@@ -345,6 +345,8 @@ The 10 categories come from the `IssueCategory` enum (plan §4.3). Colours are d
 | `vocabulary` | Vocabulary | Violet |
 | `punctuation` | Punctuation | Pink |
 | `style` | Style | Indigo |
+| `idiom` | Idiom | Fuchsia |
+| `phrasing` | Phrasing | Green |
 | `other` | Other | Gray |
 
 Unknown categories fall back to `other`. Chips use the category colour as text and a 15% tint as background (`color-mix`), which keeps contrast in both themes.
@@ -400,6 +402,8 @@ Tailwind CSS v4: tokens are CSS variables on `:root`, switched by `prefers-color
   --cat-vocabulary: #7c3aed;
   --cat-punctuation: #be185d;
   --cat-style: #4338ca;
+  --cat-idiom: #a21caf;
+  --cat-phrasing: #15803d;
   --cat-other: #5d6675;
 }
 
@@ -427,6 +431,8 @@ Tailwind CSS v4: tokens are CSS variables on `:root`, switched by `prefers-color
     --cat-vocabulary: #b794f6;
     --cat-punctuation: #f472b6;
     --cat-style: #8b9cff;
+    --cat-idiom: #e879f9;
+    --cat-phrasing: #4ade80;
     --cat-other: #9aa3b2;
   }
 }
@@ -453,6 +459,8 @@ Tailwind CSS v4: tokens are CSS variables on `:root`, switched by `prefers-color
   --color-cat-vocabulary: var(--cat-vocabulary);
   --color-cat-punctuation: var(--cat-punctuation);
   --color-cat-style: var(--cat-style);
+  --color-cat-idiom: var(--cat-idiom);
+  --color-cat-phrasing: var(--cat-phrasing);
   --color-cat-other: var(--cat-other);
 
   --font-sans: system-ui, "Segoe UI Variable", "Segoe UI", sans-serif;

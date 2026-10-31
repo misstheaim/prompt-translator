@@ -10,6 +10,7 @@
 //! The bundled Claude Code provider reads its working dirs from `system::paths`, so the binary
 //! points those roots at the same scratch directory.
 
+use std::collections::HashSet;
 use std::fmt::Write as _;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -20,7 +21,7 @@ use prompt_translator_lib::error::{AppError, ErrorKind};
 use prompt_translator_lib::presets::PresetStore;
 use prompt_translator_lib::settings::SettingsStore;
 use prompt_translator_lib::system::paths;
-use prompt_translator_lib::translation::model::{Mode, ProviderKind, TranslationRequest};
+use prompt_translator_lib::translation::model::{Issue, Mode, ProviderKind, TranslationRequest};
 use prompt_translator_lib::translation::providers::claude_code::{
     ClaudeCodeProvider, Housekeeping, TranslatorPids,
 };
@@ -67,6 +68,66 @@ struct Success {
     token_warnings: Vec<String>,
     model: String,
     missed: Vec<String>,
+    /// Improve only: what the rewrite changed and how it explained it.
+    improve: Option<ImproveCheck>,
+}
+
+/// An Improve output counts as rewritten when at least this share of its words is new.
+const REWRITTEN_SHARE: f64 = 0.25;
+
+/// Improve explanations should have at most this many words (TRANS-005).
+const MAX_EXPLANATION_WORDS: usize = 35;
+
+/// Improve checks (T51): did the output change meaningfully, and is every change explained.
+struct ImproveCheck {
+    /// Share of the output's words (lowercase, letters, digits and apostrophes) that aren't in
+    /// the source.
+    new_words: f64,
+    /// Issues with a non-empty explanation.
+    explained: usize,
+    /// Issues without an explanation.
+    unexplained: usize,
+    /// Explanations longer than [`MAX_EXPLANATION_WORDS`].
+    long_explanations: usize,
+}
+
+impl ImproveCheck {
+    fn new(source: &str, output: &str, issues: &[Issue]) -> Self {
+        let source_words: HashSet<String> = words(source).collect();
+        let output_words: Vec<String> = words(output).collect();
+        let new = output_words
+            .iter()
+            .filter(|w| !source_words.contains(*w))
+            .count();
+        let explained = issues
+            .iter()
+            .filter(|i| !i.explanation.trim().is_empty())
+            .count();
+        Self {
+            new_words: if output_words.is_empty() {
+                0.0
+            } else {
+                new as f64 / output_words.len() as f64
+            },
+            explained,
+            unexplained: issues.len() - explained,
+            long_explanations: issues
+                .iter()
+                .filter(|i| i.explanation.split_whitespace().count() > MAX_EXPLANATION_WORDS)
+                .count(),
+        }
+    }
+
+    fn rewritten(&self) -> bool {
+        self.new_words >= REWRITTEN_SHARE
+    }
+}
+
+/// The lowercase words of `text`: runs of letters, digits and apostrophes.
+fn words(text: &str) -> impl Iterator<Item = String> + '_ {
+    text.split(|c: char| !(c.is_alphanumeric() || c == '\'' || c == '’'))
+        .filter(|w| !w.is_empty())
+        .map(str::to_lowercase)
 }
 
 impl Outcome {
@@ -296,6 +357,8 @@ fn to_outcome(
                 .iter()
                 .map(|w| format!("{} ({:?})", w.token, w.kind))
                 .collect();
+            let improve = (case.mode == Mode::Improve)
+                .then(|| ImproveCheck::new(&case.source, &r.output, &r.issues));
             Outcome {
                 millis: r.duration_ms,
                 result: Ok(Success {
@@ -304,6 +367,7 @@ fn to_outcome(
                     token_warnings,
                     model: r.model,
                     missed,
+                    improve,
                 }),
                 case,
             }
@@ -375,13 +439,47 @@ fn render_report(args: &Args, model: &str, preset: &str, outcomes: &[Outcome], n
             percentile(&latencies, 95)
         );
     }
+    let improve: Vec<&ImproveCheck> = outcomes
+        .iter()
+        .filter_map(|o| o.result.as_ref().ok()?.improve.as_ref())
+        .collect();
+    if !improve.is_empty() {
+        let rewritten = improve.iter().filter(|c| c.rewritten()).count();
+        let explained = improve
+            .iter()
+            .filter(|c| c.explained > 0 && c.unexplained == 0)
+            .count();
+        let long: usize = improve.iter().map(|c| c.long_explanations).sum();
+        let issues: usize = improve.iter().map(|c| c.explained + c.unexplained).sum();
+        let _ = writeln!(
+            md,
+            "| Improve: rewritten (at least {:.0}% new words) | {} |",
+            REWRITTEN_SHARE * 100.0,
+            rate(rewritten, improve.len())
+        );
+        let _ = writeln!(
+            md,
+            "| Improve: at least one issue, every issue explained | {} |",
+            rate(explained, improve.len())
+        );
+        let _ = writeln!(
+            md,
+            "| Improve: issues per case | {:.1} |",
+            issues as f64 / improve.len() as f64
+        );
+        let _ = writeln!(
+            md,
+            "| Improve: explanations over {MAX_EXPLANATION_WORDS} words | {long} |"
+        );
+    }
     let _ = writeln!(md);
     let _ = writeln!(
         md,
         "JSON-valid rate counts the cases whose answer reached the output parser; provider \
          failures (timeout, unreachable) are left out. mustKeep pass rate is over cases with a \
-         non-empty `mustKeep` list; a failed case counts as a miss. The first case may include \
-         model load time."
+         non-empty `mustKeep` list; a failed case counts as a miss. The Improve rows are over \
+         the Improve cases that returned a result; issues are counted after validation. The \
+         first case may include model load time."
     );
     let _ = writeln!(md);
 
@@ -400,6 +498,22 @@ fn render_report(args: &Args, model: &str, preset: &str, outcomes: &[Outcome], n
             Ok(s) => {
                 let _ = writeln!(md, "- **Output:** {}", one_line(&s.output));
                 let _ = writeln!(md, "- **Model:** {}", s.model);
+                if let Some(c) = &s.improve {
+                    let _ = writeln!(
+                        md,
+                        "- **Improve:** {:.0}% new words ({}), {} explained / {} unexplained \
+                         issues, {} explanations over {MAX_EXPLANATION_WORDS} words",
+                        c.new_words * 100.0,
+                        if c.rewritten() {
+                            "rewritten"
+                        } else {
+                            "barely changed"
+                        },
+                        c.explained,
+                        c.unexplained,
+                        c.long_explanations
+                    );
+                }
                 list(&mut md, "Issues", &s.issues);
                 list(&mut md, "Token warnings", &s.token_warnings);
                 if o.case.must_keep.is_empty() {

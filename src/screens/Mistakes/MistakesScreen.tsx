@@ -26,6 +26,8 @@ const CATEGORY_BG: Record<IssueCategory, string> = {
   vocabulary: "bg-cat-vocabulary",
   punctuation: "bg-cat-punctuation",
   style: "bg-cat-style",
+  idiom: "bg-cat-idiom",
+  phrasing: "bg-cat-phrasing",
   other: "bg-cat-other",
 };
 
@@ -159,7 +161,9 @@ export function MistakesScreen() {
                   <li key={`${m.original}\u0000${m.corrected}`}>
                     <button
                       type="button"
-                      onClick={() => openHistory({ issue: { original: m.original, corrected: m.corrected } })}
+                      onClick={() =>
+                        openHistory({ issue: { original: m.original, corrected: m.corrected } })
+                      }
                       className="flex w-full items-baseline gap-2 rounded-md border border-border bg-surface p-2 text-left text-sm transition-colors duration-150 hover:bg-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent motion-reduce:transition-none"
                     >
                       <span className="text-muted line-through">{m.original}</span>

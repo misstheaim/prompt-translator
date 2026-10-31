@@ -98,7 +98,7 @@ fn canned(mode: Mode) -> String {
                 {
                     "original": "please fix the bug and keep the layout",
                     "corrected": "Fix the bug. Keep the current layout unchanged.",
-                    "category": "style",
+                    "category": "phrasing",
                     "explanation": "Two short sentences are clearer than one long one."
                 },
                 {

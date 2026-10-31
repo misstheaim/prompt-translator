@@ -35,5 +35,6 @@ Per case: source, output, issues, token warnings, `mustKeep` misses, duration (o
 - **JSON-valid rate:** share of cases whose answer the output parser accepted. Provider failures (timeout, Ollama unreachable) are not counted as invalid.
 - **mustKeep pass rate:** share of cases with a non-empty `mustKeep` whose output contains every token; a failed case counts as a miss.
 - **Latency avg / p95:** over the successful cases (nearest-rank p95). The first case may include model load time.
+- **Improve rows** (over the Improve cases that returned a result; issues counted after validation): **rewritten**, the share of cases whose output has at least 25% words that aren't in the source (a check that Improve rewrites rather than only fixing typos); **every issue explained**, the share with at least one issue and an explanation on each; **issues per case**; and **explanations over 35 words**. Each Improve case also shows its share of new words.
 
 The earlier Python spike script (`spike_eval.py`) and the findings in `docs/spikes/local-model-eval.md` came from the spike; this binary is the maintained replacement.

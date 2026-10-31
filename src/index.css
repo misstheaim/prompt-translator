@@ -28,6 +28,8 @@
   --cat-vocabulary: #7c3aed;
   --cat-punctuation: #be185d;
   --cat-style: #4338ca;
+  --cat-idiom: #a21caf;
+  --cat-phrasing: #15803d;
   --cat-other: #5d6675;
 }
 
@@ -55,6 +57,8 @@
     --cat-vocabulary: #b794f6;
     --cat-punctuation: #f472b6;
     --cat-style: #8b9cff;
+    --cat-idiom: #e879f9;
+    --cat-phrasing: #4ade80;
     --cat-other: #9aa3b2;
   }
 }
@@ -81,6 +85,8 @@
   --color-cat-vocabulary: var(--cat-vocabulary);
   --color-cat-punctuation: var(--cat-punctuation);
   --color-cat-style: var(--cat-style);
+  --color-cat-idiom: var(--cat-idiom);
+  --color-cat-phrasing: var(--cat-phrasing);
   --color-cat-other: var(--cat-other);
 
   --font-sans: system-ui, "Segoe UI Variable", "Segoe UI", sans-serif;
