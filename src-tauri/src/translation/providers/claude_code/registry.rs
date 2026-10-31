@@ -36,6 +36,11 @@ impl TranslatorPids {
     pub fn contains(&self, pid: u32) -> bool {
         self.lock().contains(&pid)
     }
+
+    /// A copy of the live translator PIDs (session targets skip windows above them, T38).
+    pub fn pids(&self) -> Vec<u32> {
+        self.lock().iter().copied().collect()
+    }
 }
 
 /// Whether a session entry is one of the app's own translator runs: its name is exactly

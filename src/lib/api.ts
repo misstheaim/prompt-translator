@@ -19,8 +19,10 @@ import type { MistakesSummary } from "../bindings/MistakesSummary";
 import type { Mode } from "../bindings/Mode";
 import type { Preset } from "../bindings/Preset";
 import type { ProviderStatus } from "../bindings/ProviderStatus";
+import type { SessionTarget } from "../bindings/SessionTarget";
 import type { Settings } from "../bindings/Settings";
 import type { SetupProgress } from "../bindings/SetupProgress";
+import type { TargetClosed } from "../bindings/TargetClosed";
 import type { TranslationRequest } from "../bindings/TranslationRequest";
 import type { TranslationResult } from "../bindings/TranslationResult";
 
@@ -150,6 +152,43 @@ export function providerStatus(): Promise<ProviderStatus> {
 /** Accept with the Clipboard target: copies the text (Rust writes the clipboard). */
 export function copyResult(text: string, historyId: number | null = null): Promise<void> {
   return call<void>("copy_result", { text, historyId });
+}
+
+// ---- session targets ----
+
+/**
+ * The terminal windows a Translate tab can be bound to: one entry per Windows Terminal tab, one
+ * per classic console window, front to back. The app's own translator runs are never listed.
+ */
+export function listSessionTargets(): Promise<SessionTarget[]> {
+  return call<SessionTarget[]>("list_session_targets");
+}
+
+/**
+ * Waits up to `timeoutMs` (at most 60 s) for the user to bring a terminal window to the front,
+ * then binds it (with its selected Windows Terminal tab); no `bindTarget` call is needed.
+ * Rejects with `Timeout` when no terminal came to the front, `InvalidInput` with 5 bindings.
+ */
+export function bindTerminalByFocus(timeoutMs = 10_000): Promise<SessionTarget> {
+  return call<SessionTarget>("bind_terminal_by_focus", { timeoutMs });
+}
+
+/**
+ * Binds a listed target and resolves with its current title. Rejects with `SessionClosed` when
+ * the window or tab is gone, `InvalidInput` with 5 bindings. Each bind needs one `unbindTarget`.
+ */
+export function bindTarget(target: SessionTarget): Promise<SessionTarget> {
+  return call<SessionTarget>("bind_target", { target });
+}
+
+/** Releases one binding (a bound Translate tab closed). */
+export function unbindTarget(target: SessionTarget): Promise<void> {
+  return call<void>("unbind_target", { target });
+}
+
+/** Listens to `target://closed`: a bound terminal window or tab closed (its binding is gone). */
+export function onTargetClosed(handler: (closed: TargetClosed) => void): Promise<UnlistenFn> {
+  return listen<TargetClosed>("target://closed", (event) => handler(event.payload));
 }
 
 // ---- history ----

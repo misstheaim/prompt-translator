@@ -1,8 +1,8 @@
 //! `system::input`: Win32 helpers shared by the hotkeys (auto-copy for the popup, T25b, and the
-//! layout fix, T42): the terminal classifier, the foreground window, waiting for modifier keys to
-//! be released, synthetic key chords with `SendInput`, clipboard text read/write (optionally hidden
-//! from clipboard history and monitors), the clipboard sequence number and input-language
-//! switching.
+//! layout fix, T42) and the session targets (T38): the terminal classifier, the foreground window,
+//! top-level window facts (exists, visible, title, pid), waiting for modifier keys to be released,
+//! synthetic key chords with `SendInput`, clipboard text read/write (optionally hidden from
+//! clipboard history and monitors), the clipboard sequence number and input-language switching.
 //!
 //! Callers that send keys and touch the clipboard hold [`lock`] for the whole sequence, so two
 //! hotkeys can't interleave their copies, pastes and restores.
@@ -10,9 +10,14 @@
 use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
 
+/// Windows Terminal's top-level window class (all its windows usually share one process).
+pub const WINDOWS_TERMINAL_CLASS: &str = "CASCADIA_HOSTING_WINDOW_CLASS";
+
+/// The classic console host (conhost) window class.
+pub const CONHOST_CLASS: &str = "ConsoleWindowClass";
+
 /// Window classes of terminal windows: Windows Terminal, classic console host (conhost).
-pub const TERMINAL_WINDOW_CLASSES: &[&str] =
-    &["CASCADIA_HOSTING_WINDOW_CLASS", "ConsoleWindowClass"];
+pub const TERMINAL_WINDOW_CLASSES: &[&str] = &[WINDOWS_TERMINAL_CLASS, CONHOST_CLASS];
 
 /// Executable names of terminal apps.
 pub const TERMINAL_EXE_NAMES: &[&str] = &[
@@ -67,7 +72,7 @@ mod win {
     use std::thread::sleep;
     use std::time::{Duration, Instant};
 
-    use windows_sys::Win32::Foundation::{CloseHandle, GlobalFree, HGLOBAL, HWND};
+    use windows_sys::Win32::Foundation::{CloseHandle, GlobalFree, HGLOBAL, HWND, LPARAM};
     use windows_sys::Win32::System::DataExchange::{
         CloseClipboard, EmptyClipboard, GetClipboardData, GetClipboardSequenceNumber,
         IsClipboardFormatAvailable, OpenClipboard, RegisterClipboardFormatW, SetClipboardData,
@@ -86,9 +91,10 @@ mod win {
         VK_RIGHT, VK_RWIN, VK_SHIFT, VK_V,
     };
     use windows_sys::Win32::UI::WindowsAndMessaging::{
-        GetClassNameW, GetForegroundWindow, GetWindowThreadProcessId, PostMessageW,
-        WM_INPUTLANGCHANGEREQUEST,
+        EnumWindows, GetClassNameW, GetForegroundWindow, GetWindowTextW, GetWindowThreadProcessId,
+        IsWindow, IsWindowVisible, PostMessageW, WM_INPUTLANGCHANGEREQUEST,
     };
+    use windows_sys::core::BOOL;
 
     use super::{ClipboardBusy, is_terminal};
 
@@ -156,12 +162,40 @@ mod win {
             String::from_utf16_lossy(&buf[..usize::try_from(len).unwrap_or(0)])
         }
 
-        /// The full path of the window's executable, or "" when it can't be read (e.g. a
-        /// protected process); the class name alone decides then.
-        pub fn exe(self) -> String {
+        /// Whether the handle still names a window (`IsWindow`). A closed window's handle may
+        /// be reused later, so callers also compare the pid.
+        pub fn exists(self) -> bool {
+            // SAFETY: plain call; any handle value is accepted.
+            unsafe { IsWindow(self.0) != 0 }
+        }
+
+        /// Whether the window has the visible style (minimised windows count as visible).
+        pub fn is_visible(self) -> bool {
+            // SAFETY: plain call.
+            unsafe { IsWindowVisible(self.0) != 0 }
+        }
+
+        /// The id of the process that created the window, 0 for a dead handle. For a classic
+        /// console this is the console's client (e.g. `powershell.exe`), not `conhost.exe`.
+        pub fn pid(self) -> u32 {
             let mut pid = 0u32;
             // SAFETY: `pid` is a valid out pointer.
             unsafe { GetWindowThreadProcessId(self.0, &mut pid) };
+            pid
+        }
+
+        /// The window's title ("" when it has none or the handle is dead).
+        pub fn title(self) -> String {
+            let mut buf = vec![0u16; 1024];
+            // SAFETY: `buf` is writable for `buf.len()` u16s; the result is the count written.
+            let len = unsafe { GetWindowTextW(self.0, buf.as_mut_ptr(), buf.len() as i32) };
+            String::from_utf16_lossy(&buf[..usize::try_from(len).unwrap_or(0)])
+        }
+
+        /// The full path of the window's executable, or "" when it can't be read (e.g. a
+        /// protected process); the class name alone decides then.
+        pub fn exe(self) -> String {
+            let pid = self.pid();
             if pid == 0 {
                 return String::new();
             }
@@ -228,6 +262,20 @@ mod win {
             }
             posted
         }
+    }
+
+    /// Every top-level window, in Z order (front to back), hidden ones included.
+    pub fn top_level_windows() -> Vec<Window> {
+        unsafe extern "system" fn collect(hwnd: HWND, lparam: LPARAM) -> BOOL {
+            // SAFETY: `lparam` is the `Vec<Window>` passed below, alive for the whole call.
+            let list = unsafe { &mut *(lparam as *mut Vec<Window>) };
+            list.push(Window(hwnd));
+            1
+        }
+        let mut list: Vec<Window> = Vec::new();
+        // SAFETY: the callback only touches `list`, which outlives the call.
+        unsafe { EnumWindows(Some(collect), &mut list as *mut Vec<Window> as LPARAM) };
+        list
     }
 
     /// The primary language (`LANG_*`, the low 10 bits of the LANGID in the HKL's low word).
