@@ -16,6 +16,7 @@ import type { IssueCategory } from "../bindings/IssueCategory";
 import type { IssueFilter } from "../bindings/IssueFilter";
 import type { Language } from "../bindings/Language";
 import type { MistakesSummary } from "../bindings/MistakesSummary";
+import type { DeliveryOutcome } from "../bindings/DeliveryOutcome";
 import type { Mode } from "../bindings/Mode";
 import type { Preset } from "../bindings/Preset";
 import type { ProviderStatus } from "../bindings/ProviderStatus";
@@ -184,6 +185,23 @@ export function bindTarget(target: SessionTarget): Promise<SessionTarget> {
 /** Releases one binding (a bound Translate tab closed). */
 export function unbindTarget(target: SessionTarget): Promise<void> {
   return call<void>("unbind_target", { target });
+}
+
+/**
+ * Accept in a bound Translate tab: puts the text into the target terminal's input without
+ * sending it (the user presses Enter in Claude) and marks the history entry accepted. Call it
+ * right after the user's own action in the app (Windows lets the app focus the terminal only
+ * then). Rejects with `PrefixNeedsConfirmation` for text starting with `!`, `/` or `#` (ask the
+ * user, then call again with `confirmed = true`). When the terminal can't take the text, it is
+ * copied instead and the result is `deliveredToClipboard` with the reason to show.
+ */
+export function deliverToTarget(
+  target: SessionTarget,
+  text: string,
+  historyId: number | null = null,
+  confirmed = false,
+): Promise<DeliveryOutcome> {
+  return call<DeliveryOutcome>("deliver_to_target", { target, text, historyId, confirmed });
 }
 
 /** Listens to `target://closed`: a bound terminal window or tab closed (its binding is gone). */

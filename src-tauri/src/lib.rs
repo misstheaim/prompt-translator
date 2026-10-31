@@ -162,7 +162,8 @@ pub fn run() {
             target::commands::list_session_targets,
             target::commands::bind_terminal_by_focus,
             target::commands::bind_target,
-            target::commands::unbind_target
+            target::commands::unbind_target,
+            target::commands::deliver_to_target
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

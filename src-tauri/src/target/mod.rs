@@ -7,7 +7,7 @@
 
 pub mod clipboard;
 pub mod commands;
-pub mod console_inject;
+pub mod deliver;
 pub mod sessions;
 
 use serde::{Deserialize, Serialize};
@@ -53,6 +53,18 @@ pub struct TerminalTarget {
 #[ts(export)]
 pub enum SessionTarget {
     Terminal(TerminalTarget),
+}
+
+/// What `deliver_to_target` did with the text.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+#[ts(export)]
+pub enum DeliveryOutcome {
+    /// The text waits in the session's input (not sent: the user presses Enter in Claude).
+    Delivered,
+    /// The session couldn't take it; the text was copied to the clipboard instead. `reason`
+    /// is a message for the user.
+    DeliveredToClipboard { reason: String },
 }
 
 /// Payload of `target://closed`: a bound terminal window (or its bound tab) is gone.

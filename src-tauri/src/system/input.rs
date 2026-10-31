@@ -80,19 +80,21 @@ mod win {
     use windows_sys::Win32::System::Memory::{
         GMEM_MOVEABLE, GlobalAlloc, GlobalLock, GlobalSize, GlobalUnlock,
     };
+    use windows_sys::Win32::System::SystemInformation::GetTickCount;
     use windows_sys::Win32::System::Threading::{
         OpenProcess, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
         QueryFullProcessImageNameW,
     };
     use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
-        GetAsyncKeyState, GetKeyboardLayout, GetKeyboardLayoutList, HKL, INPUT, INPUT_0,
-        INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP, MAPVK_VK_TO_VSC,
-        MapVirtualKeyW, SendInput, VIRTUAL_KEY, VK_C, VK_CONTROL, VK_LEFT, VK_LWIN, VK_MENU,
-        VK_RIGHT, VK_RWIN, VK_SHIFT, VK_V,
+        GetAsyncKeyState, GetKeyboardLayout, GetKeyboardLayoutList, GetLastInputInfo, HKL, INPUT,
+        INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP, LASTINPUTINFO,
+        MAPVK_VK_TO_VSC, MapVirtualKeyW, SendInput, VIRTUAL_KEY, VK_C, VK_CONTROL, VK_LEFT,
+        VK_LWIN, VK_MENU, VK_RETURN, VK_RIGHT, VK_RWIN, VK_SHIFT, VK_V,
     };
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         EnumWindows, GetClassNameW, GetForegroundWindow, GetWindowTextW, GetWindowThreadProcessId,
-        IsWindow, IsWindowVisible, PostMessageW, WM_INPUTLANGCHANGEREQUEST,
+        IsIconic, IsWindow, IsWindowVisible, PostMessageW, SW_RESTORE, SendMessageW,
+        SetForegroundWindow, ShowWindow, WM_COMMAND, WM_INPUTLANGCHANGEREQUEST,
     };
     use windows_sys::core::BOOL;
 
@@ -167,6 +169,34 @@ mod win {
         pub fn exists(self) -> bool {
             // SAFETY: plain call; any handle value is accepted.
             unsafe { IsWindow(self.0) != 0 }
+        }
+
+        /// Whether the window is minimised.
+        pub fn is_minimised(self) -> bool {
+            // SAFETY: plain call.
+            unsafe { IsIconic(self.0) != 0 }
+        }
+
+        /// `ShowWindow(SW_RESTORE)`: brings a minimised window back.
+        pub fn restore(self) {
+            // SAFETY: plain call.
+            unsafe { ShowWindow(self.0, SW_RESTORE) };
+        }
+
+        /// `SetForegroundWindow`: works while the app itself owns the foreground (the user just
+        /// acted in the app). The result says only that Windows accepted the request; callers
+        /// poll [`Window::is_foreground`].
+        pub fn set_foreground(self) -> bool {
+            // SAFETY: plain call.
+            unsafe { SetForegroundWindow(self.0) != 0 }
+        }
+
+        /// Sends conhost's own Edit > Paste (system menu command `0xFFF1`) as `WM_COMMAND`:
+        /// the console reads the clipboard itself. Line breaks in the text would act as Enter,
+        /// so callers only use it for single-line text.
+        pub fn send_conhost_paste(self) {
+            // SAFETY: plain call; the result of WM_COMMAND carries no information.
+            unsafe { SendMessageW(self.0, WM_COMMAND, CONHOST_PASTE_COMMAND, 0) };
         }
 
         /// Whether the window has the visible style (minimised windows count as visible).
@@ -287,6 +317,44 @@ mod win {
         // SAFETY: plain call; the high bit of the result means "down now".
         let state = unsafe { GetAsyncKeyState(i32::from(key)) };
         state < 0
+    }
+
+    /// conhost's system-menu "Edit > Paste" command id.
+    const CONHOST_PASTE_COMMAND: usize = 0xFFF1;
+
+    /// Polls `check` until it is true; `false` after `timeout`.
+    pub fn wait_until(timeout: Duration, mut check: impl FnMut() -> bool) -> bool {
+        let deadline = Instant::now() + timeout;
+        loop {
+            if check() {
+                return true;
+            }
+            if Instant::now() >= deadline {
+                return false;
+            }
+            sleep(POLL_INTERVAL);
+        }
+    }
+
+    /// Whether Enter is down (an Enter still held when a window is focused would auto-repeat
+    /// into it).
+    pub fn enter_down() -> bool {
+        is_key_down(VK_RETURN)
+    }
+
+    /// Milliseconds since the user's last keyboard or mouse input (system-wide), `None` when
+    /// Windows doesn't say.
+    pub fn idle_millis() -> Option<u32> {
+        let mut info = LASTINPUTINFO {
+            cbSize: size_of::<LASTINPUTINFO>() as u32,
+            dwTime: 0,
+        };
+        // SAFETY: `info` is a valid, sized out structure.
+        if unsafe { GetLastInputInfo(&mut info) } == 0 {
+            return None;
+        }
+        // SAFETY: plain call.
+        Some(unsafe { GetTickCount() }.wrapping_sub(info.dwTime))
     }
 
     pub fn any_modifier_down() -> bool {
