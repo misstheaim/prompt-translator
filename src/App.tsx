@@ -1,5 +1,5 @@
 import { listen } from "@tauri-apps/api/event";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 import type { Mode } from "./bindings/Mode";
 import type { TranslationResult } from "./bindings/TranslationResult";
@@ -9,6 +9,7 @@ import { DevMockPanel } from "./components/DevMockPanel";
 import { ErrorBanner } from "./components/ErrorBanner";
 import { ToastHost } from "./components/Toast";
 import { UpdateBanner } from "./components/UpdateBanner";
+import { toAppError, unloadModel } from "./lib/api";
 import { cx } from "./lib/cx";
 import { HistoryScreen } from "./screens/History/HistoryScreen";
 import { MistakesScreen } from "./screens/Mistakes/MistakesScreen";
@@ -48,6 +49,10 @@ function App() {
   const setScreen = useAppStore((s) => s.setScreen);
   const loadError = useAppStore((s) => s.loadError);
   const hotkeyError = useAppStore((s) => s.hotkeyError);
+  const showToast = useAppStore((s) => s.showToast);
+  const model = useAppStore((s) => s.settings?.ollama.model ?? "");
+  const translating = useTranslateStore((s) => s.status === "loading");
+  const [unloading, setUnloading] = useState(false);
 
   useEffect(() => {
     const unlisten = initAppStore();
@@ -85,6 +90,30 @@ function App() {
       void unlisten.then((fn) => fn());
     };
   }, [setScreen]);
+
+  // The tray's "Unload model" reports through `main://model-unloaded`.
+  useEffect(() => {
+    const unlisten = listen<boolean | string>("main://model-unloaded", (event) => {
+      const { showToast } = useAppStore.getState();
+      if (typeof event.payload === "string") showToast("error", event.payload);
+      else showToast("info", event.payload ? "Model unloaded" : "No model loaded");
+    });
+    return () => {
+      void unlisten.then((fn) => fn());
+    };
+  }, []);
+
+  async function unload() {
+    setUnloading(true);
+    try {
+      const unloaded = await unloadModel();
+      showToast("info", unloaded ? "Model unloaded" : "No model loaded");
+    } catch (e) {
+      showToast("error", toAppError(e).message);
+    } finally {
+      setUnloading(false);
+    }
+  }
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -140,8 +169,18 @@ function App() {
             {TAB_LABELS[s]}
           </button>
         ))}
-        {/* Right side of the top bar: the session picker (E9) goes here. */}
+        {/* Right side of the top bar: the session picker (E9) goes here, before this button. */}
         <div className="ml-auto" />
+        <Button
+          size="sm"
+          variant="ghost"
+          loading={unloading}
+          disabled={translating}
+          title={`Unload model (${model}) from memory`}
+          onClick={() => void unload()}
+        >
+          Unload model
+        </Button>
       </nav>
 
       {loadError && (

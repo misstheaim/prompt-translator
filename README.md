@@ -62,11 +62,11 @@ If nothing is selected, the popup uses what is already on the clipboard.
 
 ### Keyboard layout fix
 
-Typed `ghbdtn` instead of `привет`? Select the text (or put the cursor right after the word) and press **Shift+Pause**. The app replaces it with the same keys on the other layout (US and Russian, both directions) and switches the input language. It uses no model and no history. In terminals it converts the clipboard text instead and tells you to paste with Ctrl+V. Change or disable the hotkey in Settings, "Keyboard layout fix".
+Typed `ghbdtn` instead of `привет`? Select the text (or put the cursor right after the word) and press **Ctrl+Shift+`**. The app replaces it with the same keys on the other layout (US and Russian, both directions) and switches the input language. It uses no model and no history. In terminals it converts the clipboard text instead and tells you to paste with Ctrl+V. Change or disable the hotkey in Settings, "Keyboard layout fix".
 
 ### Tray
 
-The app lives in the notification area. Left-click opens the main window; right-click offers Open and Quit. Closing the window keeps the app running in the tray (turn off in Settings to quit on close). Starting the app again just shows the running one.
+The app lives in the notification area. Left-click opens the main window; right-click offers Open, Unload model and Quit. "Unload model" (also a button in the main window's top bar) frees the local model's memory; the app also unloads it when you quit, and Ollama drops it by itself after 10 minutes without use. Closing the window keeps the app running in the tray (turn off in Settings to quit on close). Starting the app again just shows the running one.
 
 ## Privacy
 
@@ -83,7 +83,7 @@ The app checks GitHub for a new release 10 seconds after it starts (turn this of
 
 ## Uninstall
 
-Open Windows Settings, Apps, **Prompt Translator**, Uninstall (or run `uninstall.exe` in the install folder). The confirm page has **"Delete the application data"**, ticked by default.
+Open Settings, About, **Uninstall Prompt Translator…** in the app, or Windows Settings, Apps, **Prompt Translator**, Uninstall (or run `uninstall.exe` in the install folder). The confirm page has **"Delete the application data"**, ticked by default.
 
 - Ticked: removes the settings, presets, history, logs and the app's WebView2 profile (`%APPDATA%\com.misstheaim.prompttranslator\` and `%LOCALAPPDATA%\com.misstheaim.prompttranslator\`).
 - Unticked: keeps them, so a later install picks them up.

@@ -259,6 +259,21 @@ export function openFolder(folder: "config" | "data"): Promise<void> {
   return call<void>("open_folder", { folder });
 }
 
+/** Asks Ollama to unload the model: `true` unloaded, `false` nothing was loaded (or Ollama is off). */
+export function unloadModel(): Promise<boolean> {
+  return call<boolean>("unload_model");
+}
+
+/** Whether this build has an uninstaller (false in dev runs). */
+export function uninstallerAvailable(): Promise<boolean> {
+  return call<boolean>("uninstaller_available");
+}
+
+/** Starts the uninstaller and exits the app. */
+export function runUninstaller(): Promise<void> {
+  return call<void>("run_uninstaller");
+}
+
 /** Asks GitHub for a newer release. Rejects when offline; show the error to the user. */
 export function checkUpdate(): Promise<UpdateInfo> {
   return call<UpdateInfo>("check_update");

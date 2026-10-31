@@ -73,6 +73,66 @@ impl OllamaProvider {
         }
     }
 
+    /// Frees the configured model's memory (`keep_alive: 0`, no prompt). `Ok(true)` when it was
+    /// loaded and is now unloaded; `Ok(false)` when nothing was loaded or Ollama isn't running.
+    /// Each request has `timeout` (3 s from the button, about 2 s on quit).
+    pub async fn unload(&self, settings: &Settings, timeout: Duration) -> AppResult<bool> {
+        let base = endpoint(settings);
+        let model = &settings.ollama.model;
+        // `GET /api/ps` lists the loaded models; an unreachable Ollama means nothing to unload.
+        let loaded = match self.fetch_loaded(&format!("{base}/api/ps"), timeout).await {
+            Ok(loaded) => loaded,
+            Err(e) if e.is_connect() || e.is_timeout() => return Ok(false),
+            Err(e) => return Err(AppError::Io(format!("Ollama request failed: {e}"))),
+        };
+        if !loaded.iter().any(|m| same_model(m, model)) {
+            return Ok(false);
+        }
+        let response = self
+            .client
+            .post(format!("{base}/api/generate"))
+            .json(&json!({ "model": model, "keep_alive": 0 }))
+            .timeout(timeout)
+            .send()
+            .await;
+        match response {
+            Ok(r) if r.status().is_success() => Ok(true),
+            Ok(r) => Err(AppError::Io(format!(
+                "Ollama returned HTTP {} while unloading the model",
+                r.status().as_u16()
+            ))),
+            Err(e) if e.is_connect() => Ok(false),
+            Err(e) => Err(AppError::Io(format!("Ollama request failed: {e}"))),
+        }
+    }
+
+    async fn fetch_loaded(
+        &self,
+        url: &str,
+        timeout: Duration,
+    ) -> Result<Vec<String>, reqwest::Error> {
+        let body: Value = self
+            .client
+            .get(url)
+            .timeout(timeout)
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?;
+        Ok(body
+            .get("models")
+            .and_then(Value::as_array)
+            .map(|models| {
+                models
+                    .iter()
+                    .filter_map(|m| m.get("name").and_then(Value::as_str))
+                    .map(str::to_owned)
+                    .collect()
+            })
+            .unwrap_or_default())
+    }
+
     async fn fetch_models(&self, url: &str) -> Result<Vec<String>, reqwest::Error> {
         let body: Value = self
             .client

@@ -73,7 +73,7 @@ Run each cell on the Translate tab with the matching sample text. For every run 
 
 ## 6. Tray, window and system
 
-- [ ] Left-click on the tray icon shows the main window; right-click shows Open and Quit.
+- [ ] Left-click on the tray icon shows the main window; right-click shows Open, Unload model and Quit. After a translation, "Unload model" empties `ollama ps` and the main window shows "Model unloaded" (with Ollama stopped: "No model loaded"). Quit after a translation: `ollama ps` is empty within a few seconds; with Ollama stopped the app quits at once. The top-bar "Unload model" button works the same and is disabled while a translation runs.
 - [ ] Closing the window keeps the app in the tray; with "Keep running in the tray" off, closing exits the app.
 - [ ] Starting the app a second time shows the running window and no second tray icon.
 - [ ] "Start with Windows" on, then sign out and in (real machine, not the Sandbox): the app starts hidden in the tray. Off removes it (check Task Manager, Startup apps).
@@ -96,7 +96,7 @@ Set a known text on the clipboard first (for example `CLIPBOARD-OLD`). After eac
 
 ## 8. Keyboard layout fix
 
-Default hotkey Shift+Pause. Type `ghbdtn` with the English layout, and `руддщ` with the Russian layout.
+Default hotkey Ctrl+Shift+` (an existing settings.json keeps its saved hotkey). Type `ghbdtn` with the English layout, and `руддщ` with the Russian layout.
 
 - [ ] Editor (Notepad), selection: select `ghbdtn`, press the hotkey: it becomes `привет`, the input language switches to Russian. Select `руддщ`: it becomes `hello` and the input language switches to English.
 - [ ] Editor, no selection: type `ghbdtn` and leave the cursor after it; the hotkey converts the last word only.
@@ -135,7 +135,7 @@ A clean machine with no GPU and no `winget`. How to start it, and what is instal
 
 **C. Uninstall with data deletion (default)**
 - [ ] Install, start the app once (so the data folders exist), turn "Start with Windows" on, then quit the app from the tray.
-- [ ] Windows Settings, Apps, Prompt Translator, Uninstall: the confirm page shows "Delete the application data", checked.
+- [ ] Settings, About, "Uninstall Prompt Translator…" (installed build only; hidden in `npm run tauri dev`), confirm: the app closes and the uninstaller opens. Or Windows Settings, Apps, Prompt Translator, Uninstall: the confirm page shows "Delete the application data", checked.
 - [ ] After it finishes, these are gone (check in Explorer and with the cmd.exe commands below): `%LOCALAPPDATA%\Prompt Translator\`, `%APPDATA%\com.misstheaim.prompttranslator\`, `%LOCALAPPDATA%\com.misstheaim.prompttranslator\` (including `EBWebView`), the Start menu shortcut and the Apps entry.
 
 ```

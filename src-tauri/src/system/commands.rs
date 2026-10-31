@@ -1,13 +1,17 @@
 //! Tauri commands of the `system` module.
 
+use std::time::Duration;
+
 use serde::{Deserialize, Serialize};
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_opener::OpenerExt;
 use ts_rs::TS;
 
-use super::paths;
+use super::{paths, uninstall};
 use crate::error::{AppError, AppResult};
+use crate::settings::SettingsStore;
+use crate::translation::providers::ollama::OllamaProvider;
 
 /// Round-trip check between the UI and the Rust core.
 #[tauri::command]
@@ -90,6 +94,53 @@ pub fn open_folder(app: AppHandle, folder: AppFolder) -> AppResult<()> {
     app.opener()
         .open_path(dir.to_string_lossy(), None::<&str>)
         .map_err(|e| AppError::Io(format!("Can't open the folder: {e}")))
+}
+
+const UNLOAD_TIMEOUT: Duration = Duration::from_secs(3);
+const UNLOAD_ON_EXIT_TIMEOUT: Duration = Duration::from_secs(2);
+
+/// Asks Ollama to unload the configured model. `true` when it was unloaded, `false` when nothing
+/// was loaded or Ollama isn't running (not an error).
+#[tauri::command]
+pub async fn unload_model(settings: tauri::State<'_, SettingsStore>) -> AppResult<bool> {
+    OllamaProvider::new()
+        .unload(&settings.get(), UNLOAD_TIMEOUT)
+        .await
+}
+
+/// Best-effort unload for the app's exit path: at most about 2 s, never fails or panics.
+pub fn unload_model_on_exit(app: &AppHandle) {
+    let Some(store) = app.try_state::<SettingsStore>() else {
+        return;
+    };
+    let settings = store.get();
+    let result = tauri::async_runtime::block_on(async {
+        tokio::time::timeout(
+            UNLOAD_ON_EXIT_TIMEOUT,
+            OllamaProvider::new().unload(&settings, UNLOAD_ON_EXIT_TIMEOUT),
+        )
+        .await
+    });
+    match result {
+        Ok(Ok(true)) => log::info!("Unloaded the model on exit"),
+        Ok(Ok(false)) => {}
+        Ok(Err(e)) => log::info!("Couldn't unload the model on exit: {e}"),
+        Err(_) => log::info!("Unloading the model on exit timed out"),
+    }
+}
+
+/// Whether Settings, About can offer "Uninstall" (an installed build has an uninstaller).
+#[tauri::command]
+pub fn uninstaller_available() -> bool {
+    uninstall::uninstaller_path().is_some()
+}
+
+/// Starts the uninstaller (detached) and exits the app.
+#[tauri::command]
+pub fn run_uninstaller(app: AppHandle) -> AppResult<()> {
+    uninstall::run_uninstaller()?;
+    app.exit(0);
+    Ok(())
 }
 
 /// Native file picker (Settings, "Browse" for the claude.exe path). `filter` lists the allowed
