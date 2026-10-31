@@ -12,9 +12,8 @@ The app's user settings, stored in one `settings.json`. The core loads them at s
 - `ollama`: `endpoint` `http://localhost:11434`, `model` `qwen3.5:9b`, `keepAlive` `10m`, `numCtx` 8192, `timeoutSecs` 60.
 - `claude`: `executablePath` null (find claude.exe automatically), `model` `haiku`, `timeoutSecs` 90.
 - `layoutFix`: `enabled` true, `hotkey` ``Ctrl+Shift+` ``, `switchInputLanguage` true.
-- `popupBounds` null (the popup's saved position and size, POPUP-011): when set, `{ x, y, width, height }` in physical pixels of the popup's outer rectangle.
-Settings files saved earlier keep their stored `keepAlive` and hotkey.
-Since: #40 · Changed: #46, #145, #146
+Settings files saved earlier keep their stored `keepAlive` and hotkey. A `popupBounds` key left in an older file is ignored and dropped at the next save.
+Since: #40 · Changed: #46, #145, #146, #162
 
 ### SETTINGS-002 Loading settings.json
 The file is read from the settings location (see APP-006) at startup. A missing file gives the defaults and nothing is written. A field missing from the file (also inside `ollama`, `claude`, `layoutFix`) takes its default; unknown fields are ignored and are not kept on the next save. Loaded values are not validated.
