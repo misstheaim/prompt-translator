@@ -58,6 +58,9 @@ export function Popup() {
   /** Id of the request whose answer the popup is waiting for; other answers are stale. */
   const requestIdRef = useRef<string | null>(null);
 
+  /** Finished results of the current capture, by mode; cleared by a new capture. */
+  const resultsRef = useRef<Partial<Record<Mode, TranslationResult>>>({});
+
   const cancelRunning = useCallback(() => {
     const id = requestIdRef.current;
     requestIdRef.current = null;
@@ -87,6 +90,7 @@ export function Popup() {
         });
         if (requestIdRef.current !== requestId) return;
         requestIdRef.current = null;
+        resultsRef.current[runMode] = res;
         setResult(res);
         setStatus("success");
       } catch (e) {
@@ -116,9 +120,21 @@ export function Popup() {
       if (source === null || source.trim() === "" || next === current) return;
       setMode(next);
       void setLastPopupMode(next).catch(() => undefined);
+      const kept = resultsRef.current[next];
+      if (kept) {
+        // Already ran for this capture: show it, no new run.
+        cancelRunning();
+        setResult(kept);
+        setStatus("success");
+        setError(null);
+        setCopyError(null);
+        setIssuesOpen(false);
+        setWarningsIgnored(false);
+        return;
+      }
       void run(source, next);
     },
-    [run],
+    [run, cancelRunning],
   );
 
   const accept = useCallback(async () => {
@@ -152,6 +168,7 @@ export function Popup() {
     const unlisten = listen<PopupSource>("popup://source", (event) => {
       const { text: captured, mode: detected } = event.payload;
       cancelRunning();
+      resultsRef.current = {};
       setText(captured);
       setMode(detected);
       setExcerptOpen(false);
@@ -199,7 +216,13 @@ export function Popup() {
   const issues = result?.issues ?? [];
 
   return (
-    <main className="flex h-full flex-col gap-2 bg-bg p-3 text-text">
+    <main className="flex h-full flex-col gap-2 bg-bg px-3 pb-3 text-text">
+      <div
+        data-tauri-drag-region
+        className="-mx-3 flex h-6 shrink-0 select-none items-center justify-center border-b border-border text-[10px] uppercase tracking-wide text-muted"
+      >
+        Prompt Translator
+      </div>
       {!hasText ? (
         <p className="m-auto text-muted">
           {text === null ? "Waiting for text..." : "Select or copy some text first"}
