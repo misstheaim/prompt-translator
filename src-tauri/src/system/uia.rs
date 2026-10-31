@@ -1,6 +1,6 @@
 //! `system::uia`: UI Automation reads of Windows Terminal's tabs (`TabItem` elements: name,
-//! RuntimeId, selected), as spike T58 found them (`docs/spikes/session-paste.md`). Read-only:
-//! nothing here focuses, selects or types.
+//! RuntimeId, selected), as spike T58 found them (`docs/spikes/session-paste.md`), and selecting
+//! one (`Tab::select`, used when delivering to a session). Nothing here types.
 //!
 //! COM is initialised (multithreaded, as UIA clients should) for as long as a [`Uia`] lives, so
 //! create it on a worker thread, never on the UI thread, and drop it on the same thread.
@@ -16,9 +16,9 @@ use windows::Win32::System::Ole::{
 };
 use windows::Win32::System::Variant::VARIANT;
 use windows::Win32::UI::Accessibility::{
-    CUIAutomation, IUIAutomation, IUIAutomationElement, IUIAutomationSelectionItemPattern,
-    TreeScope_Descendants, UIA_ControlTypePropertyId, UIA_SelectionItemPatternId,
-    UIA_TabItemControlTypeId,
+    CUIAutomation, IUIAutomation, IUIAutomationElement, IUIAutomationElementArray,
+    IUIAutomationSelectionItemPattern, TreeScope_Descendants, UIA_ControlTypePropertyId,
+    UIA_SelectionItemPatternId, UIA_TabItemControlTypeId,
 };
 
 pub use windows::core::Result;
@@ -75,9 +75,8 @@ impl Uia {
         })
     }
 
-    /// Every `TabItem` under the top-level window `hwnd` (see `input::Window::id`), in tree
-    /// order. An error when the window is gone or doesn't answer UIA.
-    pub fn tabs(&self, hwnd: usize) -> Result<Vec<TabInfo>> {
+    /// The `TabItem` elements under the top-level window `hwnd`, in tree order.
+    fn tab_elements(&self, hwnd: usize) -> Result<IUIAutomationElementArray> {
         let hwnd = HWND(hwnd as *mut core::ffi::c_void);
         // SAFETY: COM calls on valid interfaces; a dead HWND makes ElementFromHandle fail.
         unsafe {
@@ -86,7 +85,32 @@ impl Uia {
                 UIA_ControlTypePropertyId,
                 &VARIANT::from(UIA_TabItemControlTypeId.0),
             )?;
-            let found = root.FindAll(TreeScope_Descendants, &condition)?;
+            root.FindAll(TreeScope_Descendants, &condition)
+        }
+    }
+
+    /// The tab of window `hwnd` with this RuntimeId, `None` when there is none. An error when
+    /// the window is gone or doesn't answer UIA.
+    pub fn find_tab(&self, hwnd: usize, wanted: &str) -> Result<Option<Tab>> {
+        let found = self.tab_elements(hwnd)?;
+        // SAFETY: COM calls on a valid element array and its elements.
+        unsafe {
+            for index in 0..found.Length()? {
+                let element = found.GetElement(index)?;
+                if runtime_id(&element)? == wanted {
+                    return Ok(Some(Tab { element }));
+                }
+            }
+        }
+        Ok(None)
+    }
+
+    /// Every `TabItem` under the top-level window `hwnd` (see `input::Window::id`), in tree
+    /// order. An error when the window is gone or doesn't answer UIA.
+    pub fn tabs(&self, hwnd: usize) -> Result<Vec<TabInfo>> {
+        let found = self.tab_elements(hwnd)?;
+        // SAFETY: COM calls on a valid element array and its elements.
+        unsafe {
             let count = found.Length()?;
             let mut tabs = Vec::with_capacity(usize::try_from(count).unwrap_or(0));
             for index in 0..count {
@@ -107,6 +131,40 @@ impl Uia {
             }
             Ok(tabs)
         }
+    }
+}
+
+/// One Windows Terminal tab that can be selected.
+pub struct Tab {
+    element: IUIAutomationElement,
+}
+
+impl Tab {
+    fn pattern(&self) -> Result<IUIAutomationSelectionItemPattern> {
+        // SAFETY: COM call on a valid element.
+        unsafe {
+            self.element
+                .GetCurrentPatternAs::<IUIAutomationSelectionItemPattern>(
+                    UIA_SelectionItemPatternId,
+                )
+        }
+    }
+
+    /// Whether the tab is the selected one; `None` when it has no selection pattern or the call
+    /// failed.
+    pub fn is_selected(&self) -> Option<bool> {
+        let pattern = self.pattern().ok()?;
+        // SAFETY: COM call on a valid pattern.
+        unsafe { pattern.CurrentIsSelected() }
+            .ok()
+            .map(|selected| selected.as_bool())
+    }
+
+    /// `SelectionItemPattern.Select()`: makes this the window's selected tab.
+    pub fn select(&self) -> Result<()> {
+        let pattern = self.pattern()?;
+        // SAFETY: COM call on a valid pattern.
+        unsafe { pattern.Select() }
     }
 }
 
