@@ -30,7 +30,7 @@ Since: #42 · Changed: #44
 Since: #60 · Changed: #150
 
 ### TRANS-004 Detect-mode command
-The `detect_mode(text, last, nativeLanguage?, targetLanguage?)` command exposes TRANS-003 to the webview as `detectMode(text, last, pair)` in `api.ts`. A missing code is taken from the settings (TRANS-008); an unknown code or two equal languages fail with `InvalidInput` (TRANS-008). No screen calls it; the core uses it itself when the popup hotkey fires (POPUP-003), with the pair from the settings.
+The `detect_mode(text, last, nativeLanguage?, targetLanguage?)` command exposes TRANS-003 to the webview as `detectMode(text, last, pair)` in `api.ts`. A missing code is taken from the settings (TRANS-008); an unknown code or two equal languages fail with `InvalidInput` (TRANS-008). No screen calls it; the core uses it itself when the popup hotkey fires for text from an editable or unknown place with `popupStartMode` Auto (POPUP-003), with the pair from the settings.
 Since: #60 · Changed: #58, #150
 
 ### TRANS-005 Prompt templates
@@ -78,14 +78,15 @@ Since: #81 · Changed: #149
 
 ### TRANS-013 Translate screen
 The Translate tab has, top to bottom:
-- Controls: a mode switch (Translate / Improve / Correct), a Provider select (Ollama, Claude Code, and "Mock (dev)" in dev builds of the UI or when `devMockProvider` is on) and a Preset select (the presets, by name). All are disabled while a request runs.
+- Controls: a mode switch (Translate / Improve / Correct), a Provider select (Ollama, Claude Code, and "Mock (dev)" in dev builds of the UI or when `devMockProvider` is on), a Preset select (the presets, by name) and a language pair control. All are disabled while a request runs.
+- Language pair control: a button "<native> → <target>" (English names, e.g. "Russian → English", tooltip "Languages for this session") that opens a popover with two searchable selects, "From (my language)" and "To (language I write prompts in)", and a swap button "⇄". The pair is the session's: until the user changes it, it is the settings' pair (`nativeLanguage`, `targetLanguage`; so a change in Settings shows at once); the user's choice is kept across tab switches but never saved to the settings, and after an app restart the control shows the settings' pair again. With the same language on both sides the popover shows "Choose two different languages" and Run is disabled.
 - Initial choices: until the user picks one, the provider is `defaultProvider` and the preset `defaultPresetId` (the first preset if that one is missing), and the mode is the preset's `defaultMode`. Choosing a preset also sets the mode to that preset's `defaultMode`; choosing a mode or provider changes only that.
 - A text box (autofocused, any language, "Type or paste your text (any language)") with a "×" button in its corner ("Clear text", tooltip "Clear") while it isn't empty: it empties only the input (the result, mode, provider and preset stay), focuses the box, and is disabled while a request runs; and a counter "<n> / 8000" that turns red with "(too long)" above 8000. "Run" (Ctrl+Enter) is disabled while the text is blank or too long, while a request runs or while no preset exists. While running it shows "Running" with a spinner and a "Cancel" button.
-- Run sends a new request id with `translate` (TRANS-008). On success an editable result box appears with the output, a line "<provider> · <model> · <duration>" (ms under 1 s, else seconds with one decimal) and a "Copy" button (Ctrl+Shift+Enter, disabled for a blank result) that copies the edited text with the entry's `historyId` (TRANS-010) and shows the toast "Copied"; a copy failure shows an error toast with its message. The shortcuts work while focus is inside the screen.
+- Run sends a new request id with `translate` (TRANS-008), with the session's pair as `nativeLanguage` and `targetLanguage`. On success an editable result box appears with the output, a line "<provider> · <model> · <duration>" (ms under 1 s, else seconds with one decimal) and a "Copy" button (Ctrl+Shift+Enter, disabled for a blank result) that copies the edited text with the entry's `historyId` (TRANS-010) and shows the toast "Copied"; a copy failure shows an error toast with its message. The shortcuts work while focus is inside the screen.
 - On failure an error banner with a Retry action that runs again (APP-022). Cancel makes the request fail with `Cancelled`, which is not shown as an error: the screen goes back to the previous result, or to idle if there is none.
-- The input, selections, result and edited output stay when the user switches tabs. Opening an entry from History (HISTORY-010) or the popup (POPUP-006) fills them.
+- The input, selections, result and edited output stay when the user switches tabs. Opening an entry from History (HISTORY-010) or the popup (POPUP-006) fills them; from History it also sets the session's pair when the entry has one.
 - Below the result line, in this order: the token-warning banner when the result has warnings (APP-031; "Ignore" hides it for that result only, a new result shows its own; "Retry" runs again with the current text), then, only when the result's mode is Improve or Correct, a "Changes" section with the word-level diff and, when the result has issues, an "Issues (<n>)" section with the issue list (APP-031). Translate results show neither. The diff compares the text the result was made from and the provider's output, not the edited output box; both stay tied to the result when the input box is edited afterwards.
-Since: #53 · Changed: #54, #144
+Since: #53 · Changed: #54, #144, #151
 
 ### TRANS-014 Issue validation
 After parsing (TRANS-007) and before the result is returned or saved, each issue is checked and dropped (and logged at info level) when:
@@ -98,8 +99,17 @@ The output is returned as the model gave it. The result's issues, the saved hist
 Since: #142 · Changed: #149
 
 ### TRANS-015 List languages
-`list_languages()` (wrapper `listLanguages`) returns the 70 supported languages as `{ code, name }`, sorted by English name: `code` is the ISO 639-1 code (`ru`, `en`, `de`, `zh`, `nb` ...), `name` the English name ("Russian", "Norwegian Bokmål"). They are the languages that mode detection can recognise. No screen uses the list yet.
-Since: #150
+`list_languages()` (wrapper `listLanguages`) returns the 70 supported languages as `{ code, name }`, sorted by English name: `code` is the ISO 639-1 code (`ru`, `en`, `de`, `zh`, `nb` ...), `name` the English name ("Russian", "Norwegian Bokmål"). They are the languages that mode detection can recognise. The language selects of the setup wizard, Settings and the Translate tab list them.
+Since: #150 · Changed: #151
+
+### TRANS-016 Compact mode
+A small icon button (tooltip "Compact mode", or "Leave compact mode" while on) turns compact mode on and off. It is always visible: at the right end of the tab bar, before "Unload model", in normal mode (on every tab), and in the top-right corner of the window in compact mode.
+- **Button on:** switches to the Translate tab, remembers the window's size (un-maximizing it first) and resizes it to 420x300 (inner size) with a minimum of 320x200. **Off:** restores the remembered size, at least 640x480, and the normal minimum.
+- **By resizing:** in normal mode the window has a minimum of 640x480 (800x600 at start). Dragging its height down to 480 turns compact mode on, without resizing, so the lower 320x200 minimum applies and the window can shrink further. A compact mode entered this way turns off when the window becomes taller than 520 (480 plus 40); it can also be turned off with the button. A compact mode turned on with the button turns off only with the button. Size changes made by the app itself are ignored by these rules for 400 ms.
+- **Shown:** only the input box and the result box (smaller, in a smaller font, filling the window; placeholders "Type or paste your text (any language)" and "Result"), the toggle button and the "×" clear button in the input. The tab bar, banners (including the update, hotkey and setup banners), controls, counter, Run and Cancel buttons, result line, Copy button, Changes and Issues are hidden.
+- **Keeps working:** Ctrl+Enter runs and Ctrl+Shift+Enter copies, as in TRANS-013, with the current mode, provider, preset and pair; while a request runs a spinner shows in the result box; an error shows as an error toast instead of the banner; the result box stays editable.
+- The input, result, mode, provider, preset and pair are the same state in both modes. Compact mode is not saved: the app starts in normal mode at 800x600. If the window can't be resized, compact mode stays off and an error toast shows.
+Since: #168
 
 ## Known issues
 

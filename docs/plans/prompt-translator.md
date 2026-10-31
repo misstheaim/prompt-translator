@@ -272,7 +272,7 @@ Built-ins: `general`, `technical-development`, `code-review`, `work-communicatio
   "claude": { "executablePath": null, "model": "haiku", "timeoutSecs": 90 },
   "historyEnabled": true, "hotkey": "Ctrl+Shift+Space", "autostart": false, "closeToTray": true,
   "setupCompleted": false, "autoCheckUpdates": true,
-  "autoCopySelection": true, "sessionAppendHintShown": false, "lastPopupMode": "correct",
+  "autoCopySelection": true, "sessionAppendHintShown": false, "lastPopupMode": "correct", "popupStartMode": "auto",
   "devMockProvider": false,
   "layoutFix": { "enabled": true, "hotkey": "Shift+Pause", "switchInputLanguage": true } }
 ```
@@ -329,7 +329,7 @@ Extract candidate tokens from the source with regexes: ticket IDs `[A-Z][A-Z0-9]
 | `open_url` | `{ url }` | `()`: only allow-listed URLs (ollama.com download, Claude Code install docs, the repo's releases); via `tauri-plugin-opener` (T19) |
 | `pick_file` | `{ filter }` | `string \| null` (native file dialog via `tauri-plugin-dialog`; used for the claude.exe path in T22) |
 
-Events: `popup://source` (Rust → popup: captured text when the hotkey fires), `settings://changed`, `setup://progress`, `update://available`, `update://progress`, `sessions://changed` (session list or binding state changed: bound session closed, status idle↔busy), `main://open-entry` (popup → main window: show this input/result; payload `{ input, mode, result: TranslationResult | null }`, changed in #58), `hotkey://error` (Rust → main: popup hotkey registration error, string or null; also readable via the `hotkey_error` command, changed in #58).
+Events: `popup://source` (Rust → popup: captured text when the hotkey fires; payload `PopupSource { text, mode, sourceKind: "editable" | "readOnly" | "unknown", languagePair? }`, exported with ts-rs, changed in #152), `settings://changed`, `setup://progress`, `update://available`, `update://progress`, `sessions://changed` (session list or binding state changed: bound session closed, status idle↔busy), `main://open-entry` (popup → main window: show this input/result; payload `{ input, mode, result: TranslationResult | null }`, changed in #58), `hotkey://error` (Rust → main: popup hotkey registration error, string or null; also readable via the `hotkey_error` command, changed in #58).
 
 **Errors** (`AppError`, serialized as `{ kind, message, hint }`):
 
@@ -460,7 +460,8 @@ No automated tests (owner's decision, 2026-10-15). A ticket is done when build a
 │   ├── [Task][frontend] T20 Translate screen (#53)
 │   ├── [Task][frontend] T21 Result details: diff, issues, token warnings (#54)
 │   ├── [Task][frontend] T49 Fix the Settings save bar gap and add a clear button to the Translate box (#144)
-│   └── [Task][frontend] T61 Compact mode for the Translate screen (#168)
+│   ├── [Task][frontend] T61 Compact mode for the Translate screen (#168)
+│   └── [Task][frontend] T62 Compact mode window half the size (#179)
 └── [Story] S5.2 Configure providers, defaults and presets (#22)
     ├── [Task][frontend] T22 Settings screen (#55)
     ├── [Task][frontend] T23 Preset editor (#56)
@@ -1241,6 +1242,7 @@ Write `docs/spikes/local-model-eval.md` with:
 ### T54. Popup starting mode from where the text was selected  `backend` · parent: S6.2 · issue: #152
 - **Goal:** read-only sources are translated into the opposite language (first word decides for mixed text); editable sources open in the new "Popup starts in" setting (D45).
 > **Changed in #150:** the reversed pair is the request's optional `nativeLanguage`/`targetLanguage`; popup detection in `hotkey.rs` already uses the settings' pair.
+> **Changed in #152 (as merged):** UIA classification lives in `system/uia.rs` (runs on its own thread from the hotkey, 100 ms cap; failures and timeouts are `unknown`; terminals and the clipboard fallback are `unknown`). `popup://source` is the ts-rs type `PopupSource`; `unknown` follows `popupStartMode` like `editable`. Captures from read-only sources never update `lastPopupMode`. The reversed pair applies only in Translate mode.
 
 - **Details:** UI Automation classifies the focused element at capture (editable / read-only / unknown, ~100 ms cap); `popup://source` carries `sourceKind` and an optional reversed pair; setting `popupStartMode` (`auto` default, `translate`, `improve`, `correct`, `lastUsed`); direction label in the popup. Reverse translations are never sent to a session.
 - **Acceptance criteria:**
@@ -1250,6 +1252,8 @@ Write `docs/spikes/local-model-eval.md` with:
 
 ### T55. Popup: Enter replaces the selection, Ctrl+Enter copies  `backend` · parent: S6.2 · issue: #153
 - **Goal:** Enter pastes the result over the selection in the source app and puts the previous clipboard back; Ctrl+Enter copies (D45).
+> **Changed in #152:** the popup now receives `PopupSource { text, mode, sourceKind, languagePair? }`; read-only captures open in Translate and do not update `lastPopupMode`.
+
 - **Details:** keep the source window from the capture; replace only for editable selections (T54), else Enter copies; hide popup, refocus the source, paste hidden from clipboard history, restore (LAYOUT-004 code); failure → copy + notification; footer text per case.
 - **Acceptance criteria:**
   - [ ] Notepad, browser field, VS Code: replaced, clipboard restored; read-only/terminal/no selection: Enter copies; closed source window → copy + notification.
@@ -1300,20 +1304,27 @@ Write `docs/spikes/local-model-eval.md` with:
 
 ### T61. Compact mode for the Translate screen  `frontend` · parent: S5.1 · issue: #168
 - **Goal:** a compact mode showing only the input and output boxes (smaller, smaller font), toggled by an always-visible button and turned on when the window is shrunk to its height limit (owner, 2026-10-31).
-- **Details:** toggle button at the right end of the tab bar and in the top-right corner in compact mode (switches to the Translate tab); compact hides the tab bar, banners, controls, counter, Run/Cancel, result line, Changes and Issues; Ctrl+Enter / Ctrl+Shift+Enter keep working, spinner in the output box while running, errors as a toast; same screen state in both modes. Normal mode gets a minimum size (~640×480); the button resizes to a compact size (~420×300, minimum ~320×200) and back to the remembered size; dragging the height down to the normal minimum turns compact on, and only a resize-entered compact turns off again when the window is made taller than the minimum plus a margin (~40 px). Window size through a Rust command (no `core:window:*` webview permission). Not saved across restarts. Spec: new TRANS-015, APP-001 changed.
+- **Details:** toggle button at the right end of the tab bar and in the top-right corner in compact mode (switches to the Translate tab); compact hides the tab bar, banners, controls, counter, Run/Cancel, result line, Changes and Issues; Ctrl+Enter / Ctrl+Shift+Enter keep working, spinner in the output box while running, errors as a toast; same screen state in both modes. Normal mode gets a minimum size (~640×480); the button resizes to a compact size (~420×300, minimum ~320×200) and back to the remembered size; dragging the height down to the normal minimum turns compact on, and only a resize-entered compact turns off again when the window is made taller than the minimum plus a margin (~40 px). Window size through a Rust command (no `core:window:*` webview permission). Not saved across restarts. Spec: new TRANS-016 (changed in #168: TRANS-015 was taken by #150), APP-001 changed.
 - **Acceptance criteria:**
   - [ ] Button toggles in every tab; compact shows only the two boxes; shortcuts, spinner and error toast work; auto-enter at the minimum height, auto-exit only for a resize-entered compact; state kept; no new webview window permission.
 - **Depends on:** none (same screen as T53 and T40).
 - **Suggested model:** Sonnet 5.5 (confidence: Medium).
 
+### T62. Compact mode window half the size  `frontend` · parent: S5.1 · issue: #179
+- **Goal:** the compact window is half as wide and tall: the button sets 210×150 (was 420×300), the compact minimum is 160×100 (was 320×200) (owner, 2026-11-01).
+- **Details:** change `COMPACT_SIZE` and `COMPACT_MIN_SIZE` in `system/commands.rs`; tighten the compact-only layout so both boxes, the leave and clear buttons fit; normal mode, auto-enter/exit and restore unchanged. Spec: TRANS-016 (and APP-001 if it lists the sizes).
+- **Acceptance criteria:**
+  - [ ] Button gives 210×150, minimum 160×100 in compact mode; both boxes and buttons usable at those sizes; normal mode unchanged.
+- **Depends on:** T61.
+- **Suggested model:** Haiku 5.5 (confidence: Medium).
+
 ## 6. Order of work
 
-Done: waves 0-10 (see git history of this file). T37 was dropped (D47). Waves 10 and 11 were merged into one (owner, 2026-10-31). From wave 10, T58 and T59 are merged (2026-10-31). T60 (#167) has no milestone and no wave yet.
+Done: waves 0-11 (see git history of this file). T37 was dropped (D47). Waves 10 and 11 were merged into one (owner, 2026-10-31). From wave 10, T58 and T59 are merged (2026-10-31). T60 (#167) has no milestone and no wave yet.
 
 | Wave | Tasks (parallel within a wave) | Notes |
 |---|---|---|
-| 11 | T53, T54, T61 | UI for the pair; popup starting mode (needs T50, T52); compact mode (same screen as T53) |
-| 12 | T55, T40 | Enter replaces (after T54); bound tabs (after T39, T53) |
+| 12 | T55, T40, T62 | Enter replaces (after T54); bound tabs (after T39, T53); compact window half size (after T61) |
 | 13 | T7 | Docs for the new behaviour (README, smoke-test), then the full smoke test including Windows Sandbox; #39 closes when it passes |
 
 Critical path: T1 → T2 → T3 → T11 → T12 → T20 → T21 → T26 → T7; for the follow-ups T47 → T51 → T52 → T53 → T40 → T7. The distribution chain is T24 → T6 → T31 → T32 → T33 → T7.
