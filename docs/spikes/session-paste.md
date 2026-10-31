@@ -347,3 +347,70 @@ Fill every result cell above, then the verdicts in [Result in short](#result-in-
 - **Elevated terminals:** `SendInput` into an elevated window is blocked by UIPI (exit 31); `SetForegroundWindow` may still succeed.
 - **Windows Terminal runs all its windows in one process by default:** the pid check can't tell two WT windows apart; the HWND does.
 - **VS Code link:** undocumented and version-specific (2.1.314); see the open-session finding above. Every link asks "Allow 'Claude Code for VS Code' extension to open this URI?" until the user ticks "Do not ask me again". URL length: 22,439 chars worked, 42,041 failed in `ShellExecuteW` (V-7), so the Windows command line (32,767 chars) of `Code.exe --open-url -- "%1"` is the limit. The window is VS Code's last active one, whatever the session id (V-5).
+
+## VS Code: other routes (follow-up research)
+
+Static read only (nothing opened, focused or started). Source: extension `anthropic.claude-code` **2.1.314** (win32-x64), `%USERPROFILE%\.vscode\extensions\anthropic.claude-code-2.1.314-win32-x64\`: `package.json`, `extension.js` (bundled host side), `webview/index.js` (bundled chat UI). Symbols below are names in those bundles; positions drift between versions.
+
+### Verdict
+
+**No supported route puts caller-chosen text into an EXISTING open chat. Option (b): focus-and-paste is the only candidate** and needs the hands-on test below. Nothing in the extension takes text from an outside process except the `/open` URI (new conversation only, see above).
+
+### Every entry point that touches the chat input
+
+| Entry point (where) | Can target a given open session? | Text into the input? Submits? | Reachable from an outside process? |
+|---|---|---|---|
+| URI `vscode://anthropic.claude-code/open?session=&prompt=` (`registerUriHandler`, `case"/open"` in `extension.js`) -> `claude-vscode.primaryEditor.open(session, prompt)` -> `createPanel` | Names a session, but the prompt is dropped when the session is already open in a tab (`hB` = "Session is already open. Your prompt was not applied - enter it manually."). Session held by the sidebar: `activate_session` with `initialPrompt` is sent (webview `activateSessionFromServer` sets `session.initialPrompt`, and the chat view runs `setInputText(initialPrompt)`), but the host also shows the "not applied" message; V-2 untested. | Fills the input, never submits (`setInputText`). | Yes (any process: `Start-Process "vscode://..."`), after VS Code's "Allow this extension to open this URI?" prompt, in VS Code's last active window. |
+| Command `claude-vscode.insertAtMention` (Alt+K) and `claude-code.insertAtMentioned` (Ctrl+Alt+K) | No: goes to **every visible chat surface** (`deliverAtMention` -> `_V()` picks all `isChatSurface && isVisible`), each in its active session; if none is visible it reveals the last one (`revealAndDeliverAtMention`) or opens a chat and stashes it (`stashAtMentionForNextChatSurface`). | Inserts `@relative/path#Lstart-end` built from the **active text editor** (`Cx(editor, ...)`), not arbitrary text. No submit. | No argument is read; the text is derived from the editor selection, so an outside process cannot choose it. Only a keybinding or the command palette runs it. |
+| Command `claude-vscode.focus` (Ctrl+Esc, `when: !config.claudeCode.useTerminal && editorTextFocus`) | Same targets as above (all visible chat surfaces). | Same function `n(o)` as insertAtMention: with an editor selection it inserts the `@file#L..` mention; with none it sends an **empty** `insert_at_mention`, which the webview handler turns into `inputRef.focus()` only (`if(ce) insertAtMention(ce)`). No text, no submit. | Keybinding / palette only. |
+| Command `claude-vscode.blur` (same Ctrl+Esc, `when: !editorTextFocus`) | - | Moves focus to the first editor group. | Keybinding. **Same key as focus**, see recipe. |
+| `claude-vscode.focusLastMessage` | `pickOneChatSurface` (visible + last focused) | Focuses the last message, not the input. | Palette only; no default key. |
+| `claude-vscode.editor.open` / `primaryEditor.open` / `newConversation` / `sidebar.open` / `window.open` / `reopenClosedSession` | `editor.open(sessionId, initialPrompt, viewColumn, ...)` takes a prompt as a command **argument** (that is what the URI handler calls) | As the URI row | Only through a command with arguments: `code` CLI has no `--command` (checked `code --help`: only `--open-url`, `--goto`, `--add-mcp`, subcommands); keybinding `args` can pass fixed values but not runtime text. No extension API exports. |
+| `contributes.menus`, `webview/context` (mark unread, rename tab, add to group) | - | No text | Mouse only |
+| Webview messages (`insert_at_mention`, `focus_input`, `activate_session`, `focus_last_message`, `create_new_conversation`) | Per webview panel | `insert_at_mention` text is inserted, nothing submits | Only the extension host posts them to its own webview (`webview.postMessage`); a webview panel has no inbound socket. |
+
+`activationEvents` are `onStartupFinished` and `onWebviewPanel:claudeVSCodePanel`; `contributes` has no `uriHandler`-style setting beyond `registerUriHandler`, no chat participant, no `languageModelTools`.
+
+### Claude side
+
+- **IDE lock file / MCP:** the extension writes `%USERPROFILE%\.claude\ide\<port>.lock` (`Yne()` in `extension.js`: `pid`, `workspaceFolders`, `ideName`, `transport: "ws"`, `authToken`; mode 0600) and runs a localhost WebSocket MCP server (random port 10000-65535) that the `claude` CLI connects to. The directory was empty when checked (no VS Code window with a started session). Direction matters: the IDE sends `selection_changed` and `at_mentioned` **to** the CLI (`Met()`), the CLI calls the IDE's tools (open diff, diagnostics). Nothing in this channel writes into the chat webview's input, and the token is the user's secret; the app must not use it.
+- **`~/.claude/sessions/<pid>.json`** (`peerProtocol: 1`, `peerFeatures: ["notify_idle","artifact_yield"]`, `messagingSocketPath` = a `\\.\pipe\LOCAL\cc-msg-*` named pipe): a peer-messaging channel between Claude processes. The strings `messagingSocketPath`, `peerProtocol`, `notify_idle` do not occur in the extension bundle, so the extension has no code that turns peer messages into input-box text. I did **not** probe the pipe (would touch live user sessions) and did not read the CLI binary; any message there would go to the model/CLI, which is the "send to a session" route CLAUDE.md and plan 4.9 forbid for translator text, and a draft-without-submit is not a known peer feature.
+- **`claude agents`, remote control, channels:** these drive or observe the session process, not the extension's input box (the extension UI is a separate client of the same process). No draft-only delivery exists; any message that reaches the process is submitted. Not used.
+
+### Focus-and-paste: what decides the target
+
+- **Which window:** the OS foreground `Code.exe` window the app brings to the front. Several VS Code windows are separate `Code.exe` top-level windows (one main process, so pid does not tell them apart; HWND does), exactly like Windows Terminal.
+- **Which chat:** each chat is a webview (editor tab `claudeVSCodePanel`, or the side bar view `claudeVSCodeSidebar` / `claudeVSCodeSidebarSecondary`), each showing one `activeSession`. Within a window the input that receives keys is whichever webview/tab VS Code has focused. The host tracks `lastFocusedChatSurface` (set by `onWebviewFocused`); `claude-vscode.focus` goes to all **visible** chat surfaces (split view shows several), then the OS keyboard focus ends in one input (the last handler's `focus()` wins, not defined).
+- **Which session is the bound one:** the tab/webview has no stable external id: the `~/.claude/sessions` file gives `sessionId` and `cwd` (= workspace folder), the window title carries the folder name, but the editor-tab title is the session title and can be renamed (`claude-vscode.renameSessionTab`). The app can bind to the window (HWND + `cwd` folder in the title) but cannot select a tab through UIA reliably (VS Code is Electron/Chromium: UIA tree is exposed only with accessibility on; not tested).
+
+### Recipe to test (b)
+
+1. Bind the VS Code window by HWND (`Code.exe`, title contains the folder = `cwd` of the session file).
+2. Foreground it (same rules as the terminal: F-1 only right after the user's own input in the app).
+3. Put the chat input in focus without the user's mouse:
+   - **Preferred:** the user keeps the Claude chat as the focused element of that window; the app then only pastes. Risk: the app cannot know where focus is.
+   - **Ctrl+Esc** (`claude-vscode.focus`) works **only if the focus is in an editor** (`editorTextFocus`); if focus is anywhere else (including the chat), the same key runs `blur` and moves focus **away** to the first editor group. So sending it blindly toggles. Two presses are not safe either. Also Windows treats Ctrl+Esc as the Start menu key outside the app; whether `SendInput` into a focused VS Code window opens Start must be checked (T below).
+   - Ctrl+Esc with an editor selection also inserts an `@file#L..` mention into the input (side effect that would end up in the user's prompt): require no selection, or avoid.
+   - **Alt+K** inserts `@file` of the active editor: unwanted.
+   - A user-bound key (no default exists for "focus input only") would remove the toggle problem: `keybindings.json` entry for `claude-vscode.focus` with a `when` that matches always (e.g. `"when": "claudeVSCodePanel || claude-vscode.sideBarActive"` is not available as a context; use `!config.claudeCode.useTerminal` only), but that edits the user's settings, so only as an opt-in documented step.
+4. Ctrl+V into the focused input (webview Chromium textarea/contenteditable: normal paste; multi-line behaviour, `!` and `/` at the start (slash menu) to check as in X-4/X-5). Never Enter.
+5. Verify: no readable confirmation (as for the terminal); guard with the foreground and no-keys-held checks.
+
+### Test cells (hands-on, owner present; none submits)
+
+| ID | Case | Expect / record |
+|---|---|---|
+| W-1 | VS Code window in front, focus in the chat input already; send Ctrl+V only | Text lands in that session's input at the cursor; draft kept? |
+| W-2 | Focus in an editor (no selection); send Ctrl+Esc, then Ctrl+V | Input focused and text pasted; did the Start menu open? |
+| W-3 | Focus in the chat input; send Ctrl+Esc | Expect it to blur (focus moves to the editor). Confirms the toggle |
+| W-4 | Focus in the explorer / terminal panel; send Ctrl+Esc | Which command ran (neither `editorTextFocus`)? Probably blur |
+| W-5 | Editor with a selection; Ctrl+Esc | `@file#L..` mention inserted into the input (side effect) |
+| W-6 | Chat in an editor tab and another in the side bar, both visible; Ctrl+Esc, Ctrl+V | Which input got keyboard focus and the paste |
+| W-7 | Two chat tabs in one group, the bound one in the background | Paste lands in the visible tab, not the bound one (no way to switch by key without index: `workbench.action.openEditorAtIndexN` Alt+N is a default key and could work for tab N) |
+| W-8 | Two VS Code windows; bound one behind the other | Foreground by HWND works like WT (H-2)? |
+| W-9 | Multi-line, `/`-first, `!`-first text | As X-2, X-4, X-5; also whether a paste in this input shows a placeholder |
+| W-10 | `useTerminal: true` (Claude in the integrated terminal) | Then it is the terminal case: Ctrl+V in VS Code's terminal pastes into Claude's CLI |
+
+### Recommendation
+
+(b). No supported delivery route into an existing chat; do not build on the `/open` URI for open sessions. If the owner wants VS Code support in T38-T40: a focus-and-paste action that requires the user to have the Claude input focused in the bound VS Code window (W-1), with a clear failure path when the app cannot confirm it, and Ctrl+Esc only if W-2..W-4 show it is safe. Otherwise keep VS Code as copy + notification, plus "open in a new conversation" (V-4).
