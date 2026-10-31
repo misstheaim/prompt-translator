@@ -11,12 +11,29 @@ import {
   hotkeyError,
   listPresets,
   providerStatus,
+  setCompactWindow,
   toAppError,
   type AppError,
 } from "../lib/api";
 
 export const SCREENS = ["translate", "history", "mistakes", "settings"] as const;
 export type Screen = (typeof SCREENS)[number];
+
+/** What turned compact mode on: the button, or dragging the window to its minimum height. */
+export type CompactSource = "button" | "resize";
+
+/** Normal-mode minimum window height and the margin above it that leaves resize-entered compact mode. */
+export const NORMAL_MIN_HEIGHT = 480;
+export const COMPACT_EXIT_MARGIN = 40;
+/** Window resizes within this long of a programmatic change are ignored by the auto rules. */
+const RESIZE_SETTLE_MS = 400;
+let ignoreResizeUntil = 0;
+function markWindowResized() {
+  ignoreResizeUntil = Date.now() + RESIZE_SETTLE_MS;
+}
+export function resizeIsSettled(): boolean {
+  return Date.now() >= ignoreResizeUntil;
+}
 
 export type ToastKind = "info" | "success" | "error";
 export interface ToastItem {
@@ -62,6 +79,13 @@ interface AppState {
   /** Called when the wizard finishes. */
   finishSetup: () => void;
 
+  /** Compact mode of the Translate screen (TRANS-015): `null` off, else what turned it on. */
+  compact: CompactSource | null;
+  /** Turns compact mode on (the button also switches to Translate and shrinks the window). */
+  enterCompact: (by: CompactSource) => Promise<void>;
+  /** Turns compact mode off and restores the window limits (and, for the button, the size). */
+  exitCompact: () => Promise<void>;
+
   setScreen: (screen: Screen) => void;
   setHistoryFilter: (filter: HistoryFilter | null) => void;
   /** Replaces the settings (after `save_settings`, or from `settings://changed`). */
@@ -77,6 +101,32 @@ interface AppState {
 
 export const useAppStore = create<AppState>((set, get) => ({
   screen: "translate",
+  compact: null,
+  enterCompact: async (by) => {
+    if (get().compact) return;
+    // On before the window shrinks, so the full screen never flashes at the small size.
+    set({ compact: by, ...(by === "button" ? { screen: "translate" as const } : {}) });
+    markWindowResized();
+    try {
+      await setCompactWindow(true, by === "button");
+    } catch (e) {
+      set({ compact: null });
+      get().showToast("error", toAppError(e).message);
+    }
+  },
+  exitCompact: async () => {
+    const by = get().compact;
+    if (!by) return;
+    markWindowResized();
+    try {
+      await setCompactWindow(false, by === "button");
+    } catch (e) {
+      get().showToast("error", toAppError(e).message);
+    }
+    // Off only after the window is back, so the transient small size can't re-enter compact mode.
+    markWindowResized();
+    set({ compact: null });
+  },
   settings: null,
   presets: [],
   providerStatus: null,

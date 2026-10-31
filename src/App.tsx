@@ -6,6 +6,7 @@ import type { TranslationResult } from "./bindings/TranslationResult";
 import { Banner } from "./components/Banner";
 import { Button } from "./components/Button";
 import { DevMockPanel } from "./components/DevMockPanel";
+import { CompactToggle } from "./components/CompactToggle";
 import { ErrorBanner } from "./components/ErrorBanner";
 import { ToastHost } from "./components/Toast";
 import { UpdateBanner } from "./components/UpdateBanner";
@@ -17,7 +18,15 @@ import { SetupScreen } from "./screens/Setup/SetupScreen";
 import { SettingsScreen } from "./screens/Settings/SettingsScreen";
 import { TranslateScreen } from "./screens/Translate/TranslateScreen";
 import { useTranslateStore } from "./screens/Translate/store";
-import { initAppStore, SCREENS, useAppStore, type Screen } from "./store/app";
+import {
+  COMPACT_EXIT_MARGIN,
+  initAppStore,
+  NORMAL_MIN_HEIGHT,
+  resizeIsSettled,
+  SCREENS,
+  useAppStore,
+  type Screen,
+} from "./store/app";
 import { initUpdateStore } from "./store/update";
 
 const TAB_LABELS: Record<Screen, string> = {
@@ -51,6 +60,7 @@ function App() {
   const hotkeyError = useAppStore((s) => s.hotkeyError);
   const showToast = useAppStore((s) => s.showToast);
   const model = useAppStore((s) => s.settings?.ollama.model ?? "");
+  const compact = useAppStore((s) => s.compact);
   const translating = useTranslateStore((s) => s.status === "loading");
   const [unloading, setUnloading] = useState(false);
 
@@ -115,6 +125,22 @@ function App() {
     }
   }
 
+  // Compact mode follows the window height (TRANS-015): dragging down to the normal minimum
+  // turns it on, dragging past the minimum plus a margin turns a resize-entered one off again.
+  useEffect(() => {
+    function onResize() {
+      if (!resizeIsSettled()) return;
+      const { compact, enterCompact, exitCompact } = useAppStore.getState();
+      const height = window.innerHeight;
+      if (compact === null && height <= NORMAL_MIN_HEIGHT + 2) void enterCompact("resize");
+      else if (compact === "resize" && height > NORMAL_MIN_HEIGHT + COMPACT_EXIT_MARGIN) {
+        void exitCompact();
+      }
+    }
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (!e.ctrlKey) return;
@@ -147,6 +173,16 @@ function App() {
     );
   }
 
+  // Compact mode: only the two text boxes and the toggle (the shell's bars and banners are hidden).
+  if (compact !== null) {
+    return (
+      <div className="h-full bg-bg text-text">
+        <TranslateScreen />
+        <ToastHost />
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full flex-col bg-bg text-text">
       <nav
@@ -171,6 +207,7 @@ function App() {
         ))}
         {/* Right side of the top bar: the session picker (E9) goes here, before this button. */}
         <div className="ml-auto" />
+        <CompactToggle />
         <Button
           size="sm"
           variant="ghost"
