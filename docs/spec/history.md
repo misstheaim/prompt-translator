@@ -11,12 +11,12 @@ At startup the app opens `history.db` (see APP-006), creating the file if needed
 Since: #62 · Changed: #63
 
 ### HISTORY-002 Schema
-Migration 1 creates `translations` (id, `created_at`, mode, provider, model, preset id, source text, output text, duration in ms, token warnings as JSON text defaulting to `[]`, and nullable accepted target, session id and session name) and `issues` (id, translation id, category, original, corrected, explanation), with indexes on `created_at`, issue category and issue translation id. Deleting a translation deletes its issues.
-Since: #62
+Migration 1 creates `translations` (id, `created_at`, mode, provider, model, preset id, source text, output text, duration in ms, token warnings as JSON text defaulting to `[]`, and nullable accepted target, session id and session name) and `issues` (id, translation id, category, original, corrected, explanation), with indexes on `created_at`, issue category and issue translation id. Deleting a translation deletes its issues. Migration 2 adds the nullable columns `source_language` and `target_language` (ISO 639-1 codes of the language pair the request used); entries saved before it read as `ru` and `en`.
+Since: #62 · Changed: #150
 
 ### HISTORY-003 Stored values
-`created_at` is set by the database as ISO 8601 UTC with millisecond precision (e.g. `2026-10-24T09:30:00.123Z`). Mode, provider and issue category are stored as their wire strings (`translate`, `claudeCode`, `word_choice`). A result and its issues are inserted in one transaction. The accepted target is `clipboard` or `session` (with session id and name); marking an unknown id is not an error.
-Since: #62
+`created_at` is set by the database as ISO 8601 UTC with millisecond precision (e.g. `2026-10-24T09:30:00.123Z`). Mode, provider and issue category are stored as their wire strings (`translate`, `claudeCode`, `word_choice`). A result and its issues are inserted in one transaction. The accepted target is `clipboard` or `session` (with session id and name); marking an unknown id is not an error. Each new entry stores its language pair, and `sourceLanguage` and `targetLanguage` (codes) are part of both the list rows and the full entry.
+Since: #62 · Changed: #150
 
 ### HISTORY-004 Listing and search
 A list is newest first (ties by higher id), paged by limit and offset, with each row carrying the first 120 characters of source and output, the issue count and the accepted target. An optional text query (trimmed; empty means none) keeps entries whose source or output contains it; `%`, `_` and `\` in the query match literally. An optional issue filter keeps entries having an issue with that exact original and corrected pair. Optional filters `mode`, `category` (entries with at least one issue of that category) and `sinceDays` (entries of the last N days) narrow further; all given filters, the text query and the pair filter must match together. Matching ignores case for any script, including Cyrillic.
@@ -46,8 +46,8 @@ When the database could not be opened at startup, each of them fails with `Db` "
 Since: #63 · Changed: #143
 
 ### HISTORY-009 Accepted marking
-Copying a result with its `historyId` (TRANS-010) sets that entry's accepted target to `clipboard`, so the list and the entry show it as accepted. An id that no longer exists changes nothing.
-Since: #63
+Copying a result with its `historyId` (TRANS-010) sets that entry's accepted target to `clipboard`, so the list and the entry show it as accepted. Delivering a result to a bound terminal session with its `historyId` (SESSION-005) sets the accepted target to `session`, with the id `terminal:0x<window handle>` and the session's title as its name; this also happens when the delivery fell back to the clipboard (SESSION-006). An id that no longer exists changes nothing.
+Since: #63 · Changed: #74
 
 ### HISTORY-010 History screen
 The History tab has a search box ("Search source and output"; the list updates 300 ms after typing stops, trimmed text, HISTORY-004), a mode filter (All / Translate / Improve / Correct), the entries newest first in pages of 50 with a "Load more" button while a page came back full, and a detail panel.

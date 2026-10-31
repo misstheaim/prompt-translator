@@ -12,8 +12,9 @@ The app's user settings, stored in one `settings.json`. The core loads them at s
 - `ollama`: `endpoint` `http://localhost:11434`, `model` `qwen3.5:9b`, `keepAlive` `10m`, `numCtx` 8192, `timeoutSecs` 60.
 - `claude`: `executablePath` null (find claude.exe automatically), `model` `haiku`, `timeoutSecs` 90.
 - `layoutFix`: `enabled` true, `hotkey` ``Ctrl+Shift+` ``, `switchInputLanguage` true.
-Settings files saved earlier keep their stored `keepAlive` and hotkey. A `popupBounds` key left in an older file is ignored and dropped at the next save.
-Since: #40 · Changed: #46, #145, #146, #162
+- `nativeLanguage` `ru` and `targetLanguage` `en`: ISO 639-1 codes of the language the user writes in and the language of every result (the supported codes are listed by `list_languages`, TRANS-015). The core uses them for translation requests that carry no pair of their own (TRANS-008) and for the popup's mode detection (TRANS-003). No screen edits them yet.
+Settings files saved earlier keep their stored `keepAlive` and hotkey. A `popupBounds` key left in an older file is ignored and dropped at the next save. A file without the two language fields gets `ru` and `en`. If the stored pair is invalid (an unknown code or two equal languages, e.g. a hand-edited file), loading keeps it but the core uses Russian to English until a valid pair is saved.
+Since: #40 · Changed: #46, #145, #146, #162, #150
 
 ### SETTINGS-002 Loading settings.json
 The file is read from the settings location (see APP-006) at startup. A missing file gives the defaults and nothing is written. A field missing from the file (also inside `ollama`, `claude`, `layoutFix`) takes its default; unknown fields are ignored and are not kept on the next save. Loaded values are not validated.
@@ -32,8 +33,9 @@ A save is refused with `InvalidInput` (nothing written, in-memory settings uncha
 - `hotkey` is empty or whitespace: "The hotkey must not be empty";
 - `layoutFix.enabled` is true and `layoutFix.hotkey` is empty or whitespace: "The layout fix hotkey must not be empty";
 - `layoutFix.enabled` is true and `layoutFix.hotkey` is the same combination as `hotkey` (compared as parsed shortcuts, so modifier order and case do not matter; as trimmed text ignoring case if one does not parse): "The layout fix hotkey must be different from the global hotkey".
+- `nativeLanguage` is not a supported code: "Choose a supported native language"; `targetLanguage` is not: "Choose a supported target language"; the two are the same language: "Native and target language must differ" (codes trimmed, case-insensitive).
 The checks run in this order and the first failure is reported.
-Since: #40 · Changed: #78
+Since: #40 · Changed: #78, #150
 
 ### SETTINGS-005 Saving
 A valid save creates the settings folder if needed, writes `settings.json` as pretty-printed JSON through a temporary file that is then renamed over it, and replaces the current settings. Concurrent saves are applied one after another. `settings.json` first appears on the first save.
