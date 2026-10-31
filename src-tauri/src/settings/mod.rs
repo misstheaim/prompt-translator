@@ -80,17 +80,6 @@ impl Default for LayoutFixSettings {
     }
 }
 
-/// Position and size of the popup window, in physical pixels (outer rectangle).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export)]
-pub struct PopupBounds {
-    pub x: i32,
-    pub y: i32,
-    pub width: u32,
-    pub height: u32,
-}
-
 /// The contents of `settings.json`. Unknown or missing fields fall back to defaults.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase", default)]
@@ -111,8 +100,6 @@ pub struct Settings {
     pub last_popup_mode: Mode,
     pub dev_mock_provider: bool,
     pub layout_fix: LayoutFixSettings,
-    /// Where the user left the popup; `None` = centre it on the cursor's monitor.
-    pub popup_bounds: Option<PopupBounds>,
 }
 
 impl Default for Settings {
@@ -133,7 +120,6 @@ impl Default for Settings {
             last_popup_mode: Mode::Correct,
             dev_mock_provider: false,
             layout_fix: LayoutFixSettings::default(),
-            popup_bounds: None,
         }
     }
 }
