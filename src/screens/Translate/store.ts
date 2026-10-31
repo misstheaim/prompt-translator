@@ -8,6 +8,12 @@ import { useAppStore } from "../../store/app";
 
 export const MAX_INPUT_CHARS = 8000;
 
+/** ISO 639-1 codes: the language the user writes in, and the one the result is in. */
+export interface LanguagePair {
+  native: string;
+  target: string;
+}
+
 export type RunStatus = "idle" | "loading" | "success" | "error";
 
 interface TranslateState {
@@ -16,6 +22,8 @@ interface TranslateState {
   mode: Mode | null;
   provider: ProviderKind | null;
   presetId: string | null;
+  /** The session's language pair; `null` follows the settings' pair. Never saved. */
+  pair: LanguagePair | null;
 
   status: RunStatus;
   requestId: string | null;
@@ -33,8 +41,14 @@ interface TranslateState {
   /** Selecting a preset also sets its default mode. */
   setPreset: (presetId: string, defaultMode: Mode) => void;
   setOutput: (output: string) => void;
+  setPair: (pair: LanguagePair) => void;
   /** Runs the current input with the given effective selections. */
-  run: (sel: { mode: Mode; provider: ProviderKind; presetId: string }) => Promise<void>;
+  run: (sel: {
+    mode: Mode;
+    provider: ProviderKind;
+    presetId: string;
+    pair: LanguagePair;
+  }) => Promise<void>;
   cancel: () => Promise<void>;
 }
 
@@ -43,6 +57,7 @@ export const useTranslateStore = create<TranslateState>((set, get) => ({
   mode: null,
   provider: null,
   presetId: null,
+  pair: null,
 
   status: "idle",
   requestId: null,
@@ -58,7 +73,9 @@ export const useTranslateStore = create<TranslateState>((set, get) => ({
   setPreset: (presetId, defaultMode) => set({ presetId, mode: defaultMode }),
   setOutput: (output) => set({ output }),
 
-  run: async ({ mode, provider, presetId }) => {
+  setPair: (pair) => set({ pair }),
+
+  run: async ({ mode, provider, presetId, pair }) => {
     const { input, status } = get();
     if (status === "loading" || input.trim() === "" || input.length > MAX_INPUT_CHARS) return;
     const requestId = crypto.randomUUID();
@@ -70,6 +87,8 @@ export const useTranslateStore = create<TranslateState>((set, get) => ({
         mode,
         provider,
         presetId,
+        nativeLanguage: pair.native,
+        targetLanguage: pair.target,
       });
       if (get().requestId !== requestId) return;
       set({

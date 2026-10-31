@@ -196,6 +196,9 @@ export function HistoryScreen() {
       input: detail.sourceText,
       mode: detail.mode,
       provider: detail.provider,
+      ...(detail.sourceLanguage && detail.targetLanguage
+        ? { pair: { native: detail.sourceLanguage, target: detail.targetLanguage } }
+        : {}),
       status: "success",
       requestId: null,
       result: {

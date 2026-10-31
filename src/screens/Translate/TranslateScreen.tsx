@@ -14,7 +14,8 @@ import { TokenWarningBanner } from "../../components/TokenWarningBanner";
 import { copyResult, toAppError } from "../../lib/api";
 import { cx } from "../../lib/cx";
 import { useAppStore } from "../../store/app";
-import { MAX_INPUT_CHARS, useTranslateStore } from "./store";
+import { LanguagePairControl } from "./LanguagePairControl";
+import { MAX_INPUT_CHARS, useTranslateStore, type LanguagePair } from "./store";
 
 const MODE_OPTIONS: SegmentedOption<Mode>[] = [
   { value: "translate", label: "Translate" },
@@ -50,7 +51,8 @@ export function TranslateScreen() {
   // The result whose token warnings the user dismissed (a new result shows its own).
   const [ignoredWarningsFor, setIgnoredWarningsFor] = useState<TranslationResult | null>(null);
   const inputWrapRef = useRef<HTMLDivElement>(null);
-  const { setInput, setMode, setProvider, setPreset, setOutput, run, cancel } =
+  const pairOverride = useTranslateStore((s) => s.pair);
+  const { setInput, setMode, setProvider, setPreset, setOutput, setPair, run, cancel } =
     useTranslateStore.getState();
 
   // Effective selections: the user's choice, else the settings defaults.
@@ -62,14 +64,19 @@ export function TranslateScreen() {
   const presetId = presetOverride ?? settings?.defaultPresetId ?? presets[0]?.id ?? "";
   const preset = presets.find((p) => p.id === presetId) ?? presets[0];
   const mode: Mode = modeOverride ?? preset?.defaultMode ?? "translate";
+  const pair: LanguagePair = pairOverride ?? {
+    native: settings?.nativeLanguage ?? "ru",
+    target: settings?.targetLanguage ?? "en",
+  };
 
   const loading = status === "loading";
   const tooLong = input.length > MAX_INPUT_CHARS;
-  const canRun = !loading && input.trim() !== "" && !tooLong && presetId !== "";
+  const canRun =
+    !loading && input.trim() !== "" && !tooLong && presetId !== "" && pair.native !== pair.target;
 
   function runNow() {
     if (!canRun) return;
-    void run({ mode, provider, presetId: preset?.id ?? presetId });
+    void run({ mode, provider, presetId: preset?.id ?? presetId, pair });
   }
 
   async function handleAccept() {
@@ -123,6 +130,7 @@ export function TranslateScreen() {
           }}
           disabled={loading || presets.length === 0}
         />
+        <LanguagePairControl pair={pair} onChange={setPair} disabled={loading} />
       </div>
 
       <div className="flex flex-col gap-1">

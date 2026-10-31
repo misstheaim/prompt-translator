@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import type { ProviderKind } from "../../bindings/ProviderKind";
 import { Banner } from "../../components/Banner";
 import { ErrorBanner } from "../../components/ErrorBanner";
+import { LanguageSelect } from "../../components/LanguageSelect";
 import { Select } from "../../components/Select";
 import { saveSettings, toAppError, type AppError } from "../../lib/api";
 import { useAppStore } from "../../store/app";
@@ -28,6 +29,8 @@ export function DefaultsStep() {
   const [hotkey, setHotkey] = useState<string | null>(null);
   const [history, setHistory] = useState<boolean | null>(null);
   const [autostart, setAutostart] = useState<boolean | null>(null);
+  const [native, setNative] = useState<string | null>(null);
+  const [target, setTarget] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<AppError | null>(null);
 
@@ -47,6 +50,9 @@ export function DefaultsStep() {
   if (working.claudeCode && (preferClaude || !working.ollama)) suggested = "claudeCode";
   else if (working.ollama) suggested = "ollama";
   const effective = provider ?? suggested;
+  const nativeLanguage = native ?? settings.nativeLanguage;
+  const targetLanguage = target ?? settings.targetLanguage;
+  const sameLanguages = nativeLanguage === targetLanguage;
 
   async function save() {
     if (!settings) return;
@@ -61,6 +67,8 @@ export function DefaultsStep() {
         hotkey: hotkey ?? current.hotkey,
         historyEnabled: history ?? current.historyEnabled,
         autostart: autostart ?? current.autostart,
+        nativeLanguage,
+        targetLanguage,
       });
       useAppStore.getState().setSettings(saved);
       next();
@@ -89,6 +97,20 @@ export function DefaultsStep() {
           </Banner>
         )}
       </Section>
+      <Section
+        title="Languages"
+        description="You write in your language; the app gives you text in the other one."
+      >
+        <div className="flex flex-wrap gap-4">
+          <LanguageSelect label="My language" value={nativeLanguage} onChange={setNative} />
+          <LanguageSelect
+            label="Language I write prompts in"
+            value={targetLanguage}
+            onChange={setTarget}
+            error={sameLanguages ? "Choose two different languages" : undefined}
+          />
+        </div>
+      </Section>
       <Section title="Hotkey and startup">
         <HotkeyField
           label="Global hotkey"
@@ -111,7 +133,7 @@ export function DefaultsStep() {
           onChange={setHistory}
         />
       </Section>
-      <StepNav onNext={() => void save()} nextLoading={saving} />
+      <StepNav onNext={() => void save()} nextLoading={saving} nextDisabled={sameLanguages} />
     </div>
   );
 }

@@ -5,6 +5,7 @@ import type { Settings } from "../../bindings/Settings";
 import { Button } from "../../components/Button";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { ErrorBanner } from "../../components/ErrorBanner";
+import { LanguageSelect } from "../../components/LanguageSelect";
 import { Select, type SelectOption } from "../../components/Select";
 import { Banner } from "../../components/Banner";
 import { historyClear, pickFile, saveSettings, toAppError, type AppError } from "../../lib/api";
@@ -44,6 +45,9 @@ function validate(s: Settings): Errors {
     s.ollama.numCtx > NUM_CTX_MAX
   ) {
     errors.numCtx = `Enter ${NUM_CTX_MIN} to ${NUM_CTX_MAX}`;
+  }
+  if (s.nativeLanguage === s.targetLanguage) {
+    errors.targetLanguage = "Choose two different languages";
   }
   if (s.hotkey.trim() === "") errors.hotkey = "Press a key combination";
   if (s.layoutFix.enabled) {
@@ -367,6 +371,25 @@ function SettingsForm({ initial }: { initial: Settings }) {
             value={draft.defaultPresetId}
             options={presetOptions}
             onChange={(v) => patch({ defaultPresetId: v })}
+          />
+        </div>
+      </Section>
+
+      <Section
+        title="Languages"
+        description="The popup and the Translate tab start with this pair. The tab can switch it for a session."
+      >
+        <div className="flex flex-wrap gap-4">
+          <LanguageSelect
+            label="My language"
+            value={draft.nativeLanguage}
+            onChange={(v) => patch({ nativeLanguage: v })}
+          />
+          <LanguageSelect
+            label="Language I write prompts in"
+            value={draft.targetLanguage}
+            onChange={(v) => patch({ targetLanguage: v })}
+            error={errors.targetLanguage}
           />
         </div>
       </Section>
