@@ -1,4 +1,4 @@
-import { useState, type KeyboardEvent } from "react";
+import { useRef, useState, type KeyboardEvent } from "react";
 
 import type { Mode } from "../../bindings/Mode";
 import type { ProviderKind } from "../../bindings/ProviderKind";
@@ -49,6 +49,7 @@ export function TranslateScreen() {
   const error = useTranslateStore((s) => s.error);
   // The result whose token warnings the user dismissed (a new result shows its own).
   const [ignoredWarningsFor, setIgnoredWarningsFor] = useState<TranslationResult | null>(null);
+  const inputWrapRef = useRef<HTMLDivElement>(null);
   const { setInput, setMode, setProvider, setPreset, setOutput, run, cancel } =
     useTranslateStore.getState();
 
@@ -80,6 +81,12 @@ export function TranslateScreen() {
     } catch (e) {
       showToast("error", toAppError(e).message);
     }
+  }
+
+  /** Clears only the input; the result, mode, provider and preset stay. */
+  function clearInput() {
+    setInput("");
+    inputWrapRef.current?.querySelector("textarea")?.focus();
   }
 
   function onKeyDown(e: KeyboardEvent) {
@@ -119,14 +126,29 @@ export function TranslateScreen() {
       </div>
 
       <div className="flex flex-col gap-1">
-        <TextArea
-          aria-label="Text to process"
-          placeholder="Type or paste your text (any language)"
-          rows={6}
-          autoFocus
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-        />
+        <div ref={inputWrapRef} className="relative">
+          <TextArea
+            aria-label="Text to process"
+            placeholder="Type or paste your text (any language)"
+            rows={6}
+            autoFocus
+            className="pr-9"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+          />
+          {input !== "" && (
+            <button
+              type="button"
+              aria-label="Clear text"
+              title="Clear"
+              disabled={loading}
+              onClick={clearInput}
+              className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded text-muted hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40"
+            >
+              ×
+            </button>
+          )}
+        </div>
         <div className="flex items-center justify-between gap-3">
           <span
             className={cx("text-xs", tooLong ? "text-danger" : "text-muted")}
