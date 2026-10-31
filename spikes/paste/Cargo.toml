@@ -1,0 +1,32 @@
+# Throwaway CLI for spike T58 (#148): paste into a bound terminal window, open VS Code sessions
+# by link. Not part of the app: its own workspace, never built by the app's checks.
+# Report and owner runbook: docs/spikes/session-paste.md.
+[package]
+name = "paste-spike"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[[bin]]
+name = "paste-spike"
+path = "src/main.rs"
+
+[dependencies]
+windows = { version = "=0.62.2", features = [
+  "Win32_Foundation",
+  "Win32_Graphics_Gdi",
+  "Win32_System_Com",
+  "Win32_System_DataExchange",
+  "Win32_System_LibraryLoader",
+  "Win32_System_Memory",
+  "Win32_System_Ole",
+  "Win32_System_Threading",
+  "Win32_System_Variant",
+  "Win32_UI_Accessibility",
+  "Win32_UI_Input_KeyboardAndMouse",
+  "Win32_UI_Shell",
+  "Win32_UI_WindowsAndMessaging",
+] }
+
+# Keeps this crate out of any parent workspace.
+[workspace]
