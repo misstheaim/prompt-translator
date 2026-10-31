@@ -14,6 +14,7 @@ import type { HistoryEntry } from "../bindings/HistoryEntry";
 import type { HistoryEntrySummary } from "../bindings/HistoryEntrySummary";
 import type { IssueCategory } from "../bindings/IssueCategory";
 import type { IssueFilter } from "../bindings/IssueFilter";
+import type { Language } from "../bindings/Language";
 import type { MistakesSummary } from "../bindings/MistakesSummary";
 import type { Mode } from "../bindings/Mode";
 import type { Preset } from "../bindings/Preset";
@@ -109,9 +110,26 @@ export function resetPresets(): Promise<Preset[]> {
 
 // ---- translation ----
 
-/** Picks Translate or Correct from the text; `last` is used when the text is too short to tell. */
-export function detectMode(text: string, last: Mode): Promise<Mode> {
-  return call<Mode>("detect_mode", { text, last });
+/**
+ * Picks Translate or Correct from the text (Correct when it is in the target language); `last`
+ * is used when the text is too short to tell. The pair defaults to the settings' one.
+ */
+export function detectMode(
+  text: string,
+  last: Mode,
+  pair: { nativeLanguage?: string | null; targetLanguage?: string | null } = {},
+): Promise<Mode> {
+  return call<Mode>("detect_mode", {
+    text,
+    last,
+    nativeLanguage: pair.nativeLanguage ?? null,
+    targetLanguage: pair.targetLanguage ?? null,
+  });
+}
+
+/** The languages that can be the native or the target language, sorted by English name. */
+export function listLanguages(): Promise<Language[]> {
+  return call<Language[]>("list_languages");
 }
 
 /** Runs one request; rejects with `Cancelled`, `Timeout`, `MalformedOutput`, ... errors. */

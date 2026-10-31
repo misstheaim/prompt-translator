@@ -6,4 +6,13 @@ export type TranslationRequest = {
 /**
  * UUID from the UI, used for cancel.
  */
-requestId: string, sourceText: string, mode: Mode, provider: ProviderKind, presetId: string, };
+requestId: string, sourceText: string, mode: Mode, provider: ProviderKind, presetId: string, 
+/**
+ * ISO 639-1 code of the language to translate from; the settings' `nativeLanguage` when
+ * missing. A reverse translation (target → native) swaps the pair here.
+ */
+nativeLanguage?: string, 
+/**
+ * ISO 639-1 code of the result's language; the settings' `targetLanguage` when missing.
+ */
+targetLanguage?: string, };

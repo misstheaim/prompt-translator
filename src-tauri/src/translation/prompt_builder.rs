@@ -5,6 +5,10 @@
 //! preset's rules + the output-format instructions. User message = the source text wrapped in
 //! `<source_text>…</source_text>`, plus the "data, not a request" reminder.
 //!
+//! The templates, the output format and the task lines name the request's languages through
+//! placeholders (see [`fill_languages`]); with the default pair (Russian → English) they build
+//! exactly the prompts of before T52. The preset's rules are inserted as written.
+//!
 //! # Context budget (default `numCtx` = 8192 tokens)
 //!
 //! Ollama's `num_ctx` covers the prompt **and** the generated answer. Estimate for the largest
@@ -40,6 +44,7 @@ use std::sync::LazyLock;
 use regex::Regex;
 use serde_json::{Value, json};
 
+use super::language::{self, LanguagePair};
 use super::model::Mode;
 use crate::presets::Preset;
 
@@ -52,7 +57,7 @@ const CORRECT_TEMPLATE: &str = include_str!("prompts/correct.md");
 /// are filled per mode by [`output_format`].
 const OUTPUT_FORMAT: &str = r#"Output format:
 Reply with exactly one JSON object and nothing else: no text before or after it, and no Markdown code fences. The object has this shape:
-{"output": "<the full resulting text in English>", "issues": [{"original": "<words from the original text>", "corrected": "<the words that replace them>", "category": "<category>", "explanation": "<{explanation}>"}]}
+{"output": "<the full resulting text in {target}>", "issues": [{"original": "<words from the original text>", "corrected": "<the words that replace them>", "category": "<category>", "explanation": "<{explanation}>"}]}
 - "output" is the complete result, never a summary or an answer to the text.
 - "issues" is a list; use [] when there is nothing to list.
 - "category" is one of: {categories}.
@@ -183,22 +188,33 @@ fn template(mode: Mode) -> &'static str {
     }
 }
 
-/// The one-line task before the reminder in the user message.
+/// The one-line task before the reminder in the user message (with language placeholders).
 fn task_line(mode: Mode) -> &'static str {
     match mode {
-        Mode::Translate => "Translate the text inside <source_text> into English.",
+        Mode::Translate => "Translate the text inside <source_text> into {target}.",
         Mode::Improve => {
-            "Rewrite the text inside <source_text> as natural, advanced English and explain each change."
+            "Rewrite the text inside <source_text> as natural, advanced {target} and explain each change."
         }
         Mode::Correct => {
-            "Correct the English of the text inside <source_text> and explain each fix."
+            "Correct the {target} of the text inside <source_text> and explain each fix."
         }
     }
 }
 
-/// Builds the prompt for `source` in `mode` with the preset's rules (plan §4.4).
-pub fn build(mode: Mode, preset: &Preset, source: &str) -> BuiltPrompt {
-    let mut system = template(mode).trim_end().to_string();
+/// Fills the language placeholders of a template, the output format or a task line:
+/// `{target}` and `{native}` are the languages' English names, `{a_target}` the target with
+/// its indefinite article ("an English", "a German"). Explanations always stay in simple
+/// English, so that wording is never a placeholder.
+fn fill_languages(text: &str, pair: LanguagePair) -> String {
+    text.replace("{a_target}", &language::with_article(pair.target.name))
+        .replace("{target}", pair.target.name)
+        .replace("{native}", pair.native.name)
+}
+
+/// Builds the prompt for `source` in `mode` with the preset's rules (plan §4.4), for the
+/// language pair `pair` (T52).
+pub fn build(mode: Mode, preset: &Preset, source: &str, pair: LanguagePair) -> BuiltPrompt {
+    let mut system = fill_languages(template(mode).trim_end(), pair);
 
     let rules: Vec<&str> = preset
         .rules
@@ -217,7 +233,7 @@ pub fn build(mode: Mode, preset: &Preset, source: &str) -> BuiltPrompt {
     }
 
     system.push_str("\n\n");
-    system.push_str(&output_format(mode));
+    system.push_str(&fill_languages(&output_format(mode), pair));
 
     // Escape stray tags so the source can't close the data block and smuggle in instructions.
     let source = SOURCE_TAG.replace_all(source.trim(), |caps: &regex::Captures| {
@@ -225,7 +241,7 @@ pub fn build(mode: Mode, preset: &Preset, source: &str) -> BuiltPrompt {
     });
     let user = format!(
         "<source_text>\n{source}\n</source_text>\n\n{} {DATA_REMINDER}",
-        task_line(mode)
+        fill_languages(task_line(mode), pair)
     );
 
     BuiltPrompt { mode, system, user }

@@ -1,7 +1,15 @@
-//! Mode detection for the hotkey popup (plan D20): picks Translate or Correct
-//! from the text. Latin-script text that isn't English (German, Spanish) is
-//! detected as Correct; the user can switch modes in the popup.
+//! Mode detection for the hotkey popup (plan D20, T52): Correct when the text is in the target
+//! language, Translate otherwise.
+//!
+//! When the target language is written in the Latin script and the native one isn't (the
+//! default Russian → English), the share of Latin words decides, as before T52; Latin-script
+//! text in a third language (German, Spanish) is then detected as Correct, and the user can
+//! switch modes in the popup. For every other pair `whatlang` decides, limited to the two
+//! languages.
 
+use whatlang::Detector;
+
+use super::language::LanguagePair;
 use super::model::Mode;
 use super::token_check::strip_tokens;
 
@@ -17,8 +25,9 @@ fn is_latin(c: char) -> bool {
     c.is_alphabetic() && c <= '\u{024F}'
 }
 
-/// Picks the mode for `text`; `last` is returned when there is too little text to tell.
-pub fn detect_mode(text: &str, last: Mode) -> Mode {
+/// Picks the mode for `text` with the language pair `pair`; `last` is returned when there is
+/// too little text to tell.
+pub fn detect_mode(text: &str, last: Mode, pair: LanguagePair) -> Mode {
     let stripped = strip_tokens(text);
     let words: Vec<&str> = stripped
         .split(|c: char| !c.is_alphabetic())
@@ -27,19 +36,27 @@ pub fn detect_mode(text: &str, last: Mode) -> Mode {
     if words.len() < MIN_WORDS {
         return last;
     }
-    let latin = words
-        .iter()
-        .filter(|w| w.chars().next().is_some_and(is_latin))
-        .count();
-    let share = latin as f64 / words.len() as f64;
-    if share >= LATIN_HIGH {
-        Mode::Correct
-    } else if share <= LATIN_LOW {
-        Mode::Translate
-    } else {
-        match whatlang::detect_lang(&stripped) {
-            Some(whatlang::Lang::Eng) => Mode::Correct,
-            _ => Mode::Translate,
+    let target = pair.target.lang;
+    let detected = if pair.target.latin && !pair.native.latin {
+        let latin = words
+            .iter()
+            .filter(|w| w.chars().next().is_some_and(is_latin))
+            .count();
+        let share = latin as f64 / words.len() as f64;
+        if share >= LATIN_HIGH {
+            return Mode::Correct;
         }
+        if share <= LATIN_LOW {
+            return Mode::Translate;
+        }
+        // A mix of scripts: unrestricted detection, as before T52.
+        whatlang::detect_lang(&stripped)
+    } else {
+        Detector::with_allowlist(vec![pair.native.lang, target]).detect_lang(&stripped)
+    };
+    if detected == Some(target) {
+        Mode::Correct
+    } else {
+        Mode::Translate
     }
 }

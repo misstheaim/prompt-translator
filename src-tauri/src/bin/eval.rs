@@ -21,6 +21,7 @@ use prompt_translator_lib::error::{AppError, ErrorKind};
 use prompt_translator_lib::presets::PresetStore;
 use prompt_translator_lib::settings::SettingsStore;
 use prompt_translator_lib::system::paths;
+use prompt_translator_lib::translation::language;
 use prompt_translator_lib::translation::model::{Issue, Mode, ProviderKind, TranslationRequest};
 use prompt_translator_lib::translation::providers::claude_code::{
     ClaudeCodeProvider, Housekeeping, TranslatorPids,
@@ -288,6 +289,9 @@ async fn run() -> Result<(), String> {
             mode: case.mode,
             provider: args.provider,
             preset_id: preset_id.clone(),
+            // The cases are written for the default pair, whatever the scratch settings say.
+            native_language: Some(language::DEFAULT_NATIVE.to_owned()),
+            target_language: Some(language::DEFAULT_TARGET.to_owned()),
         };
         let started = std::time::Instant::now();
         let result = service.translate(request).await;

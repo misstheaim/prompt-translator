@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::error::{AppError, AppResult};
+use crate::translation::language;
 use crate::translation::model::{Mode, ProviderKind};
 
 /// Event emitted (with the saved [`Settings`]) after every successful save.
@@ -100,6 +101,10 @@ pub struct Settings {
     pub last_popup_mode: Mode,
     pub dev_mock_provider: bool,
     pub layout_fix: LayoutFixSettings,
+    /// ISO 639-1 code of the user's native language (T52): what Translate translates from.
+    pub native_language: String,
+    /// ISO 639-1 code of the language the user practises: the language of every result.
+    pub target_language: String,
 }
 
 impl Default for Settings {
@@ -120,6 +125,8 @@ impl Default for Settings {
             last_popup_mode: Mode::Correct,
             dev_mock_provider: false,
             layout_fix: LayoutFixSettings::default(),
+            native_language: language::DEFAULT_NATIVE.into(),
+            target_language: language::DEFAULT_TARGET.into(),
         }
     }
 }
@@ -151,6 +158,17 @@ impl Settings {
             return Err(invalid(
                 "The layout fix hotkey must be different from the global hotkey",
             ));
+        }
+        let native = language::find(&self.native_language);
+        let target = language::find(&self.target_language);
+        if native.is_none() {
+            return Err(invalid("Choose a supported native language"));
+        }
+        if target.is_none() {
+            return Err(invalid("Choose a supported target language"));
+        }
+        if native == target {
+            return Err(invalid("Native and target language must differ"));
         }
         Ok(())
     }

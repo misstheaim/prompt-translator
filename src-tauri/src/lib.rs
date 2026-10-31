@@ -136,6 +136,7 @@ pub fn run() {
             settings::commands::save_settings,
             settings::commands::set_last_popup_mode,
             translation::commands::detect_mode,
+            translation::commands::list_languages,
             translation::commands::translate,
             translation::commands::cancel_translation,
             translation::commands::provider_status,
