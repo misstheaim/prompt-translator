@@ -104,6 +104,8 @@ pub fn run() {
             app.manage(settings);
             app.manage(presets);
             app.manage(setup::ollama_setup::SetupTasks::default());
+            // Bound terminal targets; their watcher runs only while some exist.
+            app.manage(target::sessions::Bindings::new());
 
             system::tray::init(app.handle())?;
             system::autostart::init(app.handle());
@@ -156,7 +158,11 @@ pub fn run() {
             setup::commands::ollama_pull,
             setup::commands::ollama_benchmark,
             setup::commands::cancel_setup_task,
-            setup::commands::complete_setup
+            setup::commands::complete_setup,
+            target::commands::list_session_targets,
+            target::commands::bind_terminal_by_focus,
+            target::commands::bind_target,
+            target::commands::unbind_target
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
