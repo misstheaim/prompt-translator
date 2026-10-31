@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import type { PopupStartMode } from "../../bindings/PopupStartMode";
 import type { ProviderKind } from "../../bindings/ProviderKind";
 import type { Settings } from "../../bindings/Settings";
 import { Button } from "../../components/Button";
@@ -16,6 +17,14 @@ const TIMEOUT_MIN = 5;
 const TIMEOUT_MAX = 600;
 const NUM_CTX_MIN = 2048;
 const NUM_CTX_MAX = 32768;
+
+const POPUP_START_OPTIONS: SelectOption[] = [
+  { value: "auto", label: "Auto (detect the language)" },
+  { value: "translate", label: "Translate" },
+  { value: "improve", label: "Improve" },
+  { value: "correct", label: "Correct" },
+  { value: "lastUsed", label: "Last used" },
+] satisfies { value: PopupStartMode; label: string }[];
 
 type Errors = Partial<Record<string, string>>;
 
@@ -421,6 +430,18 @@ function SettingsForm({ initial }: { initial: Settings }) {
           checked={draft.autoCopySelection}
           onChange={(v) => patch({ autoCopySelection: v })}
         />
+        <div className="flex flex-col gap-1">
+          <Select
+            label="Popup starts in"
+            value={draft.popupStartMode}
+            options={POPUP_START_OPTIONS}
+            onChange={(v) => patch({ popupStartMode: v as PopupStartMode })}
+          />
+          <p className="text-xs text-muted">
+            For text selected in an input or editor. Text selected on a page you can&apos;t edit is
+            always translated into the other language.
+          </p>
+        </div>
         <Toggle
           label="Start with Windows"
           checked={draft.autostart}

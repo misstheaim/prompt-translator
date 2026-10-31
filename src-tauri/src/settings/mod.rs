@@ -81,6 +81,23 @@ impl Default for LayoutFixSettings {
     }
 }
 
+/// The mode the hotkey popup starts in for text from an editable (or unknown) place (T54).
+/// Text selected in a read-only place is always translated into the opposite language.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, rename_all = "camelCase")]
+pub enum PopupStartMode {
+    /// Language detection (`mode_detect::detect_mode`): Correct for target-language text,
+    /// Translate otherwise.
+    #[default]
+    Auto,
+    Translate,
+    Improve,
+    Correct,
+    /// The mode the popup was last used in (`lastPopupMode`).
+    LastUsed,
+}
+
 /// The contents of `settings.json`. Unknown or missing fields fall back to defaults.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase", default)]
@@ -99,6 +116,8 @@ pub struct Settings {
     pub auto_copy_selection: bool,
     pub session_append_hint_shown: bool,
     pub last_popup_mode: Mode,
+    /// The popup's starting mode for text from an editable or unknown place (T54).
+    pub popup_start_mode: PopupStartMode,
     pub dev_mock_provider: bool,
     pub layout_fix: LayoutFixSettings,
     /// ISO 639-1 code of the user's native language (T52): what Translate translates from.
@@ -123,6 +142,7 @@ impl Default for Settings {
             auto_copy_selection: true,
             session_append_hint_shown: false,
             last_popup_mode: Mode::Correct,
+            popup_start_mode: PopupStartMode::Auto,
             dev_mock_provider: false,
             layout_fix: LayoutFixSettings::default(),
             native_language: language::DEFAULT_NATIVE.into(),

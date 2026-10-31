@@ -4,7 +4,8 @@
 //! always-on-top, out of the taskbar, about 520x360. [`show`] centers it on the monitor under the
 //! cursor and focuses it; losing focus hides it again ([`on_window_event`]).
 //!
-//! The popup's JS gets the captured text through the `popup://source` event, and sends
+//! The popup's JS gets the captured text, its starting mode, where it was selected and, for a
+//! reverse translation, the language pair through the `popup://source` event, and sends
 //! `main://open-entry` when the user picks "Open in main window"; [`init`] shows the main window
 //! for that event (the main window's JS loads the entry).
 
@@ -13,6 +14,7 @@ use tauri::{
     AppHandle, Emitter, Listener, LogicalSize, Manager, PhysicalPosition, Runtime, WebviewUrl,
     WebviewWindowBuilder, Window, WindowEvent,
 };
+use ts_rs::TS;
 
 use crate::translation::model::Mode;
 
@@ -25,12 +27,43 @@ pub const OPEN_ENTRY_EVENT: &str = "main://open-entry";
 const POPUP_WIDTH: f64 = 520.0;
 const POPUP_HEIGHT: f64 = 360.0;
 
-/// Payload of `popup://source`. Empty `text` means nothing usable was captured.
-#[derive(Debug, Clone, Serialize)]
+/// Where the popup's text was selected (POPUP-012), classified with UI Automation at capture.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
+#[ts(export, rename_all = "camelCase")]
+pub enum SourceKind {
+    /// An input, text area or editor.
+    Editable,
+    /// A document, web page or other content that can't be edited.
+    ReadOnly,
+    /// Couldn't be told: UIA failed or was too slow, a terminal, or the clipboard fallback.
+    Unknown,
+}
+
+/// The language direction of a reverse translation, as `TranslationRequest` takes it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct PopupLanguagePair {
+    /// ISO 639-1 code of the text's language (the settings' target language).
+    pub native_language: String,
+    /// ISO 639-1 code of the result's language (the settings' native language).
+    pub target_language: String,
+}
+
+/// Payload of `popup://source`. Empty `text` means nothing usable was captured.
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
 pub struct PopupSource {
     pub text: String,
     pub mode: Mode,
+    pub source_kind: SourceKind,
+    /// Set only for a reverse translation (read-only text in the target language): the pair
+    /// Translate uses instead of the settings'. Improve and Correct always use the settings'.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub language_pair: Option<PopupLanguagePair>,
 }
 
 /// Creates the hidden popup window and wires `main://open-entry` to the main window.

@@ -17,11 +17,11 @@ use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutEvent, ShortcutState};
 
 use crate::layout_fix;
-use crate::settings::{SETTINGS_CHANGED_EVENT, Settings, SettingsStore};
+use crate::settings::{PopupStartMode, SETTINGS_CHANGED_EVENT, Settings, SettingsStore};
 use crate::translation::{language::LanguagePair, mode_detect, model::Mode};
 
 use super::clipboard;
-use super::popup::{self, PopupSource};
+use super::popup::{self, PopupLanguagePair, PopupSource, SourceKind};
 
 /// Rust → main window: the registration error message, or `null` once the hotkeys work.
 pub const HOTKEY_ERROR_EVENT: &str = "hotkey://error";
@@ -210,31 +210,100 @@ fn open_popup<R: Runtime>(app: &AppHandle<R>) {
     let app = app.clone();
     // Capturing may wait (auto-copy), so it must not block the event loop.
     tauri::async_runtime::spawn_blocking(move || {
-        let text = capture_source(&app);
-        let (last, pair) = app
+        let settings = app
             .try_state::<SettingsStore>()
-            .map(|s| {
-                let settings = s.get();
-                (
-                    settings.last_popup_mode,
-                    LanguagePair::from_settings(&settings),
-                )
-            })
-            .unwrap_or_else(|| (Mode::Correct, LanguagePair::default()));
-        let mode = mode_detect::detect_mode(&text, last, pair);
-        popup::show(&app, PopupSource { text, mode });
+            .map(|s| s.get())
+            .unwrap_or_default();
+        let (text, source_kind) = capture_source(&app, &settings);
+        let pair = LanguagePair::from_settings(&settings);
+        let (mode, language_pair) = start_mode(&text, source_kind, &settings, pair);
+        log::debug!("Popup source: {source_kind:?}, mode {mode:?}");
+        popup::show(
+            &app,
+            PopupSource {
+                text,
+                mode,
+                source_kind,
+                language_pair,
+            },
+        );
     });
 }
 
-/// The text to translate: the foreground app's selection when `autoCopySelection` is on and it
-/// could be copied (plan D5, [`clipboard::copy_selection`]), otherwise the clipboard. Empty or
-/// non-text content gives "". Blocks for up to about a second, so it runs off the event loop.
-fn capture_source<R: Runtime>(app: &AppHandle<R>) -> String {
-    let auto_copy = app
-        .try_state::<SettingsStore>()
-        .is_some_and(|s| s.get().auto_copy_selection);
-    if auto_copy && let Some(text) = clipboard::copy_selection() {
-        return text;
+/// The popup's starting mode (POPUP-003), plus the reversed pair for a reverse translation.
+///
+/// Read-only text is always translated into the opposite language of its first word: text
+/// starting in the target language is translated into the native one (the reversed pair goes
+/// to the popup), anything else into the target language as usual. This translation is for
+/// reading only and never reaches a Claude session. Editable or unknown sources start in the
+/// `popupStartMode` setting.
+fn start_mode(
+    text: &str,
+    source_kind: SourceKind,
+    settings: &Settings,
+    pair: LanguagePair,
+) -> (Mode, Option<PopupLanguagePair>) {
+    if source_kind == SourceKind::ReadOnly {
+        let reversed = mode_detect::starts_in_target(text, pair).then(|| PopupLanguagePair {
+            native_language: pair.target.code.to_owned(),
+            target_language: pair.native.code.to_owned(),
+        });
+        return (Mode::Translate, reversed);
     }
-    app.clipboard().read_text().unwrap_or_default()
+    let last = settings.last_popup_mode;
+    let mode = match settings.popup_start_mode {
+        PopupStartMode::Auto => mode_detect::detect_mode(text, last, pair),
+        PopupStartMode::Translate => Mode::Translate,
+        PopupStartMode::Improve => Mode::Improve,
+        PopupStartMode::Correct => Mode::Correct,
+        PopupStartMode::LastUsed => last,
+    };
+    (mode, None)
+}
+
+/// How long the capture waits for the focused element's classification (POPUP-012), counted
+/// from the hotkey; it runs while auto-copy waits for the modifiers, so usually costs nothing.
+#[cfg(windows)]
+const SOURCE_KIND_CAP: std::time::Duration = std::time::Duration::from_millis(100);
+
+/// The text to translate and where it was selected: the foreground app's selection when
+/// `autoCopySelection` is on and it could be copied (plan D5, [`clipboard::copy_selection`]),
+/// otherwise the clipboard. Empty or non-text content gives "". Blocks for up to about a
+/// second, so it runs off the event loop.
+///
+/// The source kind comes from UI Automation, asked before Ctrl+C is sent. The clipboard
+/// fallback (terminal, auto-copy off, nothing selected) is always `Unknown`, and so is a UIA
+/// answer that fails or doesn't arrive within [`SOURCE_KIND_CAP`].
+fn capture_source<R: Runtime>(app: &AppHandle<R>, settings: &Settings) -> (String, SourceKind) {
+    if settings.auto_copy_selection {
+        #[cfg(windows)]
+        let pending = {
+            let started = std::time::Instant::now();
+            // A terminal is always `Unknown` (and never gets Ctrl+C), so don't ask UIA there.
+            let terminal = super::input::foreground_window().is_none_or(|w| w.is_terminal());
+            let receiver = if terminal {
+                None
+            } else {
+                super::uia::spawn_source_kind()
+            };
+            (started, receiver)
+        };
+        if let Some(text) = clipboard::copy_selection() {
+            #[cfg(windows)]
+            let kind = {
+                let (started, receiver) = pending;
+                let left = SOURCE_KIND_CAP.saturating_sub(started.elapsed());
+                receiver
+                    .and_then(|r| r.recv_timeout(left).ok())
+                    .unwrap_or(SourceKind::Unknown)
+            };
+            #[cfg(not(windows))]
+            let kind = SourceKind::Unknown;
+            return (text, kind);
+        }
+    }
+    (
+        app.clipboard().read_text().unwrap_or_default(),
+        SourceKind::Unknown,
+    )
 }
