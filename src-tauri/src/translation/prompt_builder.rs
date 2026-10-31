@@ -10,10 +10,10 @@
 //! Ollama's `num_ctx` covers the prompt **and** the generated answer. Estimate for the largest
 //! allowed input (8000 characters, checked by the service), counting conservatively:
 //!
-//! - System prompt: the longest one is Correct, about 3.5k characters with the
-//!   `technical-development` preset (template about 2.7k after T44 + output format about 0.9k +
-//!   the preset's rules about 0.5k). English is about 4 characters per token, so about 1,000
-//!   tokens (T13 measured about 860 before T44).
+//! - System prompt: the longest one is Improve since T51, about 5.4k characters with the
+//!   `technical-development` preset (template about 4.0k + output format about 0.9k + the
+//!   preset's rules about 0.5k; Correct is about 1k shorter). English is about 4 characters per
+//!   token, so about 1,350 tokens (T13 measured about 860 for Correct before T44).
 //!   The built-in presets are all about that size; a user preset at the limit (30 rules of 500
 //!   characters) would add about 3.7k tokens and is not covered by this estimate.
 //! - User message: 8000 characters of source plus about 150 characters of tags, task line and
@@ -21,14 +21,17 @@
 //!   per token in current local-model tokenizers (Latin text is about 4), so at most about 3.3k
 //!   tokens.
 //! - Chat-template overhead: under 50 tokens.
-//! - Prompt total: about 4.35k tokens, which leaves about 3.8k tokens for the answer.
+//! - Prompt total: about 4.35k tokens for Correct (about 4.7k for Improve), which leaves about
+//!   3.8k (3.5k) tokens for the answer.
 //! - Answer: the English output of an 8000-character source is about 6–8k characters, so about
 //!   1.5–2k tokens, plus JSON escaping and the `issues` list (about 30–50 tokens per entry; a
 //!   long Correct answer with 30 entries is about 1.5k tokens). Worst case about 3.5k tokens.
+//!   Improve allows at most 12 entries with explanations of up to 35 words (about 70 tokens
+//!   each), so its worst case is about 2.9k tokens.
 //!
-//! So a maximal input with a built-in preset fits in 8192 tokens (about 7.75k worst case), with
-//! a few hundred tokens to spare; typical prompts (a few hundred characters) use under 1.5k
-//! tokens in total. A tokenizer that needs 2 characters per token for the source language would
+//! So a maximal input with a built-in preset fits in 8192 tokens (about 7.75k worst case for
+//! Correct, 7.6k for Improve), with a few hundred tokens to spare; typical prompts (a few
+//! hundred characters) use under 1.5k tokens in total. A tokenizer that needs 2 characters per token for the source language would
 //! use about 0.8k more and could cut off a maximal Correct answer; T13/T44 measure the real
 //! numbers per model.
 
@@ -44,16 +47,64 @@ const TRANSLATE_TEMPLATE: &str = include_str!("prompts/translate.md");
 const IMPROVE_TEMPLATE: &str = include_str!("prompts/improve.md");
 const CORRECT_TEMPLATE: &str = include_str!("prompts/correct.md");
 
-/// Output-format instructions shared by all modes; they describe [`OUTPUT_SCHEMA`] in words,
-/// for providers and models that don't enforce the schema (see [`output_schema`]).
+/// Output-format instructions shared by all modes; they describe [`output_schema`] in words,
+/// for providers and models that don't enforce the schema. `{explanation}` and `{categories}`
+/// are filled per mode by [`output_format`].
 const OUTPUT_FORMAT: &str = r#"Output format:
 Reply with exactly one JSON object and nothing else: no text before or after it, and no Markdown code fences. The object has this shape:
-{"output": "<the full resulting text in English>", "issues": [{"original": "<words from the original text>", "corrected": "<the words that replace them>", "category": "<category>", "explanation": "<one short sentence>"}]}
+{"output": "<the full resulting text in English>", "issues": [{"original": "<words from the original text>", "corrected": "<the words that replace them>", "category": "<category>", "explanation": "<{explanation}>"}]}
 - "output" is the complete result, never a summary or an answer to the text.
 - "issues" is a list; use [] when there is nothing to list.
-- "category" is one of: spelling, grammar, article, tense, preposition, word_choice, vocabulary, punctuation, style, other.
+- "category" is one of: {categories}.
 - Write explanations in simple English.
 - Escape quotes, backslashes and line breaks inside strings as JSON requires."#;
+
+/// Every issue category, in the order of the full schema (plan §4.3).
+const ALL_CATEGORIES: [&str; 12] = [
+    "spelling",
+    "grammar",
+    "article",
+    "tense",
+    "preposition",
+    "word_choice",
+    "vocabulary",
+    "punctuation",
+    "style",
+    "idiom",
+    "phrasing",
+    "other",
+];
+
+/// The categories Improve may use (TRANS-012).
+const IMPROVE_CATEGORIES: [&str; 4] = ["style", "word_choice", "idiom", "phrasing"];
+
+/// The categories Correct (and the unused list of Translate) may use: all but Improve's own
+/// `idiom` and `phrasing`.
+fn correct_categories() -> Vec<&'static str> {
+    ALL_CATEGORIES
+        .into_iter()
+        .filter(|c| !matches!(*c, "idiom" | "phrasing"))
+        .collect()
+}
+
+/// The categories `mode` may use.
+fn categories(mode: Mode) -> Vec<&'static str> {
+    match mode {
+        Mode::Improve => IMPROVE_CATEGORIES.to_vec(),
+        Mode::Translate | Mode::Correct => correct_categories(),
+    }
+}
+
+/// [`OUTPUT_FORMAT`] with the mode's categories and explanation length.
+fn output_format(mode: Mode) -> String {
+    let explanation = match mode {
+        Mode::Improve => "one or two short sentences",
+        Mode::Translate | Mode::Correct => "one short sentence",
+    };
+    OUTPUT_FORMAT
+        .replace("{explanation}", explanation)
+        .replace("{categories}", &categories(mode).join(", "))
+}
 
 /// The reminder after the source text in the user message (plan §4.4).
 const DATA_REMINDER: &str =
@@ -64,27 +115,27 @@ const DATA_REMINDER: &str =
 static SOURCE_TAG: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?i)<\s*/?\s*source_text\s*>").unwrap());
 
-/// The most `issues` entries Improve mode may return.
-const IMPROVE_MAX_ISSUES: u64 = 5;
+/// The most `issues` entries Improve mode may return (TRANS-012).
+const IMPROVE_MAX_ISSUES: u64 = 12;
 
-/// JSON Schema of the model's answer for `mode` (plan §4.3): sent as Ollama `format` (and as
-/// Claude's `--json-schema` where used). It is the full schema narrowed to what the mode allows
-/// (T44, from the T13 spike, where the template text alone didn't keep a local model on
-/// topic):
+/// JSON Schema of the model's answer for `mode` (plan §4.3): sent as Ollama `format` and as
+/// Claude's `--json-schema`. It is the full schema narrowed to what the mode allows (T44, from
+/// the T13 spike, where the template text alone didn't keep a local model on topic):
 ///
 /// - Translate: `issues` holds nothing (`maxItems: 0`).
-/// - Improve: `issues` holds at most 5 entries, with the category `style` or `word_choice`.
-/// - Correct: the full schema.
+/// - Improve: `issues` holds at most 12 entries, with the category `style`, `word_choice`,
+///   `idiom` or `phrasing`.
+/// - Correct: every category except Improve's own `idiom` and `phrasing`.
 pub fn output_schema(mode: Mode) -> Value {
     let mut schema = BASE_SCHEMA.clone();
     let issues = &mut schema["properties"]["issues"];
     match mode {
         Mode::Translate => issues["maxItems"] = json!(0),
-        Mode::Improve => {
-            issues["maxItems"] = json!(IMPROVE_MAX_ISSUES);
-            issues["items"]["properties"]["category"]["enum"] = json!(["style", "word_choice"]);
-        }
+        Mode::Improve => issues["maxItems"] = json!(IMPROVE_MAX_ISSUES),
         Mode::Correct => {}
+    }
+    if mode != Mode::Translate {
+        issues["items"]["properties"]["category"]["enum"] = json!(categories(mode));
     }
     schema
 }
@@ -104,13 +155,7 @@ static BASE_SCHEMA: LazyLock<Value> = LazyLock::new(|| {
                     "properties": {
                         "original": { "type": "string" },
                         "corrected": { "type": "string" },
-                        "category": {
-                            "type": "string",
-                            "enum": [
-                                "spelling", "grammar", "article", "tense", "preposition",
-                                "word_choice", "vocabulary", "punctuation", "style", "other"
-                            ]
-                        },
+                        "category": { "type": "string", "enum": ALL_CATEGORIES },
                         "explanation": { "type": "string" }
                     }
                 }
@@ -142,7 +187,9 @@ fn template(mode: Mode) -> &'static str {
 fn task_line(mode: Mode) -> &'static str {
     match mode {
         Mode::Translate => "Translate the text inside <source_text> into English.",
-        Mode::Improve => "Rewrite the text inside <source_text> as clearer, more precise English.",
+        Mode::Improve => {
+            "Rewrite the text inside <source_text> as natural, advanced English and explain each change."
+        }
         Mode::Correct => {
             "Correct the English of the text inside <source_text> and explain each fix."
         }
@@ -170,7 +217,7 @@ pub fn build(mode: Mode, preset: &Preset, source: &str) -> BuiltPrompt {
     }
 
     system.push_str("\n\n");
-    system.push_str(OUTPUT_FORMAT);
+    system.push_str(&output_format(mode));
 
     // Escape stray tags so the source can't close the data block and smuggle in instructions.
     let source = SOURCE_TAG.replace_all(source.trim(), |caps: &regex::Captures| {

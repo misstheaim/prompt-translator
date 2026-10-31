@@ -49,6 +49,10 @@ pub enum IssueCategory {
     Vocabulary,
     Punctuation,
     Style,
+    /// Improve only: an idiom or set phrase introduced in the rewrite.
+    Idiom,
+    /// Improve only: a sentence restructured in the rewrite.
+    Phrasing,
     Other,
 }
 

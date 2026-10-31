@@ -130,15 +130,15 @@ const MAX_ORIGINAL_WORDS: usize = 8;
 /// words than this (a short sentence is still a sentence, not "a word or short phrase").
 const MAX_WHOLE_SOURCE_WORDS: usize = 3;
 
-/// In Improve, a single-word change within this edit distance counts as a spelling fix.
+/// In Improve, a word changed within this edit distance counts as a spelling fix.
 const MAX_SPELLING_DISTANCE: usize = 2;
 
 /// Drops the issues that break the issue rules (TRANS-014) and logs each drop at Info. The
 /// output is never changed. An issue is dropped when its `original` isn't in `source`, its
 /// `corrected` isn't in `output` (both compared case-insensitively with whitespace runs
 /// collapsed), its `original` has more than 8 words or is the whole source text of more than 3
-/// words, `original` equals `corrected`, or, in
-/// Improve, it is a spelling-only change of a single word.
+/// words, `original` equals `corrected`, or, in Improve, it is a spelling-only change of a word
+/// or of a phrase (same words, each one within edit distance 2; since T51).
 pub fn validate_issues(issues: Vec<Issue>, source: &str, output: &str, mode: Mode) -> Vec<Issue> {
     let source = normalize(source);
     let output = normalize(output);
@@ -172,14 +172,22 @@ fn issue_problem(issue: &Issue, source: &str, output: &str, mode: Mode) -> Optio
     if !output.contains(&corrected) {
         return Some("`corrected` is not in the output");
     }
-    if mode == Mode::Improve
-        && !original.contains(' ')
-        && !corrected.contains(' ')
-        && edit_distance(&original, &corrected) <= MAX_SPELLING_DISTANCE
-    {
+    if mode == Mode::Improve && spelling_only(&original, &corrected) {
         return Some("a spelling-only change in Improve");
     }
     None
+}
+
+/// A change of a word or a phrase that only fixes spelling: the same number of words, each
+/// within [`MAX_SPELLING_DISTANCE`] of its counterpart ("the problemm" -> "the problem").
+fn spelling_only(original: &str, corrected: &str) -> bool {
+    let original: Vec<&str> = original.split(' ').collect();
+    let corrected: Vec<&str> = corrected.split(' ').collect();
+    original.len() == corrected.len()
+        && original
+            .iter()
+            .zip(&corrected)
+            .all(|(a, b)| edit_distance(a, b) <= MAX_SPELLING_DISTANCE)
 }
 
 /// Lowercases and collapses whitespace runs to one space.
@@ -255,6 +263,8 @@ fn category(name: &str) -> IssueCategory {
         "vocabulary" => IssueCategory::Vocabulary,
         "punctuation" => IssueCategory::Punctuation,
         "style" => IssueCategory::Style,
+        "idiom" | "idioms" => IssueCategory::Idiom,
+        "phrasing" => IssueCategory::Phrasing,
         _ => IssueCategory::Other,
     }
 }
