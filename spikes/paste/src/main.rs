@@ -62,6 +62,8 @@ pub enum Exit {
     InputBlocked = 31,
     /// Pasted, but the saved clipboard text couldn't be put back.
     RestoreFailed = 32,
+    /// Multi-line text refused for conhost's menu paste (its line breaks would act as Enter).
+    MultiLineRefused = 33,
     /// `ShellExecuteW` refused the `vscode://` link.
     LinkFailed = 40,
 }
@@ -128,7 +130,7 @@ paste-spike: spike T58 (#148), see docs/spikes/session-paste.md
   paste-spike list-terminals [--all] [--title-chars <n>]
   paste-spike paste --hwnd <h> --text <file> [--pid <p>] [--tab <runtime-id>]
                     [--own-window | --delay <ms>] [--focus plain|alt|attach]
-                    [--restore-delay <ms>] [--dry-run]
+                    [--restore-delay <ms>] [--via auto|ctrl-v|menu] [--dry-run]
   paste-spike vscode --text <file> [--session <id>] [--print-only]
   paste-spike sessions [--limit <n>] [--entrypoint <name>]
 

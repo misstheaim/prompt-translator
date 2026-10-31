@@ -34,6 +34,7 @@ pub fn run(args: &[String]) -> Result<(), Exit> {
             "focus",
             "delay",
             "restore-delay",
+            "via",
         ],
         &["own-window", "dry-run"],
     )
@@ -70,6 +71,24 @@ pub fn run(args: &[String]) -> Result<(), Exit> {
     check_window(&log, hwnd, expected_pid)?;
     let class = win::class_name(hwnd);
 
+    // How the text goes in: Ctrl+V, or conhost's own Edit > Paste (Ctrl+V doesn't paste into
+    // Claude Code in conhost, matrix H-6). `auto` picks the menu for conhost windows.
+    let menu = match flags.value("via").unwrap_or("auto") {
+        "auto" => class == win::CONHOST_CLASS,
+        "ctrl-v" => false,
+        "menu" => true,
+        other => return Err(usage(format!("bad `--via` `{other}`"))),
+    };
+    if menu && class != win::CONHOST_CLASS {
+        return Err(usage("`--via menu` works only for conhost windows"));
+    }
+    // conhost's paste turns line breaks into Enter presses: that would submit the lines one by
+    // one, so multi-line text is refused on that route.
+    if menu && text.contains('\n') {
+        log.say("multi-line text refused for conhost menu paste (line breaks would act as Enter)");
+        return Err(Exit::MultiLineRefused);
+    }
+
     // 2. The bound tab (Windows Terminal only), found by RuntimeId.
     let tab = match &tab_id {
         None => None,
@@ -89,10 +108,10 @@ pub fn run(args: &[String]) -> Result<(), Exit> {
 
     // 3. The trigger: Enter released in the spike's own window, or a plain delay.
     let _own_window = if own {
-        log.say("waiting for Enter in the spike window");
+        log.say("waiting for Enter or a click in the spike window");
         match own_window::wait_for_enter() {
             Ok(Some(window)) => {
-                log.say("Enter released in the spike window");
+                log.say("Enter or click released in the spike window");
                 Some(window)
             }
             Ok(None) => {
@@ -199,12 +218,17 @@ pub fn run(args: &[String]) -> Result<(), Exit> {
         return Err(Exit::ClipboardBusy);
     }
     let written = clipboard::sequence_number();
-    if !win::send_ctrl_v() {
-        log.say("SendInput blocked (elevated target?)");
-        clipboard::write_text_hidden(saved.as_deref());
-        return Err(Exit::InputBlocked);
+    if menu {
+        win::conhost_menu_paste(hwnd);
+        log.say("conhost Edit > Paste (WM_COMMAND 0xFFF1) sent (no Enter)");
+    } else {
+        if !win::send_ctrl_v() {
+            log.say("SendInput blocked (elevated target?)");
+            clipboard::write_text_hidden(saved.as_deref());
+            return Err(Exit::InputBlocked);
+        }
+        log.say("Ctrl+V sent (no Enter)");
     }
-    log.say("Ctrl+V sent (no Enter)");
     sleep(Duration::from_millis(restore_delay));
     if clipboard::sequence_number() != written {
         log.say("clipboard changed since the paste (user copied?): not restored");
