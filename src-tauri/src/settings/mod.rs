@@ -34,7 +34,7 @@ impl Default for OllamaSettings {
         Self {
             endpoint: "http://localhost:11434".into(),
             model: "qwen3.5:9b".into(),
-            keep_alive: "30m".into(),
+            keep_alive: "10m".into(),
             num_ctx: 8192,
             timeout_secs: 60,
         }
@@ -74,7 +74,7 @@ impl Default for LayoutFixSettings {
     fn default() -> Self {
         Self {
             enabled: true,
-            hotkey: "Shift+Pause".into(),
+            hotkey: "Ctrl+Shift+`".into(),
             switch_input_language: true,
         }
     }

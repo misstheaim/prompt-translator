@@ -2,9 +2,18 @@ import { useEffect, useState } from "react";
 
 import type { AppInfo } from "../../bindings/AppInfo";
 import { Button } from "../../components/Button";
+import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { Spinner } from "../../components/Spinner";
 import { UpdateNotes, UpdateProgressBar } from "../../components/UpdateBanner";
-import { appInfo, checkUpdate, openFolder, saveSettings, toAppError } from "../../lib/api";
+import {
+  appInfo,
+  checkUpdate,
+  openFolder,
+  runUninstaller,
+  saveSettings,
+  toAppError,
+  uninstallerAvailable,
+} from "../../lib/api";
 import { useAppStore } from "../../store/app";
 import { useUpdateStore } from "../../store/update";
 import { Section, Toggle } from "./fields";
@@ -58,12 +67,29 @@ export function AboutSettings() {
   const [check, setCheck] = useState<CheckState>(available ? "available" : "idle");
   const [checkError, setCheckError] = useState("");
   const [savingToggle, setSavingToggle] = useState(false);
+  const [canUninstall, setCanUninstall] = useState(false);
+  const [confirmUninstall, setConfirmUninstall] = useState(false);
 
   useEffect(() => {
     appInfo()
       .then(setInfo)
       .catch((e: unknown) => showToast("error", toAppError(e).message));
   }, [showToast]);
+
+  useEffect(() => {
+    uninstallerAvailable()
+      .then(setCanUninstall)
+      .catch(() => setCanUninstall(false));
+  }, []);
+
+  async function uninstall() {
+    setConfirmUninstall(false);
+    try {
+      await runUninstaller();
+    } catch (e) {
+      showToast("error", toAppError(e).message);
+    }
+  }
 
   async function runCheck() {
     setCheck("checking");
@@ -162,6 +188,26 @@ export function AboutSettings() {
           <Button onClick={openSetup}>Run setup again</Button>
         </div>
       </Section>
+
+      {canUninstall && (
+        <Section title="Uninstall">
+          <div>
+            <Button variant="danger" onClick={() => setConfirmUninstall(true)}>
+              Uninstall Prompt Translator…
+            </Button>
+          </div>
+        </Section>
+      )}
+
+      <ConfirmDialog
+        open={confirmUninstall}
+        destructive
+        title="Uninstall Prompt Translator?"
+        message="This closes the app and opens the uninstaller."
+        confirmLabel="Uninstall"
+        onConfirm={() => void uninstall()}
+        onCancel={() => setConfirmUninstall(false)}
+      />
     </div>
   );
 }

@@ -127,6 +127,9 @@ pub fn run() {
             system::commands::open_url,
             system::commands::app_info,
             system::commands::open_folder,
+            system::commands::unload_model,
+            system::commands::uninstaller_available,
+            system::commands::run_uninstaller,
             updater::check_update,
             updater::install_update,
             settings::commands::get_settings,
@@ -154,6 +157,13 @@ pub fn run() {
             setup::commands::cancel_setup_task,
             setup::commands::complete_setup
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            // Every real exit (tray Quit, no close-to-tray, uninstall) frees the model's memory.
+            // Close-to-tray only hides the window, so it never gets here.
+            if let tauri::RunEvent::Exit = event {
+                system::commands::unload_model_on_exit(app);
+            }
+        });
 }

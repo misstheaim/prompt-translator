@@ -8,3 +8,4 @@ pub mod input;
 pub mod paths;
 pub mod popup;
 pub mod tray;
+pub mod uninstall;
