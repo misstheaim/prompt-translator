@@ -66,22 +66,25 @@ Since: #35
 | Db | Database error: <text> | (empty) |
 | InvalidInput | Invalid input: <text> | (empty) |
 
-I/O errors, Tauri errors, JSON errors and SQLite errors (including migration errors) convert to `Io`, `Io`, `InvalidInput` and `Db` respectively. Raised so far: `Io`, `InvalidInput`, `Db` (history commands when the database is unavailable, HISTORY-008), the translation kinds `Timeout`, `Cancelled`, `EmptyOutput` and `MalformedOutput` (TRANS-007/009), and the provider kinds `OllamaUnreachable`, `ModelMissing`, `ClaudeNotFound`, `ClaudeAuth` and `ProcessCrashed` (PROV-003, PROV-009). `SessionClosed`, `SessionUnreachable`, `InjectionFailed` and `PrefixNeedsConfirmation` are defined but no code raises them yet.
-Since: #35 · Changed: #40, #41, #62, #46, #50, #63
+I/O errors, Tauri errors, JSON errors and SQLite errors (including migration errors) convert to `Io`, `Io`, `InvalidInput` and `Db` respectively. Raised so far: `Io`, `InvalidInput`, `Db` (history commands when the database is unavailable, HISTORY-008), the translation kinds `Timeout`, `Cancelled`, `EmptyOutput` and `MalformedOutput` (TRANS-007/009), and the provider kinds `OllamaUnreachable`, `ModelMissing`, `ClaudeNotFound`, `ClaudeAuth` and `ProcessCrashed` (PROV-003, PROV-009). The session commands raise `SessionClosed` (binding a terminal window or tab that is gone, SESSION-003), `Timeout` (no terminal came to the front, SESSION-002) and `PrefixNeedsConfirmation` (SESSION-005). `SessionUnreachable` and `InjectionFailed` are defined but no code raises them yet (a failed delivery copies to the clipboard instead, SESSION-006).
+Since: #35 · Changed: #40, #41, #62, #46, #50, #63, #73, #74
 
 ### APP-013 Exported translation contracts
 Rust types are exported to `src/bindings/*.ts` (one file per type, LF line endings). Field names are camelCase on the wire.
 - `Mode`: `translate` | `improve` | `correct`.
 - `ProviderKind`: `ollama` | `claudeCode` | `mock` (nothing restricts `mock` to debug builds yet).
-- `TranslationRequest`: `requestId`, `sourceText`, `mode`, `provider`, `presetId`.
+- `TranslationRequest`: `requestId`, `sourceText`, `mode`, `provider`, `presetId`, optional `nativeLanguage` and `targetLanguage` (TRANS-008).
+- `Language`: `code`, `name` (TRANS-015).
 - `TranslationResult`: `historyId` (number or null when history is off), `output`, `issues`, `tokenWarnings`, `provider`, `model`, `durationMs` (number).
 - `Issue`: `original`, `corrected`, `category`, `explanation`.
-- `IssueCategory` (snake_case, matches the model output): `spelling`, `grammar`, `article`, `tense`, `preposition`, `word_choice`, `vocabulary`, `punctuation`, `style`, `other`.
+- `IssueCategory` (snake_case, matches the model output): `spelling`, `grammar`, `article`, `tense`, `preposition`, `word_choice`, `vocabulary`, `punctuation`, `style`, `idiom`, `phrasing`, `other` (`idiom` and `phrasing` are produced in Improve only, TRANS-005).
 - `TokenWarning`: `token`, `kind`; `TokenKind` (camelCase): `ticketId`, `identifier`, `fileName`, `path`, `url`, `codeSpan`, `number`.
 - `ErrorKind` and `AppErrorPayload` as in APP-011/012.
 - `ProviderStatus`: `ollama` (`OllamaStatus`: `reachable`, `models`, `selectedModelInstalled`) and `claude` (`ClaudeStatus`, or null if the check could not run: `found`, `path`, `version`, `signedIn`, the last three null when unknown).
+- Session contracts (SESSION-001): `TerminalTarget` (`hwnd`, `pid`, optional `tabRuntimeId`, `title`, `host`), `TerminalHost` (`windowsTerminal` | `conhost`), `SessionTarget` (`{ kind: "terminal", ... }`), `DeliveryOutcome` (`{ kind: "delivered" }` | `{ kind: "deliveredToClipboard", reason }`) and `TargetClosed` (`hwnd`, optional `tabRuntimeId`).
+- `HistoryEntry` and `HistoryEntrySummary` carry `sourceLanguage` and `targetLanguage` (HISTORY-003); `Settings` carries `nativeLanguage` and `targetLanguage` (SETTINGS-001).
 `Mode` is used by `detect_mode` and `set_last_popup_mode`; `TranslationRequest` and `TranslationResult` by `translate` (TRANS-008).
-Since: #35 · Changed: #60, #44, #49
+Since: #35 · Changed: #60, #44, #49, #149, #150, #73, #74
 
 ### APP-014 Regenerating bindings
 `npm run bindings` runs the Rust export tests (`cargo test export_bindings` in `src-tauri`), which write the TypeScript files into `src/bindings/`. Git keeps `src/bindings/*.ts` on LF endings regardless of `core.autocrlf`, so regeneration does not show modified files.
@@ -159,9 +162,9 @@ Since: #47
 ### APP-031 Result components
 Shared by the Translate screen, History and the popup:
 - **Diff**: a word-level comparison of the source and the output, labelled "Changes": removed words struck through on a red background, added words on a green one.
-- **Issue list**: one card per issue with a coloured category chip (the category name, `word_choice` shown as "word choice"), `original` struck through, an arrow, `corrected` in bold, and the explanation below when not empty. More than 5 issues show the first 5 and a "Show all <n>" button; expanded, it reads "Show fewer".
+- **Issue list**: one card per issue with a coloured category chip (the category name, `word_choice` shown as "word choice"; `idiom` and `phrasing` have their own colours, as on the Mistakes screen's bars), `original` struck through, an arrow, `corrected` in bold, and the explanation below when not empty. More than 5 issues show the first 5 and a "Show all <n>" button; expanded, it reads "Show fewer".
 - **Token-warning banner** (yellow): "The result is missing text from your input that should stay unchanged:" with each lost token in code style, and the buttons "Ignore" and "Retry". It shows nothing when there are no warnings.
-Since: #54
+Since: #54 · Changed: #149
 
 ### APP-032 Windows installer
 `npm run tauri build` produces one NSIS installer, `Prompt Translator_<version>_x64-setup.exe` (no MSI), in `src-tauri/target/release/bundle/nsis/`. It is per-user (no admin rights, no UAC prompt), English only with no language selector, and installs to `%LOCALAPPDATA%\Prompt Translator\` (changeable) with a Start menu shortcut (a desktop shortcut only if ticked on the last page) and an "Apps" entry. If the WebView2 Runtime is missing it downloads Microsoft's bootstrapper silently. It also installs `resources\presets\*.json` next to the exe (reference copies only).

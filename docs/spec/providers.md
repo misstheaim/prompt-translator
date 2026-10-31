@@ -60,7 +60,7 @@ The model is `claude.model` (trimmed); when it is blank, `haiku` is used. The re
 Since: #50
 
 ### PROV-011 Translator-run registry
-While a Claude Code translation runs, its process ID is kept in a shared registry, and removed when the run ends. A session counts as the app's own translator run if its name is exactly `prompt-translator` (never by prefix: `prompt-translator-d2` is a user's session) or its PID is in the registry; either check is enough. Session discovery does not exist yet.
+While a Claude Code translation runs, its process ID is kept in a shared registry, and removed when the run ends. A session counts as the app's own translator run if its name is exactly `prompt-translator` (never by prefix: `prompt-translator-d2` is a user's session) or its PID is in the registry; either check is enough. The session targets (SESSION-001) skip windows whose process is in the registry or an ancestor of one.
 Since: #49 · Changed: #50
 
 ### PROV-012 Folder housekeeping
