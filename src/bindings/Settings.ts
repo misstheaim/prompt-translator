@@ -3,9 +3,14 @@ import type { ClaudeSettings } from "./ClaudeSettings";
 import type { LayoutFixSettings } from "./LayoutFixSettings";
 import type { Mode } from "./Mode";
 import type { OllamaSettings } from "./OllamaSettings";
+import type { PopupBounds } from "./PopupBounds";
 import type { ProviderKind } from "./ProviderKind";
 
 /**
  * The contents of `settings.json`. Unknown or missing fields fall back to defaults.
  */
-export type Settings = { defaultProvider: ProviderKind, defaultPresetId: string, ollama: OllamaSettings, claude: ClaudeSettings, historyEnabled: boolean, hotkey: string, autostart: boolean, closeToTray: boolean, setupCompleted: boolean, autoCheckUpdates: boolean, autoCopySelection: boolean, sessionAppendHintShown: boolean, lastPopupMode: Mode, devMockProvider: boolean, layoutFix: LayoutFixSettings, };
+export type Settings = { defaultProvider: ProviderKind, defaultPresetId: string, ollama: OllamaSettings, claude: ClaudeSettings, historyEnabled: boolean, hotkey: string, autostart: boolean, closeToTray: boolean, setupCompleted: boolean, autoCheckUpdates: boolean, autoCopySelection: boolean, sessionAppendHintShown: boolean, lastPopupMode: Mode, devMockProvider: boolean, layoutFix: LayoutFixSettings, 
+/**
+ * Where the user left the popup; `None` = centre it on the cursor's monitor.
+ */
+popupBounds: PopupBounds | null, };
