@@ -123,6 +123,91 @@ fn from_value(value: Value, mode: Mode, raw: &str) -> AppResult<ParsedOutput> {
     Ok(ParsedOutput { output, issues })
 }
 
+/// Issues longer than this many words in `original` are dropped (a whole sentence or clause).
+const MAX_ORIGINAL_WORDS: usize = 8;
+
+/// An issue whose `original` is the whole source text is dropped when the source has more
+/// words than this (a short sentence is still a sentence, not "a word or short phrase").
+const MAX_WHOLE_SOURCE_WORDS: usize = 3;
+
+/// In Improve, a single-word change within this edit distance counts as a spelling fix.
+const MAX_SPELLING_DISTANCE: usize = 2;
+
+/// Drops the issues that break the issue rules (TRANS-014) and logs each drop at Info. The
+/// output is never changed. An issue is dropped when its `original` isn't in `source`, its
+/// `corrected` isn't in `output` (both compared case-insensitively with whitespace runs
+/// collapsed), its `original` has more than 8 words or is the whole source text of more than 3
+/// words, `original` equals `corrected`, or, in
+/// Improve, it is a spelling-only change of a single word.
+pub fn validate_issues(issues: Vec<Issue>, source: &str, output: &str, mode: Mode) -> Vec<Issue> {
+    let source = normalize(source);
+    let output = normalize(output);
+    issues
+        .into_iter()
+        .filter(|issue| match issue_problem(issue, &source, &output, mode) {
+            Some(reason) => {
+                log::info!("Dropped issue: {reason}");
+                false
+            }
+            None => true,
+        })
+        .collect()
+}
+
+fn issue_problem(issue: &Issue, source: &str, output: &str, mode: Mode) -> Option<&'static str> {
+    let original = normalize(&issue.original);
+    let corrected = normalize(&issue.corrected);
+    if original.is_empty() || corrected.is_empty() || original == corrected {
+        return Some("`original` equals `corrected`");
+    }
+    if original.split(' ').count() > MAX_ORIGINAL_WORDS {
+        return Some("`original` is longer than 8 words");
+    }
+    if original == source && original.split(' ').count() > MAX_WHOLE_SOURCE_WORDS {
+        return Some("`original` is the whole source text");
+    }
+    if !source.contains(&original) {
+        return Some("`original` is not in the source text");
+    }
+    if !output.contains(&corrected) {
+        return Some("`corrected` is not in the output");
+    }
+    if mode == Mode::Improve
+        && !original.contains(' ')
+        && !corrected.contains(' ')
+        && edit_distance(&original, &corrected) <= MAX_SPELLING_DISTANCE
+    {
+        return Some("a spelling-only change in Improve");
+    }
+    None
+}
+
+/// Lowercases and collapses whitespace runs to one space.
+fn normalize(text: &str) -> String {
+    text.split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase()
+}
+
+/// Levenshtein distance in characters.
+fn edit_distance(a: &str, b: &str) -> usize {
+    let b: Vec<char> = b.chars().collect();
+    let mut row: Vec<usize> = (0..=b.len()).collect();
+    for (i, ca) in a.chars().enumerate() {
+        let mut diagonal = row[0];
+        row[0] = i + 1;
+        for (j, cb) in b.iter().enumerate() {
+            let above = row[j + 1];
+            row[j + 1] = (diagonal + usize::from(ca != *cb))
+                .min(row[j] + 1)
+                .min(above + 1);
+            diagonal = above;
+        }
+    }
+    row[b.len()]
+}
+
 fn parse_issue(item: &Value) -> Option<Issue> {
     let Value::Object(fields) = item else {
         log::warn!("Skipping an issue that isn't a JSON object");
