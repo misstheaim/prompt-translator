@@ -1,4 +1,4 @@
-import { useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 
 import type { Mode } from "../../bindings/Mode";
 import type { ProviderKind } from "../../bindings/ProviderKind";
@@ -9,11 +9,13 @@ import { ErrorBanner } from "../../components/ErrorBanner";
 import { IssueList } from "../../components/IssueList";
 import { SegmentedControl, type SegmentedOption } from "../../components/SegmentedControl";
 import { Select, type SelectOption } from "../../components/Select";
+import { Spinner } from "../../components/Spinner";
 import { TextArea } from "../../components/TextArea";
 import { TokenWarningBanner } from "../../components/TokenWarningBanner";
 import { copyResult, toAppError } from "../../lib/api";
 import { cx } from "../../lib/cx";
 import { useAppStore } from "../../store/app";
+import { CompactToggle } from "../../components/CompactToggle";
 import { LanguagePairControl } from "./LanguagePairControl";
 import { MAX_INPUT_CHARS, useTranslateStore, type LanguagePair } from "./store";
 
@@ -52,6 +54,7 @@ export function TranslateScreen() {
   const [ignoredWarningsFor, setIgnoredWarningsFor] = useState<TranslationResult | null>(null);
   const inputWrapRef = useRef<HTMLDivElement>(null);
   const pairOverride = useTranslateStore((s) => s.pair);
+  const compact = useAppStore((s) => s.compact !== null);
   const { setInput, setMode, setProvider, setPreset, setOutput, setPair, run, cancel } =
     useTranslateStore.getState();
 
@@ -96,11 +99,67 @@ export function TranslateScreen() {
     inputWrapRef.current?.querySelector("textarea")?.focus();
   }
 
+  // Compact mode has no banner: an error shows as a toast instead (once per failed run).
+  useEffect(() => {
+    if (compact && status === "error" && error) {
+      useAppStore.getState().showToast("error", error.message);
+    }
+  }, [compact, status, error]);
+
   function onKeyDown(e: KeyboardEvent) {
     if (e.key !== "Enter" || !e.ctrlKey) return;
     e.preventDefault();
     if (e.shiftKey) void handleAccept();
     else runNow();
+  }
+
+  if (compact) {
+    return (
+      <div
+        className="relative flex h-full min-h-0 flex-col gap-2 p-2"
+        data-compact="true"
+        onKeyDown={onKeyDown}
+      >
+        <CompactToggle className="absolute right-3 top-3 z-10" />
+        <div ref={inputWrapRef} className="relative min-h-0 flex-1">
+          <TextArea
+            compact
+            aria-label="Text to process"
+            placeholder="Type or paste your text (any language)"
+            autoFocus
+            className="pr-8"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+          />
+          {input !== "" && (
+            <button
+              type="button"
+              aria-label="Clear text"
+              title="Clear"
+              disabled={loading}
+              onClick={clearInput}
+              className="absolute bottom-1 right-1.5 flex h-5 w-5 items-center justify-center rounded text-muted hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40"
+            >
+              ×
+            </button>
+          )}
+        </div>
+        <div className="relative min-h-0 flex-1">
+          <TextArea
+            compact
+            aria-label="Result text"
+            placeholder="Result"
+            value={output}
+            onChange={(e) => setOutput(e.target.value)}
+          />
+          {loading && (
+            <div className="absolute bottom-1.5 right-1.5">
+              <Spinner />
+            </div>
+          )}
+        </div>
+      </div>
+    );
   }
 
   return (

@@ -339,6 +339,14 @@ export function unloadModel(): Promise<boolean> {
   return call<boolean>("unload_model");
 }
 
+/**
+ * Switches the main window's size limits for compact mode (TRANS-015). With `resize` the window
+ * also changes size (shrinks on, restores off); without it only the minimum size changes.
+ */
+export function setCompactWindow(compact: boolean, resize: boolean): Promise<void> {
+  return call<void>("set_compact_window", { compact, resize });
+}
+
 /** Whether this build has an uninstaller (false in dev runs). */
 export function uninstallerAvailable(): Promise<boolean> {
   return call<boolean>("uninstaller_available");

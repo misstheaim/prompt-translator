@@ -130,6 +130,7 @@ pub fn run() {
             system::commands::app_info,
             system::commands::open_folder,
             system::commands::unload_model,
+            system::commands::set_compact_window,
             system::commands::uninstaller_available,
             system::commands::run_uninstaller,
             updater::check_update,

@@ -13,6 +13,80 @@ use crate::error::{AppError, AppResult};
 use crate::settings::SettingsStore;
 use crate::translation::providers::ollama::OllamaProvider;
 
+/// Minimum inner size of the main window in normal mode (TRANS-015). Keep in step with
+/// `minWidth`/`minHeight` in `tauri.conf.json`, which apply from startup.
+const NORMAL_MIN_SIZE: (f64, f64) = (640.0, 480.0);
+/// Minimum inner size in compact mode.
+const COMPACT_MIN_SIZE: (f64, f64) = (320.0, 200.0);
+/// Inner size the button gives the window when it turns compact mode on.
+const COMPACT_SIZE: (f64, f64) = (420.0, 300.0);
+
+/// The logical size the window had before the compact button resized it.
+static REMEMBERED_SIZE: std::sync::Mutex<Option<(f64, f64)>> = std::sync::Mutex::new(None);
+
+/// Switches the main window between its normal and compact limits (TRANS-015).
+///
+/// With `resize` (the compact button) turning compact on remembers the current size and shrinks
+/// the window to the compact size, and turning it off restores the remembered size. Without
+/// `resize` (the window was dragged to or from its minimum height) only the minimum size changes.
+/// Leaving compact mode always makes sure the window is at least the normal minimum.
+#[tauri::command]
+pub fn set_compact_window(app: AppHandle, compact: bool, resize: bool) -> AppResult<()> {
+    use tauri::LogicalSize;
+
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| AppError::Io("The main window isn't available".into()))?;
+    let fail = |e: tauri::Error| AppError::Io(format!("Can't resize the window: {e}"));
+    let current = || -> AppResult<(f64, f64)> {
+        let size = window
+            .inner_size()
+            .map_err(fail)?
+            .to_logical::<f64>(window.scale_factor().map_err(fail)?);
+        Ok((size.width, size.height))
+    };
+    let mut remembered = REMEMBERED_SIZE.lock().unwrap_or_else(|e| e.into_inner());
+
+    if compact {
+        if resize {
+            if window.is_maximized().unwrap_or(false) {
+                window.unmaximize().map_err(fail)?;
+            }
+            *remembered = Some(current()?);
+        }
+        window
+            .set_min_size(Some(LogicalSize::new(
+                COMPACT_MIN_SIZE.0,
+                COMPACT_MIN_SIZE.1,
+            )))
+            .map_err(fail)?;
+        if resize {
+            window
+                .set_size(LogicalSize::new(COMPACT_SIZE.0, COMPACT_SIZE.1))
+                .map_err(fail)?;
+        }
+    } else {
+        window
+            .set_min_size(Some(LogicalSize::new(NORMAL_MIN_SIZE.0, NORMAL_MIN_SIZE.1)))
+            .map_err(fail)?;
+        let (w, h) = remembered
+            .take()
+            .unwrap_or_else(|| current().unwrap_or(NORMAL_MIN_SIZE));
+        let (cw, ch) = current()?;
+        let target = if resize {
+            (w.max(NORMAL_MIN_SIZE.0), h.max(NORMAL_MIN_SIZE.1))
+        } else {
+            (cw.max(NORMAL_MIN_SIZE.0), ch.max(NORMAL_MIN_SIZE.1))
+        };
+        if (target.0 - cw).abs() > 0.5 || (target.1 - ch).abs() > 0.5 {
+            window
+                .set_size(LogicalSize::new(target.0, target.1))
+                .map_err(fail)?;
+        }
+    }
+    Ok(())
+}
+
 /// Round-trip check between the UI and the Rust core.
 #[tauri::command]
 pub fn ping() -> String {
