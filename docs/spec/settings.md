@@ -9,10 +9,12 @@ The app's user settings, stored in one `settings.json`. The core loads them at s
 ### SETTINGS-001 Settings fields and defaults
 `Settings` (camelCase on the wire) has these fields and defaults:
 - `defaultProvider` `ollama`; `defaultPresetId` `technical-development`; `historyEnabled` true; `hotkey` `Ctrl+Shift+Space`; `autostart` false; `closeToTray` true; `setupCompleted` false; `autoCheckUpdates` true; `autoCopySelection` true; `sessionAppendHintShown` false; `lastPopupMode` `correct`; `devMockProvider` false.
-- `ollama`: `endpoint` `http://localhost:11434`, `model` `qwen3.5:9b`, `keepAlive` `30m`, `numCtx` 8192, `timeoutSecs` 60.
+- `ollama`: `endpoint` `http://localhost:11434`, `model` `qwen3.5:9b`, `keepAlive` `10m`, `numCtx` 8192, `timeoutSecs` 60.
 - `claude`: `executablePath` null (find claude.exe automatically), `model` `haiku`, `timeoutSecs` 90.
-- `layoutFix`: `enabled` true, `hotkey` `Shift+Pause`, `switchInputLanguage` true.
-Since: #40 · Changed: #46
+- `layoutFix`: `enabled` true, `hotkey` ``Ctrl+Shift+` ``, `switchInputLanguage` true.
+- `popupBounds` null (the popup's saved position and size, POPUP-011): when set, `{ x, y, width, height }` in physical pixels of the popup's outer rectangle.
+Settings files saved earlier keep their stored `keepAlive` and hotkey.
+Since: #40 · Changed: #46, #145, #146
 
 ### SETTINGS-002 Loading settings.json
 The file is read from the settings location (see APP-006) at startup. A missing file gives the defaults and nothing is written. A field missing from the file (also inside `ollama`, `claude`, `layoutFix`) takes its default; unknown fields are ignored and are not kept on the next save. Loaded values are not validated.
@@ -72,7 +74,8 @@ Settings, About has three sections:
 - **About**: "Prompt Translator v<version>", then the "Settings folder" and "Data folder (history, logs)" paths, each with an "Open" button that opens it in Explorer (an error toast on failure); see `app_info` and `open_folder` in APP-034.
 - **Updates**: a "Check for updates" button (disabled while installing) that calls `check_update` (APP-034). States: "Checking..." with a spinner; "You're up to date."; "Couldn't check for updates: <message>" (red); or, when a release exists, a box "Version <x> is available." with the notes, an "Install and restart" button and, while installing, the progress bar and any "Update failed: <message>" (same behaviour as APP-035). A release already known when the tab opens shows the box at once. A found release also raises the global banner (APP-035). The toggle "Check for updates on startup" shows `autoCheckUpdates` (default on), saves immediately on change (not through the General form's draft) and is disabled while saving; a failed save shows an error toast.
 - **Setup**: "Reopens the setup wizard: provider, model and hotkey." with a "Run setup again" button that opens the setup wizard (SETUP-009).
-Since: #68
+- **Uninstall**: shown only when the app has an installed uninstaller (the per-user NSIS entry in the registry exists and its file is there; not in dev runs). A danger button "Uninstall Prompt Translator…" asks "Uninstall Prompt Translator?" ("This closes the app and opens the uninstaller."); after confirming, the app starts the uninstaller as a separate process and exits. A failure shows an error toast.
+Since: #68 · Changed: #146
 
 ## Known issues
 

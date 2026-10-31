@@ -468,6 +468,7 @@ No automated tests (owner's decision, 2026-10-15). A ticket is done when build a
 │   ├── [Task][frontend] T26 Popup UI (#61)
 │   ├── [Task][backend]  T45 Auto-copy: treat VS Code's whole-line copy as no selection (#128)
 │   ├── [Task][frontend] T50 Popup: keep each mode's result, movable, resizable, remembers size and position (#145)
+│   ├── [Task][backend]  T59 Popup hides when dragged or resized (#162)
 │   ├── [Task][backend]  T54 Popup starting mode from where the text was selected (#152)
 │   └── [Task][backend]  T55 Popup: Enter replaces the selection, Ctrl+Enter copies (#153)
 └── [Story] S6.3 Fix text typed in the wrong keyboard layout with a hotkey (#76)
@@ -1256,14 +1257,22 @@ Write `docs/spikes/local-model-eval.md` with:
 - **Depends on:** none. **Must run before:** T38.
 - **Suggested model:** Opus 5.5 (confidence: Medium).
 
+### T59. Popup hides when dragged or resized  `backend` · parent: S6.2 · issue: #162
+- **Goal:** fix T50 (#145): pressing the popup's header strip or dragging an edge hides it, so it can't be moved or resized and `popupBounds` is never saved (found by the wave 9 smoke check).
+- **Details:** `system/popup.rs` `on_window_event` hides on every `Focused(false)`; the system move/size loop fires a transient one while the popup is still in front. Hide only on a real loss of focus (e.g. re-check `GetForegroundWindow` after ~150 ms, or ignore blur between `WM_ENTERSIZEMOVE` and `WM_EXITSIZEMOVE`). A real blur (another app, Alt+Tab) still hides at once.
+- **Acceptance criteria:**
+  - [ ] Drag moves and edge drag resizes the popup without hiding it; bounds are saved and reused; real blur still hides it.
+- **Depends on:** T50. **Must run before:** T54, T55.
+- **Suggested model:** Sonnet 5.5 (confidence: Medium).
+
 ## 6. Order of work
 
 Done: waves 0-8 (see git history of this file). T37 was dropped (D47).
 
 | Wave | Tasks (parallel within a wave) | Notes |
 |---|---|---|
-| 9 | T47, T48, T49, T50, T56, T57, T58 | Follow-ups from the owner's manual test (2026-10-31). T58 needs the owner present |
-| 10 | T51, T38 | T51 after T47; T38 after T58 |
+| 9 | T47, T48, T49, T50, T56, T57, T58 | Follow-ups from the owner's manual test (2026-10-31). All merged except T58: CLI and runbook merged as WIP (PR #161), the owner runs its matrix |
+| 10 | T59, T51, T38 | T59 first (popup drag bug from wave 9, after T50); T51 after T47; T38 after T58 |
 | 11 | T52, T39 | Language pair core after T51; delivery after T38 |
 | 12 | T53, T54 | UI for the pair; popup starting mode (needs T50, T52) |
 | 13 | T55, T40 | Enter replaces (after T54); bound tabs (after T39, T53) |
@@ -1271,7 +1280,7 @@ Done: waves 0-8 (see git history of this file). T37 was dropped (D47).
 
 Critical path: T1 → T2 → T3 → T11 → T12 → T20 → T21 → T26 → T7; for the follow-ups T47 → T51 → T52 → T53 → T40 → T7. The distribution chain is T24 → T6 → T31 → T32 → T33 → T7.
 
-**First public release** (`v0.1.0`) only after T47–T58 and T38–T40 are merged and T7's smoke test passes (the manual test of 2026-10-31 did not pass). A test tag in T31 is fine before that, but it must stay a draft. The release follows `docs/development.md` §5: `release/0.1.0` is cut from `develop`, merged into `main` and tagged there.
+**First public release** (`v0.1.0`) only after T47–T58, T59 and T38–T40 are merged and T7's smoke test passes (the manual test of 2026-10-31 did not pass). A test tag in T31 is fine before that, but it must stay a draft. The release follows `docs/development.md` §5: `release/0.1.0` is cut from `develop`, merged into `main` and tagged there.
 
 ## 7. Risks and open questions
 

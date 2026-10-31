@@ -19,8 +19,8 @@ On key press (not release) the hotkey captures the source text (POPUP-007), pick
 Since: #58 · Changed: #59
 
 ### POPUP-004 Popup window
-The window `popup` (title "Prompt Translator Popup", 520x360, not resizable, frameless, always on top, not in the taskbar, not minimizable or maximizable) is created hidden at startup from `popup.html`. Showing it centres it in the work area of the monitor under the cursor (the primary monitor if that can't be found), shows and focuses it. It hides when it loses focus, and closing it only hides it. `popup://source` is sent after it is shown.
-Since: #58
+The window `popup` (title "Prompt Translator Popup", 520x360 at first, resizable with a minimum of 420x280, frameless, always on top, not in the taskbar, not minimizable or maximizable) is created hidden at startup from `popup.html`. It has a thin header strip labelled "Prompt Translator" meant for dragging it. Showing it uses the saved bounds (POPUP-011) when at least half of that rectangle lies on a connected monitor's work area; otherwise it is centred in the work area of the monitor under the cursor (the primary monitor if that can't be found) with the saved size (520x360 when none). Then it is shown and focused. It hides when it loses focus, and closing it only hides it. `popup://source` is sent after it is shown.
+Since: #58 · Changed: #145
 
 ### POPUP-005 Popup page
 Until it receives `popup://source` the page shows "Waiting for text...". After it, an empty or blank text shows "Select or copy some text first"; otherwise it shows, top to bottom:
@@ -52,8 +52,8 @@ Since: #59 · Changed: #128
 For a non-blank text the page runs `translate` (TRANS-008) at once with a new request id, the detected mode, and the provider and preset from the current settings (`defaultProvider`, `defaultPresetId`). While it runs the area shows a spinner and "Working... Esc to cancel".
 - Success: the output text (not editable), then the token-warning banner (Ignore hides it for this result, Retry runs again; TRANS-013) and, when the result has issues, a toggle "<n> fix" / "<n> fixes" that expands the issue list (APP-031, collapsed again on every new run).
 - Failure: an error banner (APP-022) with Retry but without "Open settings", and "Start Ollama" for `OllamaUnreachable` (SETUP-002). `Cancelled` is not shown as an error; the page returns to idle.
-- Changing the mode (switch or Tab) with a non-blank text saves it as `lastPopupMode` and runs again. A new run cancels the one in progress, and an answer to a superseded or cancelled request is ignored.
-Since: #61
+- Changing the mode (switch or Tab) with a non-blank text saves it as `lastPopupMode`. Each mode's finished result is kept for the current capture: switching to a mode that has one shows it without running (a run in progress is cancelled); switching to a mode without one runs it. A new capture clears the kept results; Ctrl+R reruns the current mode and replaces its result. A new run cancels the one in progress (its result is not kept), and an answer to a superseded or cancelled request is ignored.
+Since: #61 · Changed: #145
 
 ### POPUP-010 Popup keys
 - Enter (without Ctrl, Shift or Alt) after a successful run copies the output with its `historyId` (TRANS-010, which marks the history entry accepted), saves the mode as `lastPopupMode` and hides the popup. If the copy fails the popup stays open with the error banner; Enter does nothing in other states.
@@ -62,8 +62,12 @@ Since: #61
 - Tab and Shift+Tab move the mode forward and back through Translate, Improve, Correct, wrapping around.
 Since: #61
 
+### POPUP-011 Popup size and position
+When the user moves or resizes the popup while it is visible, its outer position and size (physical pixels) are saved to `popupBounds` (SETTINGS-001) 600 ms after the last change, and `settings://changed` is sent. The saved bounds are reused on the next show (POPUP-004). Moves and size changes the app makes itself when showing the popup are not saved.
+Since: #145
+
 ## Known issues
 
-None.
+- The popup hides when its header is pressed or dragged, or when an edge is dragged, so moving and resizing it by the mouse does not work yet (#162).
 
 Retired IDs: none
