@@ -1251,7 +1251,7 @@ Write `docs/spikes/local-model-eval.md` with:
 
 ### T58. Spike: paste into a bound terminal window and open VS Code sessions by link  `research` · parent: S9.1 · issue: #148
 - **Goal:** GO / NO-GO and a recipe for the two delivery routes of D47, replacing T37.
-- **Details:** throwaway CLI in `spikes/paste/` (`list-terminals`, `paste --hwnd [--tab] --text`, `vscode --session --text`); matrix: WT window in front / behind / minimised / other monitor / bound tab not selected, conhost, several windows; Claude idle / busy / with a draft; one line, multi-line, 4,000 chars, `!` `/` `#`; focus rules; user typing; closed window; VS Code: open/closed session, several VS Code windows, draft replaced?, URL length, where session ids come from. Report: `docs/spikes/session-paste.md`. Needs the owner present; its findings update T38–T40.
+- **Details:** throwaway CLI in `spikes/paste/` (`list-terminals`, `paste --hwnd [--tab] --text`, `vscode --session --text`); matrix: WT window in front / behind / minimised / other monitor / bound tab not selected, conhost, several windows; Claude idle / busy / with a draft; one line, multi-line, 4,000 chars, `!` `/` `#`; focus rules; user typing; closed window; VS Code: open/closed session, several VS Code windows, draft replaced?, URL length, where session ids come from. Report: `docs/spikes/session-paste.md`. Run by an agent with the owner's approval (2026-10-31; was: needs the owner present): it opens its own test windows and throwaway Claude sessions and **never presses Enter in any Claude session** (cells that need Enter, e.g. sending a multi-line paste, are checked by what the input shows, or marked not checkable). VS Code with the Claude extension is installed. Its findings update T38–T40.
 - **Acceptance criteria:**
   - [ ] Every cell has a result; GO/NO-GO per route; recipe documented.
 - **Depends on:** none. **Must run before:** T38.
@@ -1267,16 +1267,14 @@ Write `docs/spikes/local-model-eval.md` with:
 
 ## 6. Order of work
 
-Done: waves 0-8 (see git history of this file). T37 was dropped (D47).
+Done: waves 0-9 (see git history of this file). T37 was dropped (D47). Waves 10 and 11 were merged into one (owner, 2026-10-31).
 
 | Wave | Tasks (parallel within a wave) | Notes |
 |---|---|---|
-| 9 | T47, T48, T49, T50, T56, T57, T58 | Follow-ups from the owner's manual test (2026-10-31). All merged except T58: CLI and runbook merged as WIP (PR #161), the owner runs its matrix |
-| 10 | T59, T51, T38 | T59 first (popup drag bug from wave 9, after T50); T51 after T47; T38 after T58 |
-| 11 | T52, T39 | Language pair core after T51; delivery after T38 |
-| 12 | T53, T54 | UI for the pair; popup starting mode (needs T50, T52) |
-| 13 | T55, T40 | Enter replaces (after T54); bound tabs (after T39, T53) |
-| 14 | T7 | Docs for the new behaviour (README, smoke-test), then the full smoke test including Windows Sandbox; #39 closes when it passes |
+| 10 | T58, T59, T51, T38, T52, T39 | T58 first: an agent runs its matrix (owner-approved 2026-10-31; never presses Enter in a Claude session; the owner stays off the PC during the run). T59 (popup drag bug, after T50); T51 after T47; T52 after T51; T38 after T58's verdict; T39 after T38 |
+| 11 | T53, T54 | UI for the pair; popup starting mode (needs T50, T52) |
+| 12 | T55, T40 | Enter replaces (after T54); bound tabs (after T39, T53) |
+| 13 | T7 | Docs for the new behaviour (README, smoke-test), then the full smoke test including Windows Sandbox; #39 closes when it passes |
 
 Critical path: T1 → T2 → T3 → T11 → T12 → T20 → T21 → T26 → T7; for the follow-ups T47 → T51 → T52 → T53 → T40 → T7. The distribution chain is T24 → T6 → T31 → T32 → T33 → T7.
 
