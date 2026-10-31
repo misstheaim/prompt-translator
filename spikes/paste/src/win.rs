@@ -6,7 +6,7 @@ use std::mem::size_of;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
-use windows::Win32::Foundation::{CloseHandle, HWND, LPARAM};
+use windows::Win32::Foundation::{CloseHandle, HWND, LPARAM, WPARAM};
 use windows::Win32::Graphics::Gdi::{
     GetMonitorInfoW, MONITOR_DEFAULTTONEAREST, MONITORINFO, MonitorFromWindow,
 };
@@ -22,7 +22,7 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
 use windows::Win32::UI::WindowsAndMessaging::{
     BringWindowToTop, EnumWindows, GetClassNameW, GetForegroundWindow, GetWindowTextW,
     GetWindowThreadProcessId, IsIconic, IsWindow, IsWindowVisible, MONITORINFOF_PRIMARY,
-    SW_RESTORE, SetForegroundWindow, ShowWindow,
+    SW_RESTORE, SendMessageW, SetForegroundWindow, ShowWindow, WM_COMMAND,
 };
 use windows::core::{BOOL, PWSTR};
 
@@ -40,6 +40,9 @@ pub const TERMINAL_EXE_NAMES: &[&str] = &[
 
 /// Windows Terminal's top-level window class: the only host whose tabs UIA exposes here.
 pub const WINDOWS_TERMINAL_CLASS: &str = "CASCADIA_HOSTING_WINDOW_CLASS";
+
+/// The classic console (conhost) window class.
+pub const CONHOST_CLASS: &str = "ConsoleWindowClass";
 
 /// An unassigned virtual key (the app's `VK_MASK`): tapped while Alt is down so releasing Alt
 /// doesn't open a menu bar.
@@ -320,6 +323,25 @@ fn send_inputs(inputs: &[INPUT]) -> bool {
     let sent = unsafe { SendInput(inputs, size_of::<INPUT>() as i32) };
     sent as usize == inputs.len()
 }
+
+/// conhost's own Edit > Paste (system menu command `0xFFF1`), sent as `WM_COMMAND` to the console
+/// window: conhost reads the clipboard itself and feeds it to the console's input. Needed because
+/// Ctrl+V reaches Claude Code in conhost as a key, not as a paste (matrix H-6). Line breaks in the
+/// text would become Enter presses, so the caller refuses multi-line text for this route.
+pub fn conhost_menu_paste(hwnd: HWND) {
+    // SAFETY: plain call; the result of WM_COMMAND carries no information.
+    unsafe {
+        SendMessageW(
+            hwnd,
+            WM_COMMAND,
+            Some(WPARAM(CONHOST_PASTE_COMMAND)),
+            Some(LPARAM(0)),
+        )
+    };
+}
+
+/// conhost's system-menu "Edit > Paste" command id.
+const CONHOST_PASTE_COMMAND: usize = 0xFFF1;
 
 /// Ctrl down, V down, V up, Ctrl up, in one `SendInput` call. Never anything else: no Enter.
 pub fn send_ctrl_v() -> bool {

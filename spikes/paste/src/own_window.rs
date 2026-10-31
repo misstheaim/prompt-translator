@@ -1,5 +1,6 @@
 //! `--own-window`: a small top-level window of the spike's own, standing in for the app's
-//! Translate tab. The paste starts when Enter is **released** in it, so the spike process owns the
+//! Translate tab. The paste starts when Enter is **released** in it (or a left click is released
+//! in it, which the automated matrix run uses: it never presses Enter), so the spike process owns the
 //! foreground window and received the last input when it calls `SetForegroundWindow`, exactly
 //! like the app after the user's Enter. The window stays open (not destroyed) until the paste is
 //! done, so the foreground rights aren't lost to another window first.
@@ -12,8 +13,8 @@ use windows::Win32::UI::Input::KeyboardAndMouse::VK_RETURN;
 use windows::Win32::UI::WindowsAndMessaging::{
     CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, CreateWindowExW, DefWindowProcW, DestroyWindow,
     DispatchMessageW, GetMessageW, IDC_ARROW, LoadCursorW, MSG, PostQuitMessage, RegisterClassW,
-    SetForegroundWindow, TranslateMessage, WINDOW_EX_STYLE, WM_CLOSE, WM_KEYDOWN, WM_KEYUP,
-    WNDCLASSW, WS_OVERLAPPEDWINDOW, WS_VISIBLE,
+    SetForegroundWindow, TranslateMessage, WM_CLOSE, WM_KEYDOWN, WM_KEYUP, WM_LBUTTONDOWN,
+    WM_LBUTTONUP, WNDCLASSW, WS_EX_TOPMOST, WS_OVERLAPPEDWINDOW, WS_VISIBLE,
 };
 use windows::core::w;
 
@@ -23,6 +24,7 @@ const CLOSED: u8 = 2;
 
 static RESULT: AtomicU8 = AtomicU8::new(PENDING);
 static ENTER_PRESSED: AtomicBool = AtomicBool::new(false);
+static CLICK_PRESSED: AtomicBool = AtomicBool::new(false);
 
 unsafe extern "system" fn window_proc(
     hwnd: HWND,
@@ -32,6 +34,18 @@ unsafe extern "system" fn window_proc(
 ) -> LRESULT {
     let enter = wparam.0 == usize::from(VK_RETURN.0);
     match message {
+        // A click in the window counts like Enter (button-up after a button-down here): the
+        // automated matrix run triggers with a synthesized click, never with Enter.
+        WM_LBUTTONDOWN => {
+            CLICK_PRESSED.store(true, Ordering::SeqCst);
+            LRESULT(0)
+        }
+        WM_LBUTTONUP if CLICK_PRESSED.load(Ordering::SeqCst) => {
+            RESULT.store(ENTER, Ordering::SeqCst);
+            // SAFETY: plain call.
+            unsafe { PostQuitMessage(0) };
+            LRESULT(0)
+        }
         WM_KEYDOWN if enter => {
             ENTER_PRESSED.store(true, Ordering::SeqCst);
             LRESULT(0)
@@ -81,10 +95,11 @@ pub fn wait_for_enter() -> windows::core::Result<Option<OwnWindow>> {
             ..Default::default()
         };
         RegisterClassW(&class);
+        // Topmost, so a click on it can't land on another window.
         let hwnd = CreateWindowExW(
-            WINDOW_EX_STYLE(0),
+            WS_EX_TOPMOST,
             class_name,
-            w!("Paste spike: press Enter here to paste (close = cancel)"),
+            w!("Paste spike: press Enter or click here to paste (close = cancel)"),
             WS_OVERLAPPEDWINDOW | WS_VISIBLE,
             CW_USEDEFAULT,
             CW_USEDEFAULT,
