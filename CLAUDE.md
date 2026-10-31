@@ -20,10 +20,10 @@ A Windows tray app for practising English while working with Claude Code. It tra
 
 ## Plan and tickets
 
-- Plan: `docs/plans/prompt-translator.md` (decisions D1–D39 in §3, architecture and contracts in §4, every task's details in §5, order of work in §6). It wins over the original spec `claude_prompt_translator_implementation (1).md` where they differ.
+- Plan: `docs/plans/prompt-translator.md` (decisions D1–D47 in §3, architecture and contracts in §4, every task's details in §5, order of work in §6). It wins over the original spec `claude_prompt_translator_implementation (1).md` where they differ.
 - Tickets: GitHub issues in `misstheaim/prompt-translator`, GitHub Project "Prompt Translator" (https://github.com/users/misstheaim/projects/2), milestone `v0.1.0`. Task IDs like `T12` in the plan map to issue numbers in its hierarchy.
 - No automated tests: tickets close when build and lint pass and their acceptance criteria are met.
-- Spike E9 gate: if T37 (#72) is NO-GO, #31 and #73–#75 are on hold; don't implement them.
+- Spike E9 gate: T38–T40 (#73–#75) wait for spike T58 (#148, needs the owner present) and follow its report `docs/spikes/session-paste.md`; console injection (T37, #72) is dropped (plan D47).
 
 ## Behaviour spec
 
