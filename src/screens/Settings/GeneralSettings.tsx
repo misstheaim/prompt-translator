@@ -440,7 +440,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
 
       {saveError && <ErrorBanner error={saveError} />}
 
-      <div className="sticky bottom-0 flex items-center justify-end gap-2 border-t border-border bg-bg py-3">
+      <div className="sticky -bottom-4 -mx-4 flex items-center justify-end gap-2 border-t border-border bg-bg px-4 py-3">
         {dirty && <span className="mr-auto text-xs text-muted">Unsaved changes</span>}
         <Button disabled={!dirty || saving} onClick={revert}>
           Revert
