@@ -86,7 +86,7 @@ The owner's machine below is the **development** machine. Target machines vary, 
 | D7 | Presets | A preset = domain rules + default mode. Drop the spec's `preserveIntent` / `preserveTechnicalTerms` / `improveNaturalness` booleans | Booleans as in the spec | The booleans overlap with modes and rules; "preserve intent: off" makes no sense |
 | D8 | Output contract | Every provider returns JSON `{ "output": string, "issues": Issue[] }`; Ollama enforces it with `format` (JSON Schema) | Plain text output | Correct/Improve need structured explanations; one parser for all providers |
 | D9 | Streaming | Not in v1; a spinner plus **Cancel** | Stream tokens | JSON output can't be shown usefully mid-stream; local 7–9B models answer in about 1–3 s |
-| D10 | Ollama lifecycle | **Detect, and start on request**: the wizard and the `OllamaUnreachable` error offer **Start Ollama** (`ollama_start`). The app never stops Ollama and doesn't manage it beyond that. `keep_alive: "30m"`, `num_ctx` from settings (default 8192) | Full start/stop management as in the spec; detect only | On Windows Ollama runs as an autostart tray app; starting it on request covers the gap; `keep_alive` covers model lifetime |
+| D10 | Ollama lifecycle | **Detect, and start on request**: the wizard and the `OllamaUnreachable` error offer **Start Ollama** (`ollama_start`). The app never stops Ollama and doesn't manage it beyond that. `keep_alive: "30m"`, `num_ctx` from settings (default 8192) | Full start/stop management as in the spec; detect only | On Windows Ollama runs as an autostart tray app; starting it on request covers the gap; `keep_alive` covers model lifetime **Changed by D46 (2026-10-31): `keep_alive` default 10m; the app unloads the model on exit.** |
 | D11 | Local model | Chosen by spike T13; always configurable | Fixed model | Quality on Russian and mixed input must be measured on 8 GB VRAM |
 | D12 | Claude provider | One `claude -p --no-session-persistence` process per translation (about 7–15 runs per typical 5–10-turn main session; each lives a few seconds and uses the user's subscription quota), default model `haiku`, system prompt via `--system-prompt-file`, output via `--json-schema`. Isolation per spike T16 (D41): `--safe-mode` + `--setting-sources ""` with the user's normal login (no extra sign-in, no dedicated config dir). Always one fixed empty cwd, auto-updater and nonessential traffic disabled via env. Runs never appear in the user's session history or `--resume` list, but they do show in `claude agents --json` while running, so the session picker and injection exclude them (D41) | Persistent session; Anthropic API with key; accept leakage | User's choice: spike first. Per-process gives no context build-up |
 | D13 | Claude target | A `ClaudeTarget` abstraction with two targets: **Clipboard** (default, no session bound) and **Console session** (bound session). One **Accept** action (Ctrl+Shift+Enter in the main window, Enter in the popup); its label shows the target ("Send to <session name>" or "Copy") | Copy only; separate Copy and Send buttons | User wants direct sending; one action keeps the flow simple |
@@ -107,18 +107,23 @@ The owner's machine below is the **development** machine. Target machines vary, 
 | D28 | Local model per machine | Not tied to the dev machine. T13 measures and produces a **tier table** keyed on a dedicated GPU's VRAM. Integrated GPUs count as no GPU. **Changed in #45 (owner):** no CPU tiers: a machine without a usable GPU gets tier `none` and Claude Code as the recommended provider. No per-mode provider default (Ollama and Claude are equal choices in every mode). The wizard recommends the matching tier, then runs a **quick benchmark** on the downloaded model; if it's slow, it recommends Claude Code as the default provider (local stays as an offline fallback). Always changeable in Settings | One fixed model; tier by VRAM only | Laptops with only integrated graphics run models on the CPU, where RAM sets the size limit and real speed varies too much to predict |
 | D29 | Repo and license | Public GitHub repo `misstheaim/prompt-translator`, MIT license | Private repo + public releases repo | User's choice; needed for the updater |
 | D30 | Session discovery | `claude agents --json` (lists interactive and background sessions with `pid`, `cwd`, `name`, `status` idle/busy), polled about every 2 s **only while the main window or popup is visible**, plus a fresh check when the popup opens and right before each Accept. No polling while hidden (each poll spawns `claude.exe`) | Scanning processes; window titles | Official scripting output of the CLI; gives exactly the data the picker needs |
-| D31 | Delivery into a session | **Console input injection** (`AttachConsole(pid)` + `WriteConsoleInputW`, then Enter), targeted by PID, with no focus change, run in a **short-lived helper process** (the app re-runs its own exe with `--inject`) so console attach, Ctrl+C/close events and unsafe FFI can't affect the app. Only into a PID that `claude agents --json` reports as interactive **and** that is not one of the app's own translator runs (D41). Must be proven by spike T37. **If the spike fails, epic E9 goes on hold** and v1 ships with Clipboard only | Injection inside the app process; Claude Code channels (preview, needs a special startup flag, arrives as a `<channel>` event); focus-and-paste (fragile, can't target a Windows Terminal tab) | Works with any already-open session, needs no restart or flags; helper process isolates the risk |
+| D31 | Delivery into a session | **Console input injection** (`AttachConsole(pid)` + `WriteConsoleInputW`, then Enter), targeted by PID, with no focus change, run in a **short-lived helper process** (the app re-runs its own exe with `--inject`) so console attach, Ctrl+C/close events and unsafe FFI can't affect the app. Only into a PID that `claude agents --json` reports as interactive **and** that is not one of the app's own translator runs (D41). Must be proven by spike T37. **If the spike fails, epic E9 goes on hold** and v1 ships with Clipboard only | Injection inside the app process; Claude Code channels (preview, needs a special startup flag, arrives as a `<channel>` event); focus-and-paste (fragile, can't target a Windows Terminal tab) | Works with any already-open session, needs no restart or flags; helper process isolates the risk **Superseded by D47 (2026-10-31).** |
 | D32 | Busy session | Send anyway; Claude Code queues it. Show "Session busy: your prompt will be queued" | Wait for idle; block | User's choice |
 | D33 | Existing draft in Claude's input box | Never clear it; the prompt is appended. A one-time hint explains this | Send a clear-line key first | Never delete the user's text silently |
-| D34 | Binding scope | One binding for the whole app, chosen in the main window's session picker. The popup shows the target and follows it. Not persisted across app restarts (sessions are short-lived) | Per-window binding; persisted binding | User's choice; simple mental model |
+| D34 | Binding scope | One binding for the whole app, chosen in the main window's session picker. The popup shows the target and follows it. Not persisted across app restarts (sessions are short-lived) | Per-window binding; persisted binding | User's choice; simple mental model **Superseded by D47 (2026-10-31): bindings are per Translate tab.** |
 | D35 | Prompt prefix guard | If the accepted text starts with `!`, `/` or `#` (after trimming whitespace) and the target is a session, Accept asks for explicit confirmation ("This will run as a shell command / slash command / memory note in Claude Code. Send anyway?"). Never sent silently | Block outright; strip the character | These prefixes trigger bash mode, slash commands and memory in Claude Code; model output from untrusted source text could start with them, but a user may also want to send a slash command on purpose |
 | D36 | Keyboard layout fix | A **stand-alone tool** with its own hotkey, outside the translate flow. A fixed key-position mapping between the Windows Russian (ЙЦУКЕН) and US (QWERTY) layouts: no LLM, instant, offline. Direction by majority of Cyrillic vs Latin letters in the text. Only characters of the source layout change, so correctly typed words in the other script stay as they are. No history, no window. Only ru ↔ en in v1; the tables are data so other pairs (e.g. Ukrainian) can be added later | Convert through the LLM; per-word direction | Deterministic and instant; per-word direction is ambiguous for short words |
 | D37 | Layout fix input and output | Selection via Ctrl+C (same rules as D5). **No selection** → send Ctrl+Shift+Left to select the previous word, then convert it. The result is pasted with Ctrl+V and the previous clipboard text is restored. **In terminals** (or when `autoCopySelection` is off) it converts the clipboard text in place and shows a notification; the user pastes | Keyboard hook that buffers typed keys (Punto Switcher style); terminals unsupported | User's choice. Reuses T25b's code; a global keyboard hook is heavier and looks like a keylogger to antivirus tools |
-| D38 | Layout fix extras | After converting, switch the Windows input language to the target layout (only if it's installed; setting, on by default). Default hotkey **Shift+Pause** (changed in #79, owner decision: Ctrl+Alt+Space was taken by another app on the owner's machine), configurable, must differ from the translate hotkey | Shift+Home (rejected: it's "select to line start" in every app); Ctrl+Alt+Space (the first default; often taken by other apps) | User's choice; works on every keyboard |
+| D38 | Layout fix extras | After converting, switch the Windows input language to the target layout (only if it's installed; setting, on by default). Default hotkey **Shift+Pause** (changed in #79, owner decision: Ctrl+Alt+Space was taken by another app on the owner's machine), configurable, must differ from the translate hotkey | Shift+Home (rejected: it's "select to line start" in every app); Ctrl+Alt+Space (the first default; often taken by other apps) | User's choice; works on every keyboard **Changed 2026-10-31 (owner, T56): default hotkey `` Ctrl+Shift+` `` (takes VS Code's "Create New Terminal" while the app runs; accepted).** |
 | D39 | Branching and releases | Git Flow as in `docs/development.md`: `main` holds released code only; `develop` is the default and integration branch; one ticket = one branch = one PR squash-merged into `develop`; `release/X.Y.Z` and `hotfix/*` merge into `main` with a merge commit and a `vX.Y.Z` tag. **One milestone, `v0.1.0`, for the whole v1 plan** | Trunk-based on `main`; several smaller milestones | The coordinator needs a stable integration branch, and `main` stays releasable for hotfixes; v1 ships once, after T7's smoke test |
 | D40 | Prompt templates vs. the local model spike | T11 writes provider-neutral templates from §4.4 without waiting for T13. T13 runs in wave 4, once Ollama is installed, with T11's templates as its baseline; T44 applies its findings to the templates | T11 waits for T13 | Ollama wasn't ready in wave 0; this unblocks the core path and the Claude Code provider, and the templates are plain files that are cheap to change later |
 | D41 | Claude isolation (spike T16 outcome, owner decision 2026-10-24) | Invocation **candidate 1**: `claude -p --safe-mode --setting-sources ""` plus the flags in `docs/spikes/claude-invocation.json` (the contract T17b builds from: args, env added, explicit `envRemove` list, cwd under the app data dir via `system/paths.rs`, `TEMP`/`TMP` redirect, UTF-8 stdin, `CREATE_NO_WINDOW`), using the user's normal subscription login. No dedicated `CLAUDE_CONFIG_DIR`, no separate sign-in, no `claude_open_login`. Sign-in check: `claude auth status` (exit 0 = signed in); its output contains the e-mail, so **never log it**. **Safety:** a running translator run is listed by `claude agents --json` as `kind: "interactive"` (name from `--name prompt-translator`, via a transient `~/.claude/sessions/<pid>.json`). Session discovery (D30), injection (D31, D35) and the picker therefore exclude the app's own translator runs by **both** `name == "prompt-translator"` **and** PIDs in the translator-run registry (`TranslatorPids`, T17a) | Dedicated config dir (separate sign-in, hides runs from `agents`, but costs the user a login); `--bare` + API key; accept leakage | Spike showed candidate 1 loads none of the user's CLAUDE.md, hooks, skills, plugins or MCP servers, leaves no history, and needs no extra step; the `agents` listing is handled by filtering, with two independent checks so one failing (rename, registry race) can't send text into a translator run |
-| D42 | E9 on hold (spike T37 outcome, owner decision 2026-10-24) | Spike T37 (#72) could not run: the implementing agent's safety classifier blocked writing the console injector, so there is **no verdict**. The owner put T37 and story S9.2 (#31, T38-T40 = #73-#75) **on hold** (label `status:on-hold`, removed from milestone v0.1.0). **v0.1.0 ships with Clipboard only**; `copy_result` stays the only Accept path. The T38-T40 tickets and D30-D35 are kept for the future. **What would change it:** the owner writes and runs the injector by hand per T37 step 2 and the matrix passes, or a path that doesn't write into another process's console exists (e.g. Claude Code channels once out of preview) | Keep E9 in v0.1.0 and wait; drop E9 for good | The only risky part (writing into another process's console) needs the owner's hands; Clipboard already delivers the core value |
+| D42 | E9 on hold (spike T37 outcome, owner decision 2026-10-24) | Spike T37 (#72) could not run: the implementing agent's safety classifier blocked writing the console injector, so there is **no verdict**. The owner put T37 and story S9.2 (#31, T38-T40 = #73-#75) **on hold** (label `status:on-hold`, removed from milestone v0.1.0). **v0.1.0 ships with Clipboard only**; `copy_result` stays the only Accept path. The T38-T40 tickets and D30-D35 are kept for the future. **What would change it:** the owner writes and runs the injector by hand per T37 step 2 and the matrix passes, or a path that doesn't write into another process's console exists (e.g. Claude Code channels once out of preview) | Keep E9 in v0.1.0 and wait; drop E9 for good | The only risky part (writing into another process's console) needs the owner's hands; Clipboard already delivers the core value. **Superseded by D47 (2026-10-31).** |
+| D43 | Improve mode (owner, manual test 2026-10-31) | Improve becomes a **practice** mode: a natural, advanced rewrite (higher-level vocabulary and constructions, idioms where a native speaker would use them), up to 12 explained changes, new issue categories `idiom` and `phrasing`. **Disabled in Translate tabs bound to a Claude session** (D47), because idioms make prompts less precise for an LLM (T51) | Keep Improve conservative and add a style option | Owner's choice; the app is for English practice, and bound tabs keep prompts precise |
+| D44 | Language pair (owner, 2026-10-31) | Two settings, native (default `ru`) and target (default `en`) language, chosen in the wizard and in Settings; the Translate tab can switch the pair for the session only. Languages = those `whatlang` detects. Templates, mode detection and history use the pair; explanations, the UI and the layout fix (US ↔ Russian) stay as they are (T52, T53) | Hard-wired ru → en; all ISO languages | Detection bounds the list; with the defaults nothing changes |
+| D45 | Popup starting mode and Enter (owner, 2026-10-31) | At capture, UI Automation classifies the source as editable, read-only or unknown. Read-only → Translate into the **opposite** language of the text (first word decides); editable/unknown → the "Popup starts in" setting (Auto = TRANS-003, fixed mode, or Last used). In the popup, **Enter replaces** an editable selection (paste + clipboard restore) and **Ctrl+Enter copies**; otherwise Enter copies (T54, T55) | Language-only detection; Enter = copy | Owner's choice; reading foreign text and fixing one's own text are different jobs |
+| D46 | Local model memory (owner, 2026-10-31) | `ollama.keepAlive` default **10m** (was 30m, D10); the app unloads the model on exit and offers an always-visible "Unload model" button (top bar and tray) (T56) | 30m only; stop Ollama on exit | A 9b model holds about 6.4 GB of VRAM; unloading isn't stopping Ollama, which stays out of scope |
+| D47 | Delivery into a session, revised (owner, 2026-10-31; replaces D31, D34 and D42) | **No console injection.** VS Code extension sessions get the text through the extension's link `vscode://anthropic.claude-code/open?session=<id>&prompt=<text>` (opens the session, fills its input); terminal sessions: a Translate tab is bound to **one terminal window** (one session per window), and delivery brings it to the front, selects the bound Windows Terminal tab (UI Automation) and pastes once with Ctrl+V, restoring the clipboard. **Never sends Enter**: the user reviews and sends in Claude. Bindings are **per Translate tab**: one default unbound tab plus at most 5 bound ones, not restored after a restart; a tab closes when its terminal window closes. D32/D33/D35 still apply. Spike T58 (#148) confirms the recipe; T37 (#72) is dropped | Console input injection (blocked, D42); Claude Code channels (research preview, start flag, arrives as an event, not as reviewable input); Remote Control (no API) | Uses only actions a user could do (focus, paste, open a link), so nothing writes into another process; the owner checked by hand that a paste waits in Claude's input while it works |
 
 ## 4. Architecture and design
 
@@ -413,6 +418,7 @@ No automated tests (owner's decision, 2026-10-15). A ticket is done when build a
     ├── [Task][backend]  T32 In-app updater backend (#67)
     ├── [Task][frontend] T33 About section and update UI (#68)
     ├── [Task][backend]  T46 Fix startup panic: no rustls crypto provider for reqwest (#138)
+    ├── [Task][backend]  T56 Free the local model's memory, uninstall from the app, new layout-fix hotkey default (#146)
     └── [Task][docs]     T7 README, install guide and smoke-test checklist (#39)
 [Epic] E2 Translation core (#2)
 ├── [Story] S2.1 Settings persist between runs (#12)
@@ -421,7 +427,10 @@ No automated tests (owner's decision, 2026-10-15). A ticket is done when build a
 │   └── [Task][backend]  T9 Preset model, built-ins and PresetStore (#41)
 ├── [Story] S2.3 Prompts are built per mode and outputs are checked (#14)
 │   ├── [Task][backend]  T10 Technical token checker (#42)
-│   └── [Task][backend]  T11 Prompt templates, builder and output parser (#43)
+│   ├── [Task][backend]  T11 Prompt templates, builder and output parser (#43)
+│   ├── [Task][backend]  T47 Validate model mistakes and fix Correct/Improve template failures (#142)
+│   ├── [Task][backend]  T51 Improve: idiomatic rewrite with an explanation for each change (#149)
+│   └── [Task][backend]  T52 Configurable language pair in the translation core (#150)
 └── [Story] S2.4 One service runs any provider (#15)
     └── [Task][backend]  T12 TranslationService, provider trait, mock provider, translate/cancel commands (#44)
 [Epic] E3 Local LLM provider (Ollama) (#3)
@@ -443,23 +452,29 @@ No automated tests (owner's decision, 2026-10-15). A ticket is done when build a
 │   ├── [Task][design]   T18 UI design spec and Tailwind theme (#51)
 │   ├── [Task][frontend] T19 App shell, API layer, error banner (#52)
 │   ├── [Task][frontend] T20 Translate screen (#53)
-│   └── [Task][frontend] T21 Result details: diff, issues, token warnings (#54)
+│   ├── [Task][frontend] T21 Result details: diff, issues, token warnings (#54)
+│   └── [Task][frontend] T49 Fix the Settings save bar gap and add a clear button to the Translate box (#144)
 └── [Story] S5.2 Configure providers, defaults and presets (#22)
     ├── [Task][frontend] T22 Settings screen (#55)
-    └── [Task][frontend] T23 Preset editor (#56)
+    ├── [Task][frontend] T23 Preset editor (#56)
+    └── [Task][frontend] T53 Language pair in setup, Settings and the Translate tab (#151)
 [Epic] E6 Tray and hotkey popup (#6)
 ├── [Story] S6.1 The app lives in the tray (#23)
 │   └── [Task][backend]  T24 Tray, close-to-tray, single instance, autostart (#57)
 ├── [Story] S6.2 Translate the clipboard from anywhere with a hotkey (#24)
-    ├── [Task][backend]  T25a Global hotkey and popup window (#58)
-    ├── [Task][backend]  T25b Auto-copy selection outside terminals (#59)
+│   ├── [Task][backend]  T25a Global hotkey and popup window (#58)
+│   ├── [Task][backend]  T25b Auto-copy selection outside terminals (#59)
 │   ├── [Task][backend]  T25c Mode detection (#60)
 │   ├── [Task][frontend] T26 Popup UI (#61)
-│   └── [Task][backend]  T45 Auto-copy: treat VS Code's whole-line copy as no selection (#128)
+│   ├── [Task][backend]  T45 Auto-copy: treat VS Code's whole-line copy as no selection (#128)
+│   ├── [Task][frontend] T50 Popup: keep each mode's result, movable, resizable, remembers size and position (#145)
+│   ├── [Task][backend]  T54 Popup starting mode from where the text was selected (#152)
+│   └── [Task][backend]  T55 Popup: Enter replaces the selection, Ctrl+Enter copies (#153)
 └── [Story] S6.3 Fix text typed in the wrong keyboard layout with a hotkey (#76)
     ├── [Task][backend]  T41 Keyboard layout conversion module (#77)
     ├── [Task][backend]  T42 Layout-fix hotkey: capture, replace and switch layout (#78)
-    └── [Task][frontend] T43 Layout-fix settings (#79)
+    ├── [Task][frontend] T43 Layout-fix settings (#79)
+    └── [Task][backend]  T57 Layout fix: convert every wrong-layout word before the cursor (#147)
 [Epic] E7 History and learning log (#7)
 ├── [Story] S7.1 Translations and mistakes are saved (#25)
 │   ├── [Task][database] T27 SQLite schema, migrations and repository (#62)
@@ -467,23 +482,25 @@ No automated tests (owner's decision, 2026-10-15). A ticket is done when build a
 ├── [Story] S7.2 Review and search past translations (#26)
 │   └── [Task][frontend] T29 History screen (#64)
 └── [Story] S7.3 See my recurring mistakes and new vocabulary (#27)
-    └── [Task][frontend] T30 Mistakes screen (#65)
+    ├── [Task][frontend] T30 Mistakes screen (#65)
+    └── [Task][backend]  T48 Count mistakes once per text and filter History by mode, category and period (#143)
 [Epic] E8 First-run setup (#8)
 ├── [Story] S8.1 The app knows what this machine can run (#28)
 │   └── [Task][backend]  T34 Environment check and model tier recommendation (#69)
 └── [Story] S8.2 A new user is guided to a working provider (#29)
     ├── [Task][backend]  T35 Ollama install, start and model download (#70)
     └── [Task][frontend] T36 Setup wizard UI (#71)
-[Epic] E9 Send prompts into an open Claude session (#9)   (ON HOLD, D42)
+[Epic] E9 Send prompts into an open Claude session (#9)   (revised, D47)
 ├── [Story] S9.1 Writing into a running session is proven possible (#30)
-│   └── [Task][research] T37 Spike: console input injection into claude.exe (#72)   (ON HOLD, D42)
-└── [Story] S9.2 Bind a session and send accepted prompts to it (#31)   (ON HOLD, D42)
-    ├── [Task][backend]  T38 Session discovery and binding (#73)
-    ├── [Task][backend]  T39 Console session target and accept routing (#74)
-    └── [Task][frontend] T40 Session picker and Accept-to-session UI (#75)
+│   ├── [Task][research] T37 Spike: console input injection into claude.exe (#72)   (DROPPED, D47)
+│   └── [Task][research] T58 Spike: paste into a bound terminal window and open VS Code sessions by link (#148)
+└── [Story] S9.2 Bind a session and send accepted prompts to it (#31)
+    ├── [Task][backend]  T38 Session targets: list, bind and watch Claude sessions (#73)
+    ├── [Task][backend]  T39 Deliver accepted text into a bound Claude session (#74)
+    └── [Task][frontend] T40 Translate tabs bound to Claude sessions (#75)
 ```
 
-Totals: **9 epics, 23 stories, 47 tasks.**
+Totals: **9 epics, 23 stories, 59 tasks** (T37 dropped).
 
 ---
 
@@ -1024,92 +1041,42 @@ Write `docs/spikes/local-model-eval.md` with:
 - **Suggested model:** Sonnet 5.5 (confidence: High). Multi-step form on top of ready commands.
 
 ### T37. Spike: console input injection into claude.exe  `research` · parent: S9.1 · issue: #72
-> **ON HOLD (D42, 2026-10-24):** the spike could not run (the agent's safety classifier blocked writing the injector), so there is no verdict. Not part of v0.1.0; the owner may run step 2 by hand later.
+> **DROPPED (D47, 2026-10-31):** never ran (D42). Closed as not planned; replaced by T58 (#148), which tests the VS Code link and focus-and-paste instead of console input injection. The old recipe and matrix are in the git history of this file.
 
-- **Goal:** prove (or disprove) that the app can write a prompt into a specific running interactive Claude Code session and submit it, without focusing its window.
-- **Details:** build a throwaway Rust CLI in `spikes/inject/` (not part of the app) that does the following:
-  1. Run `claude agents --json`. Pick an `interactive` session by name or PID. (Already verified during review: `pid` is `claude.exe` itself, with the shell as its parent.)
-  2. The injector runs as a **separate short-lived process** (D31): `SetConsoleCtrlHandler(None, TRUE)` (ignore Ctrl+C/close events from the attached console) → `FreeConsole()` → `AttachConsole(pid)` → open `CONIN$` → `WriteConsoleInputW` with `KEY_EVENT` records (key down + up per UTF-16 unit, `uChar` set) for the text, then Enter → `FreeConsole()` → exit with a status code per outcome.
-  3. Test matrix:
-     - hosts: **Windows Terminal (focused tab, background tab, minimised window)**, classic conhost, VS Code integrated terminal;
-     - text: ASCII, Cyrillic and emoji (should arrive intact even though we only send English, to prove there's no encoding trouble);
-     - **multi-line text**: find how to insert newlines without submitting. Candidates: bracketed paste `ESC[200~ … ESC[201~` sent as key events; Shift+Enter key events; Claude Code's own paste detection;
-     - long text (4,000 chars);
-     - session idle vs busy (confirm that a message typed while busy is queued);
-     - an existing draft in the input box (confirm it's appended);
-     - elevated terminal with a non-elevated injector (expect access denied, and record the exact error);
-     - a closed session (PID gone);
-     - text starting with `!`, `/` or `#` (confirm it triggers bash mode / slash command / memory, so D35's guard is needed);
-     - pressing Ctrl+C in, or closing, the target terminal while the injector is attached (the injector must not crash the app; confirm the helper-process design isolates it).
-  4. Check that the injector process (a GUI app with no console of its own) can attach repeatedly without leaking a console window.
-  5. Also note: does a background tab in Windows Terminal get the input; does the user's own typing interleave if they type at the same moment; confirm the T16 finding that a running translator `claude -p` appears in `claude agents --json` as `kind: "interactive"` with name `prompt-translator` (D41), and that the injector refuses to target it (name and PID checks).
+### T38. Session targets: list, bind and watch Claude sessions  `backend` · parent: S9.2 · issue: #73
+> **Rewritten 2026-10-31 (D47).** The console-injection version (`claude agents --json` poller, app-wide binding) is replaced.
 
-  Write `docs/spikes/session-injection.md` with:
-  - the results matrix;
-  - the exact working recipe (API calls, how newlines are sent, how PIDs are resolved);
-  - limits;
-  - a clear **GO / NO-GO** verdict.
-
-  **If NO-GO:** put S9.2 and T38–T40 on hold (label `status: on-hold`). v1 ships with Clipboard only. Note what would change the verdict (e.g. channels leaving preview).
+- **Goal:** the core lists the Claude sessions a Translate tab can be bound to (VS Code extension sessions and terminal windows), binds one, and notices when a bound terminal window closes.
+- **Details:** `target/sessions.rs` + `target/commands.rs`. Contract `SessionTarget` = `{ kind: "vscode", sessionId, title, cwd }` | `{ kind: "terminal", hwnd, pid, tabRuntimeId?, title }`. `list_session_targets()`: top-level terminal windows (POPUP-007's terminal check) with titles, Windows Terminal tabs via UI Automation (`TabItem` name, RuntimeId); VS Code sessions as T58 recommends (fallback: "New VS Code conversation" only); translator runs (D41) are never listed. `bind_terminal_by_focus(timeoutMs)` returns the next terminal window brought to the front (~10 s). While terminal bindings exist, a ~2 s liveness check (`IsWindow`, same pid, WT tab still there) emits `target://closed`; no polling without bindings.
 - **Acceptance criteria:**
-  - [ ] Every cell of the matrix has a result.
-  - [ ] GO requires: Windows Terminal (including a background tab) and conhost work; multi-line text arrives as one prompt; failure modes are detectable (error codes, not silent loss).
-  - [ ] The verdict and recipe are documented.
-- **Depends on:** T1 (Rust toolchain). **Can run in parallel with:** everything in waves 1–5.
-- **Suggested model:** Opus 5.5 (confidence: Medium). Low-level Win32 console behaviour under ConPTY is poorly documented; fall back to Fable 5.1 if the results are inconsistent.
+  - [ ] Two WT windows and a conhost window are listed with titles and WT tabs; translator runs aren't.
+  - [ ] Bind by focus works within the timeout; closing a bound window emits `target://closed` within ~2 s.
+  - [ ] VS Code sessions listed as T58 recommends.
+- **Depends on:** T58. **Can run in parallel with:** T47–T57.
+- **Suggested model:** Opus 5.5 (confidence: Medium). Win32 windows, UI Automation and a watcher; depends on the spike.
 
-### T38. Session discovery and binding  `backend` · parent: S9.2 · issue: #73
-> **ON HOLD (D42, 2026-10-24):** part of S9.2; not in v0.1.0. Kept for the future.
+### T39. Deliver accepted text into a bound Claude session  `backend` · parent: S9.2 · issue: #74
+> **Rewritten 2026-10-31 (D47).** Replaces console injection and the app-wide `accept_result` routing.
 
-- **Goal:** the app knows which Claude sessions are open and which one is bound, live.
-- **Spike findings to apply (from the T16/T37 attempts):** the D41 translator filter must match the session name `prompt-translator` **exactly**, never by prefix (a user session can be named e.g. `prompt-translator-d2`). A helper spawned from inside Claude Code must clear `CLAUDECODE`, `CLAUDE_CODE_*` and `CLAUDE_PID` from its environment before running `claude`, and a GUI-subsystem helper must spawn `claude agents --json` with `CREATE_NO_WINDOW`.
-- **Details:** `target/sessions.rs`:
-  - `list_sessions()` runs `claude agents --json` (executable from T17a's `find_claude()`, `CREATE_NO_WINDOW`, 5 s timeout), parses it leniently (unknown fields ignored, unknown `status` kept as a string), keeps `kind == "interactive"` only, and **excludes the app's own translator runs, which `claude agents --json` lists as interactive while they run (D41)**: drop every entry whose `name == "prompt-translator"` **and** every entry whose PID is in `TranslatorPids` (T17a); apply both checks (defence in depth), plus any session whose `cwd` is `paths::claude_cwd()`. `bind_session` also refuses such an entry.
-  - Background poller (D30): every 2 s **only while the main window or popup is visible**; no polling while hidden (each poll spawns `claude.exe`); one immediate refresh when the popup opens. It stops when Claude Code isn't installed. When the list or the bound session's status changes, emit `sessions://changed`.
-  - Binding state in managed state: `bind_session(sessionId)` stores the full `ClaudeSession`. When the bound session disappears from the list (or its PID is gone), `alive = false`. Rebinding or `unbind_session` clears it. Not persisted (D34).
-  - Commands `list_sessions`, `bind_session`, `unbind_session`, `get_binding`.
+- **Goal:** Accept in a bound tab puts the text into the bound session's input box without sending it.
+- **Details:** `deliver_to_target(target, text, historyId, confirmed?)`: D35 prefix guard first. VS Code → open `vscode://anthropic.claude-code/open?session=<id>&prompt=<url-encoded>` through `open_url` (fall back to copy above the URL limit T58 found). Terminal → under the input lock: check the window (same pid), restore if minimised, `SetForegroundWindow`, select the WT tab, verify foreground + no modifier, write the text hidden from clipboard history, Ctrl+V once, restore the clipboard after the layout fix's delay (LAYOUT-004). **No Enter.** Any failure → copy + message. Marks the entry accepted with `Session { id, name }` (HISTORY-009). Only the accepted target-language output is delivered (§4.9).
 - **Acceptance criteria:**
-  - [ ] JSON parsing (sample from the T37 spike doc, extra fields, missing optional fields, background sessions filtered out); a running translator run is excluded by name alone, by PID alone and by cwd alone (D41); binding transitions (bind → session closes → `alive=false` → rebind/unbind).
-  - [ ] The poller emits events only on change.
-- **Depends on:** T3, T17a, T37 (GO). **Can run in parallel with:** none in E9 (T39 depends on it).
-- **Suggested model:** Sonnet 5.5 (confidence: High). Process call + state machine.
+  - [ ] Terminal: idle and busy Claude, window minimised / behind / bound tab not selected: the text waits in Claude's input; clipboard restored.
+  - [ ] VS Code: the session opens with the text in its input.
+  - [ ] Prefix confirmation; failure → copied with a message; history marked.
+- **Depends on:** T38. **Can run in parallel with:** T40's UI against mocked commands.
+- **Suggested model:** Sonnet 5.5 (confidence: Medium). Follows T58's recipe and the layout fix's paste code.
 
-### T39. Console session target and accept routing  `backend` · parent: S9.2 · issue: #74
-> **ON HOLD (D42, 2026-10-24):** part of S9.2; not in v0.1.0. Kept for the future.
+### T40. Translate tabs bound to Claude sessions  `frontend` · parent: S9.2 · issue: #75
+> **Rewritten 2026-10-31 (D47).** Replaces the app-wide session picker (D34).
 
-- **Goal:** Accept delivers the prompt to the bound session, or to the clipboard when none is bound.
-- **Spike findings to apply (from the T16/T37 attempts):** the translator-run check (D41) matches the name `prompt-translator` exactly, never by prefix (a user session can be named e.g. `prompt-translator-d2`). The `--inject` helper and any `claude` it spawns must clear `CLAUDECODE`, `CLAUDE_CODE_*` and `CLAUDE_PID` from the environment, and spawn `claude agents --json` with `CREATE_NO_WINDOW` (the helper is a GUI-subsystem process).
-- **Details:**
-  - `target/mod.rs`: `trait ClaudeTarget { fn send(&self, text: &str) -> AppResult<Delivery> }` with `ClipboardTarget` (existing copy logic) and `ConsoleSessionTarget { pid }`.
-  - `target/console_inject.rs`: implement the spike's recipe (T37) in production quality as a **helper mode of the app's own exe**: `main` checks for `--inject <pid>` before starting Tauri, reads the text from stdin, ignores console control events, attaches, writes, frees, and exits with a status code (0 ok, distinct codes for access denied, PID gone, other). `ConsoleSessionTarget` spawns it with `CREATE_NO_WINDOW` and maps exit codes to errors. Strip control characters except newline, and send newlines the way the spike found.
-  - `accept_result({ text, historyId?, confirmedPrefix? })`:
-    1. if nothing is bound → clipboard;
-    2. if bound and the trimmed text starts with `!`, `/` or `#` and `confirmedPrefix` isn't true → return `PrefixNeedsConfirmation` (D35);
-    3. re-check liveness with a fresh `list_sessions` (closed → `SessionClosed`); the target must still be reported interactive and must not be one of the app's own translator runs (name `prompt-translator` or PID in `TranslatorPids`, D41), otherwise refuse (`SessionClosed`);
-    4. inject (access denied → `SessionUnreachable`; other failures → copy to clipboard, then return `InjectionFailed`);
-    5. return `{ deliveredTo, sessionName, queued: status == busy }`;
-    6. mark history accepted with `Session { id, name }` or `Clipboard` (T28).
+- **Goal:** the Translate screen has a default, unbound tab plus up to 5 tabs bound to Claude sessions; Accept in a bound tab delivers into its session.
+- **Details:** tab strip ("Translate" + one tab per binding, ×, "+ Bind session" up to 5); bind dialog (list from T38, "Click into a terminal…"); per-tab state (text, mode, provider, preset, language pair, result); in bound tabs Improve is disabled and the result button is "Send to <session>" (T39, D35 dialog); `target://closed` closes the tab with a toast; tabs aren't restored after a restart; History/popup "Open in main window" load into the default tab.
 - **Acceptance criteria:**
-  - [ ] Routing logic (unbound, bound alive, bound closed, injection error falls back to clipboard); prefix guard for `!`, `/`, `#` (with and without leading whitespace, with confirmation); exit-code mapping; control-character sanitising; newline encoding.
-  - [ ] Manual (using the T37 matrix as a script): send from the app to a session in a Windows Terminal background tab and in conhost; multi-line prompt arrives as one message; busy session queues; elevated terminal shows the `SessionUnreachable` hint.
-- **Depends on:** T37 (GO), T38, T28. **Can run in parallel with:** T40 (UI against mocked commands).
-- **Suggested model:** Opus 5.5 (confidence: Medium). Unsafe Win32 FFI and concurrency.
-
-### T40. Session picker and Accept-to-session UI  `frontend` · parent: S9.2 · issue: #75
-> **ON HOLD (D42, 2026-10-24):** part of S9.2; not in v0.1.0. Kept for the future.
-
-- **Goal:** the user picks a session once, and every Accept goes there; with no session picked, the app behaves as before.
-- **Details:**
-  - **Session picker** in the main window's top bar (§4.8): options "None (copy to clipboard)" plus sessions (`name — folder — idle/busy` dot). It updates on `sessions://changed`. It shows every state in §4.8, including "Session ended" in red. It's hidden when Claude Code isn't installed.
-  - **Accept button** (Translate screen, from T20): label "Copy" or "Send to <name>" and calls `accept_result`. Disabled with a tooltip while the bound session has ended. Shows a busy note "will be queued". Toast on success ("Sent to <name>" / "Copied"). Error kinds per §4.6. On `InjectionFailed`, the toast says the text was copied instead.
-  - **One-time hint** on the first send (D33): "Your prompt is added after anything already typed in Claude's input box." Then set `sessionAppendHintShown`.
-  - **Prefix confirmation** (D35): on `PrefixNeedsConfirmation`, show a confirm dialog naming what will happen (shell command / slash command / memory note). On confirm, call `accept_result` again with `confirmedPrefix: true`. In the popup, Enter opens the dialog and a second Enter confirms.
-  - **Popup** (T26): footer "Enter: send to <name>" / "Enter: copy". Enter calls `accept_result`. If the session has ended, show the error and keep the popup open, with a "Copy instead" button.
-- **Acceptance criteria:**
-  - [ ] Picker states (no Claude, no sessions, bound idle, bound busy, ended); Accept label and disabled state; popup footer and Enter behaviour; one-time hint shown once; prefix confirmation flow.
-  - [ ] Manual: full flow from the popup and the main window into a live session.
-- **Depends on:** T20, T26, T38, T39. **Can run in parallel with:** none in E9.
-- **Suggested model:** Sonnet 5.5 (confidence: High). UI on top of defined commands.
+  - [ ] Binding by click and from the list; no 6th binding; per-tab state kept.
+  - [ ] Improve disabled in bound tabs; Send delivers; a closed terminal closes its tab; restart shows only the default tab.
+- **Depends on:** T39, T53. **Can run in parallel with:** none in E9.
+- **Suggested model:** Sonnet 5.5 (confidence: Medium). Per-tab state refactor plus dialogs.
 
 ### T41. Keyboard layout conversion module  `backend` · parent: S6.3 · issue: #77
 - **Goal:** a pure function that turns text typed with the wrong keyboard layout into what the user meant (D36).
@@ -1193,19 +1160,118 @@ Write `docs/spikes/local-model-eval.md` with:
 - **Depends on:** T11, T13. **Can run in parallel with:** T14.
 - **Suggested model:** Sonnet 5.5 (confidence: Medium). Applies measured findings to existing templates with a ready eval script; fall back to Opus 5.5 if the report leaves wording choices open.
 
+### T47. Validate model mistakes and fix Correct/Improve template failures  `backend` · parent: S2.3 · issue: #142
+- **Goal:** issues that break the issue rules are dropped before saving, and the templates stop the failures found in the 2026-10-31 manual test (F1, F2, F3, F5).
+- **Details:** new issue validation after parsing (TRANS-014): drop (and log) an issue whose `original` isn't in the source or `corrected` isn't in the output (case-insensitive, whitespace collapsed), whose `original` has more than 8 words, or, in Improve, a spelling-only change; the output is never changed. `correct.md`: capitalisation → `spelling`; never delete words or change correct names/headings; one fix per issue, verbatim from the text. `improve.md`: no spelling/grammar issues. Add the five failing texts to `eval/`, before/after numbers in the PR.
+- **Acceptance criteria:**
+  - [ ] Validation rules in code; templates updated; the five texts no longer give the bad issues or the "Windows Sandbox → sandbox" output on `qwen3.5:9b`.
+- **Depends on:** none. **Must run before:** T51, T52.
+- **Suggested model:** Sonnet 5.5 (confidence: Medium).
+
+### T48. Count mistakes once per text and filter History by mode, category and period  `backend` · parent: S7.3 · issue: #143
+- **Goal:** re-runs no longer inflate Mistakes (F4); History filters by mode (I12); every Mistakes item opens History filtered, for the same period (I14).
+- **Details:** `mistakes_summary` counts a pair once per distinct normalised source text; `history_list` gets optional `mode`, `category`, `sinceDays`; History mode select and a combined filter banner; Mistakes category bars, recurring pairs and vocabulary items set the History filter with the period.
+- **Acceptance criteria:**
+  - [ ] The same text run 5 times counts ×1; mode filter; each Mistakes item opens the matching History list for its period.
+- **Depends on:** none. **Can run in parallel with:** T47, T49, T50, T56, T57.
+- **Suggested model:** Sonnet 5.5 (confidence: High).
+
+### T49. Fix the Settings save bar gap and add a clear button to the Translate box  `frontend` · parent: S5.1 · issue: #144
+- **Goal:** the Settings save bar sits on the window's bottom edge (F6); the Translate text box has a clear (×) button that clears only the input (I7).
+- **Details:** `sticky bottom-0` inside `main`'s `p-4` leaves a strip; use `-bottom-4` and `-mx-4 px-4`. × shown while the box isn't empty, disabled while running, keeps the result, refocuses.
+- **Acceptance criteria:**
+  - [ ] Nothing shows under the bar; × behaves as described.
+- **Depends on:** none.
+- **Suggested model:** Haiku 5.5 (confidence: High).
+
+### T50. Popup: keep each mode's result, movable, resizable, remembers size and position  `frontend` · parent: S6.2 · issue: #145
+- **Goal:** switching back to a mode that already ran shows its result without a new run (I1); the popup can be dragged and resized and reopens where it was left (I17).
+- **Details:** per-capture map mode → result (cleared by a new capture, Ctrl+R replaces the current mode's); drag region (`core:window:allow-start-dragging` for `popup` only), `resizable(true)` with a minimum size; new setting `popupBounds`, used when on a connected monitor, else centred as today.
+- **Acceptance criteria:**
+  - [ ] Mode switch back is instant; move/resize kept across restarts; off-screen bounds fall back to centring.
+- **Depends on:** none. **Must run before:** T54, T55.
+- **Suggested model:** Sonnet 5.5 (confidence: Medium).
+
+### T51. Improve: idiomatic rewrite with an explanation for each change  `backend` · parent: S2.3 · issue: #149
+- **Goal:** Improve becomes a practice mode (D43): a natural, advanced rewrite with idioms where they fit, every change explained.
+- **Details:** new `improve.md`; Improve issues up to 12, categories `style`, `word_choice`, new `idiom`, `phrasing` (enum, schema, parser, bindings, APP-031 colours, Mistakes bars); explanations say why the wording is used and sounds more natural; tokens kept; eval cases. Improve is disabled in bound tabs (T40).
+- **Acceptance criteria:**
+  - [ ] Clearly rewritten output with explained changes on both providers; tokens kept; new categories end to end.
+- **Depends on:** T47. **Must run before:** T52.
+- **Suggested model:** Opus 5.5 (confidence: Medium).
+
+### T52. Configurable language pair in the translation core  `backend` · parent: S2.3 · issue: #150
+- **Goal:** native (default Russian) and target (default English) language settings replace the hard-wired pair (D44); with the defaults nothing changes.
+- **Details:** language list = what `whatlang` detects (~70, code + English name); settings `nativeLanguage`, `targetLanguage` (must differ); optional pair on `translate`; template placeholders (explanations stay in English); `detect_mode` = "is it the target language?"; history migration 2 adds `source_language`, `target_language` (null = ru → en). Layout fix and UI language untouched.
+- **Acceptance criteria:**
+  - [ ] Default-pair prompts equivalent to today's; a `uk` → `de` pair works; migration and old settings load.
+- **Depends on:** T51. **Must run before:** T53, T54.
+- **Suggested model:** Opus 5.5 (confidence: Medium).
+
+### T53. Language pair in setup, Settings and the Translate tab  `frontend` · parent: S5.2 · issue: #151
+- **Goal:** the pair is chosen in the wizard, changed in Settings, and switched per session on the Translate tab without touching the settings.
+- **Details:** searchable `LanguageSelect`; Defaults step and a Settings "Languages" group; Translate tab pair control with swap, kept in the screen store across tab switches, reset to settings at app start; the popup uses the settings' pair.
+- **Acceptance criteria:**
+  - [ ] Wizard and Settings save the pair; the tab switch translates en → ru without changing settings and resets after restart.
+- **Depends on:** T52. **Must run before:** T40.
+- **Suggested model:** Sonnet 5.5 (confidence: High).
+
+### T54. Popup starting mode from where the text was selected  `backend` · parent: S6.2 · issue: #152
+- **Goal:** read-only sources are translated into the opposite language (first word decides for mixed text); editable sources open in the new "Popup starts in" setting (D45).
+- **Details:** UI Automation classifies the focused element at capture (editable / read-only / unknown, ~100 ms cap); `popup://source` carries `sourceKind` and an optional reversed pair; setting `popupStartMode` (`auto` default, `translate`, `improve`, `correct`, `lastUsed`); direction label in the popup. Reverse translations are never sent to a session.
+- **Acceptance criteria:**
+  - [ ] Article text → opposite language; text fields follow the setting; terminals/clipboard fallback count as editable.
+- **Depends on:** T50, T52. **Must run before:** T55.
+- **Suggested model:** Opus 5.5 (confidence: Medium).
+
+### T55. Popup: Enter replaces the selection, Ctrl+Enter copies  `backend` · parent: S6.2 · issue: #153
+- **Goal:** Enter pastes the result over the selection in the source app and puts the previous clipboard back; Ctrl+Enter copies (D45).
+- **Details:** keep the source window from the capture; replace only for editable selections (T54), else Enter copies; hide popup, refocus the source, paste hidden from clipboard history, restore (LAYOUT-004 code); failure → copy + notification; footer text per case.
+- **Acceptance criteria:**
+  - [ ] Notepad, browser field, VS Code: replaced, clipboard restored; read-only/terminal/no selection: Enter copies; closed source window → copy + notification.
+- **Depends on:** T54.
+- **Suggested model:** Sonnet 5.5 (confidence: Medium).
+
+### T56. Free the local model's memory, uninstall from the app, new layout-fix hotkey default  `backend` · parent: S1.2 · issue: #146
+- **Goal:** Ollama doesn't hold VRAM longer than needed (D46), the app can start its own uninstaller, and the layout-fix default is `` Ctrl+Shift+` `` (D38).
+- **Details:** defaults `keepAlive` `10m` and `` Ctrl+Shift+` `` (defaults only, no migration); `unload_model` (`keep_alive: 0`, 3 s); always-visible "Unload model" button in the main window's top bar and a tray item; best-effort unload on exit (~2 s, not on close-to-tray); About → "Uninstall Prompt Translator…" starting `UninstallString` from HKCU and exiting (hidden in dev); README and smoke-test updated.
+- **Acceptance criteria:**
+  - [ ] New defaults; button and tray item unload (`ollama ps` empty); quit unloads; uninstall button opens the uninstaller.
+- **Depends on:** none.
+- **Suggested model:** Sonnet 5.5 (confidence: High).
+
+### T57. Layout fix: convert every wrong-layout word before the cursor  `backend` · parent: S6.3 · issue: #147
+- **Goal:** with no selection, the layout fix extends leftwards over all wrong-layout words and stops at the first right-layout word (I6).
+- **Details:** pure scorer in `convert.rs` with built-in English/Russian letter-bigram tables (word in its language vs its conversion in the other); the hotkey flow repeats Ctrl+Shift+Left + copy, shrinks back one word at the first right-layout word, stops at line start, a newline or 15 words; 1–2 letter words follow their neighbours.
+- **Acceptance criteria:**
+  - [ ] `Привет ghbdtn vbh` → `Привет привет мир`; `fix the ghbdtn vbh` → `fix the привет мир` in Notepad, Chrome, VS Code.
+- **Depends on:** none.
+- **Suggested model:** Opus 5.5 (confidence: Medium).
+
+### T58. Spike: paste into a bound terminal window and open VS Code sessions by link  `research` · parent: S9.1 · issue: #148
+- **Goal:** GO / NO-GO and a recipe for the two delivery routes of D47, replacing T37.
+- **Details:** throwaway CLI in `spikes/paste/` (`list-terminals`, `paste --hwnd [--tab] --text`, `vscode --session --text`); matrix: WT window in front / behind / minimised / other monitor / bound tab not selected, conhost, several windows; Claude idle / busy / with a draft; one line, multi-line, 4,000 chars, `!` `/` `#`; focus rules; user typing; closed window; VS Code: open/closed session, several VS Code windows, draft replaced?, URL length, where session ids come from. Report: `docs/spikes/session-paste.md`. Needs the owner present; its findings update T38–T40.
+- **Acceptance criteria:**
+  - [ ] Every cell has a result; GO/NO-GO per route; recipe documented.
+- **Depends on:** none. **Must run before:** T38.
+- **Suggested model:** Opus 5.5 (confidence: Medium).
+
 ## 6. Order of work
 
-Done: waves 0, 2-7 (see git history of this file). Wave 1 keeps its row for T37 (on hold).
+Done: waves 0-8 (see git history of this file). T37 was dropped (D47).
 
 | Wave | Tasks (parallel within a wave) | Notes |
 |---|---|---|
-| 1 | T2 → T3, T5; T37 | Scaffold, then core skeleton and icons; T37 (needs Rust from T1) is the **gate** for E9 |
-| 7b | T38 → T39 → T40 | **On hold (D42):** T37 has no verdict, so S9.2 is skipped in v0.1.0 |
-| 8 | T46 → T7 | Startup panic fix (from the wave 7 smoke check), then README, install guide, full smoke test including Windows Sandbox |
+| 9 | T47, T48, T49, T50, T56, T57, T58 | Follow-ups from the owner's manual test (2026-10-31). T58 needs the owner present |
+| 10 | T51, T38 | T51 after T47; T38 after T58 |
+| 11 | T52, T39 | Language pair core after T51; delivery after T38 |
+| 12 | T53, T54 | UI for the pair; popup starting mode (needs T50, T52) |
+| 13 | T55, T40 | Enter replaces (after T54); bound tabs (after T39, T53) |
+| 14 | T7 | Docs for the new behaviour (README, smoke-test), then the full smoke test including Windows Sandbox; #39 closes when it passes |
 
-Critical path: T1 → T2 → T3 → T11 → T12 → T20 → T21 → T26 → T7. The distribution chain is T24 → T6 → T31 → T32 → T33 → T7.
+Critical path: T1 → T2 → T3 → T11 → T12 → T20 → T21 → T26 → T7; for the follow-ups T47 → T51 → T52 → T53 → T40 → T7. The distribution chain is T24 → T6 → T31 → T32 → T33 → T7.
 
-**First public release** (`v0.1.0`) only after T7's smoke test passes. A test tag in T31 is fine before that, but it must stay a draft. The release follows `docs/development.md` §5: `release/0.1.0` is cut from `develop`, merged into `main` and tagged there.
+**First public release** (`v0.1.0`) only after T47–T58 and T38–T40 are merged and T7's smoke test passes (the manual test of 2026-10-31 did not pass). A test tag in T31 is fine before that, but it must stay a draft. The release follows `docs/development.md` §5: `release/0.1.0` is cut from `develop`, merged into `main` and tagged there.
 
 ## 7. Risks and open questions
 
@@ -1246,6 +1312,7 @@ Critical path: T1 → T2 → T3 → T11 → T12 → T20 → T21 → T26 → T7. 
 
 ## 8. Review notes
 
+- **Changed 2026-10-31 (owner's manual test of the v0.1.0 candidate):** follow-up tasks T47–T58 (#142–#153) added in milestone v0.1.0; decisions D43–D47 (Improve as a practice rewrite, language pair, popup starting mode and Enter-replace, local model memory, revised session delivery); D10, D31, D34, D38, D42 marked changed or superseded. E9 revived: T37 (#72) dropped, T38–T40 (#73–#75) rewritten for VS Code link / terminal focus-and-paste, new spike T58. Waves 9–14; T7 last.
 - **Changed 2026-10-30 (wave 7, part 2):** T31 (#66): real pubkey set, test tag checked. T32 (#67): updater commands, events and `AppInfo` as merged. T33 (#68): `store/update.ts`, banner rules. Follow-up T46 (#138, startup panic from the updater's rustls) added under S1.2, first in wave 8. Wave 7 collapsed.
 - **Changed 2026-10-30 (wave 7, part 1):** D38 default layout-fix hotkey → Shift+Pause (owner, #79; §4.3, T42, T43). T31 (#66) repo part: early secret check, prerelease tags, `createUpdaterArtifacts` + `plugins.updater` with a placeholder pubkey (T31, T32). T36 (#71): "Run setup again" already in the About placeholder (T33). Follow-up T45 (#128) added under S6.2.
 - **Changed 2026-10-30:** wave 6 outcomes folded in. T34 (#69): `recommend(gpus)` without RAM, nullable `model`/`downloadMb` for tier `none`, `ramAvailableMb` in `EnvironmentReport`, tolerant VRAM bounds. T26/T35 (#61, #70): Start Ollama button in the shared `ErrorBanner` (main window and popup).

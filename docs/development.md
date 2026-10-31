@@ -93,9 +93,9 @@ Each GitHub milestone is one release:
 
 | Milestone | Version | Goal | Status |
 |---|---|---|---|
-| v0.1.0 | 0.1.0 | The whole v1 plan: a daily-usable tray app anyone can install (both providers, main window, popup, history, setup wizard, installer, updater, layout fix; Accept copies to the clipboard, session send is on hold) | planned |
+| v0.1.0 | 0.1.0 | The whole v1 plan: a daily-usable tray app anyone can install (both providers, main window, popup, history, setup wizard, installer, updater, layout fix; plus the follow-ups from the 2026-10-31 manual test: language pair, popup starting mode and Enter-replace, Improve rewrite, sending into Claude sessions through bound Translate tabs) | planned |
 
-Spike T37 (#72) could not run (plan D42), so it and story S9.2 (#31, #73–#75) are labelled `status:on-hold` and removed from the milestone; v0.1.0 ships without session send (Clipboard only).
+Spike T37 (#72) could not run (plan D42) and was dropped on 2026-10-31: session send now uses the VS Code extension's link and focus-and-paste into a bound terminal window (plan D47), proven by spike T58 (#148); S9.2 (#73–#75) is back in v0.1.0.
 
 ## 5. Release process
 
