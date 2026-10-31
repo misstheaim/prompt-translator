@@ -1,5 +1,5 @@
 //! `layout_fix::hotkey`: the layout-fix hotkey (plan D36–D38, T42). It replaces the selected text,
-//! or the word before the cursor, with the same keys typed on the other keyboard layout
+//! or the wrong-layout words before the cursor, with the same keys typed on the other keyboard layout
 //! (`ghbdtn` → `привет`), then switches the input language. No LLM, no popup, no history.
 //!
 //! [`run`] holds the decision logic; every OS call goes through the small [`Desktop`] trait, whose
@@ -9,10 +9,22 @@
 //! 2. Otherwise (after keeping a held Alt/Win from opening a menu on release) wait for the
 //!    hotkey's modifiers to be released (or stop), save the clipboard text,
 //!    send Ctrl+C and wait for the clipboard to change.
-//! 3. Nothing copied: send Ctrl+Shift+Left to select the previous word and copy again.
+//! 3. Nothing copied: send Ctrl+Shift+Left to select the previous word and copy again. Then keep
+//!    adding the word to the left (Ctrl+Shift+Left + copy, the new word is the difference) while
+//!    the words look typed in the wrong layout or are too short to tell
+//!    ([`is_wrong_layout`]); stop at the first word that looks right, at the line or field start
+//!    (the selection doesn't grow), at a line break or after [`MAX_WORDS`] words. Undecided words
+//!    at the left edge with no wrong-layout word beyond them are not converted. If the selection
+//!    now holds words that are not to be converted, shrink it with Ctrl+Shift+Right (copying
+//!    after each press) until only whitespace is left before the part to convert; whatever can't
+//!    be dropped that way is pasted back unchanged.
 //! 4. Convert; nothing to convert means stop.
 //! 5. Paste the result with Ctrl+V, wait [`PASTE_DELAY`], restore the saved clipboard text.
 //! 6. Switch the input language to the target layout, if that setting is on.
+//!
+//! Every chord is sent only while the window is still in front and no modifier is down; a copy
+//! that fails or a selection that changes unexpectedly while growing or shrinking ends the run
+//! without pasting (the text stays selected).
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
@@ -24,7 +36,14 @@ use crate::system::input::{
     self, COPY_TIMEOUT, ClipboardBusy, MODIFIER_RELEASE_TIMEOUT, SETTLE_TIME,
 };
 
-use super::convert::{Direction, convert, detect_direction};
+use super::convert::{Direction, convert, detect_direction, is_wrong_layout};
+
+/// With no selection, the most words the selection grows to (Ctrl+Shift+Left presses, the first
+/// one included).
+pub const MAX_WORDS: usize = 15;
+
+/// Nothing left of a line break joins the converted words.
+const LINE_BREAKS: [char; 2] = ['\n', '\r'];
 
 /// How long the target app gets to read the pasted text before the saved clipboard text comes
 /// back; apps read the clipboard asynchronously after Ctrl+V.
@@ -63,7 +82,10 @@ pub trait Desktop {
     /// The last copy came from an editor that copies the whole line when nothing is selected.
     fn copied_without_selection(&self) -> bool;
     fn send_copy(&self) -> bool;
+    /// Ctrl+Shift+Left: moves the selection's moving end one word left.
     fn send_select_previous_word(&self) -> bool;
+    /// Ctrl+Shift+Right: moves the selection's moving end one word right.
+    fn send_select_next_word(&self) -> bool;
     fn send_paste(&self) -> bool;
     fn sleep(&self, duration: Duration);
     /// Switches `window`'s input language to the layout `direction` converted to, if installed.
@@ -95,12 +117,16 @@ pub enum Outcome {
     InputBlocked,
     /// No selection, and selecting the previous word copied nothing either.
     NothingSelected,
+    /// While the selection was grown or shrunk word by word, a copy failed or the selection
+    /// changed in an unexpected way; nothing was pasted.
+    SelectionChanged,
     /// The copied text has no direction, or converting it changes nothing.
     NothingToConvert,
-    /// The text was replaced; `word_selected` when the previous word was selected by the app.
+    /// The text was replaced. `words_selected`: how many words the run selected itself
+    /// (Ctrl+Shift+Left presses); 0 when the user had selected the text.
     Replaced {
         direction: Direction,
-        word_selected: bool,
+        words_selected: usize,
     },
 }
 
@@ -125,27 +151,37 @@ pub fn run<D: Desktop>(desktop: &D, options: Options) -> Outcome {
         sequence: desktop.clipboard_sequence(),
     };
 
-    let (text, word_selected) = match copy_text(desktop, window) {
-        Ok(Some(text)) => (text, false),
-        Ok(None) => {
-            if !desktop.ready_to_send(window) {
-                return saved.restore(desktop, Outcome::FocusChanged);
-            }
-            if !desktop.send_select_previous_word() {
-                return saved.restore(desktop, Outcome::InputBlocked);
-            }
-            match copy_text(desktop, window) {
-                Ok(Some(text)) => (text, true),
-                Ok(None) => return saved.restore(desktop, Outcome::NothingSelected),
-                Err(outcome) => return saved.restore(desktop, outcome),
-            }
-        }
+    let selection = match copy_text(desktop, window) {
+        Ok(Some(text)) => Selection {
+            text,
+            tail_start: 0,
+            words: 0,
+        },
+        Ok(None) => match select_words(desktop, window) {
+            Ok(Some(selection)) => selection,
+            Ok(None) => return saved.restore(desktop, Outcome::NothingSelected),
+            Err(outcome) => return saved.restore(desktop, outcome),
+        },
         Err(outcome) => return saved.restore(desktop, outcome),
     };
 
-    let Some((direction, converted)) = conversion(&text) else {
+    let tail_len = selection.text.len() - selection.tail_start;
+    let Some((direction, converted_tail)) = conversion(&selection.text[selection.tail_start..])
+    else {
         return saved.restore(desktop, Outcome::NothingToConvert);
     };
+    let selected = if needs_shrinking(&selection.text, tail_len) {
+        match drop_leading_words(desktop, window, &selection, tail_len) {
+            Ok(selected) => selected,
+            Err(outcome) => return saved.restore(desktop, outcome),
+        }
+    } else {
+        selection.text.clone()
+    };
+    // `selected` is a suffix of the grown selection holding the whole tail, so this is the start
+    // of the tail in it (a char boundary): what stays selected before it is pasted back as is.
+    let kept = &selected[..selected.len() - tail_len];
+    let converted = format!("{kept}{converted_tail}");
     if !desktop.write_clipboard(Some(&converted), true) {
         return saved.restore(desktop, Outcome::ClipboardBusy);
     }
@@ -160,7 +196,7 @@ pub fn run<D: Desktop>(desktop: &D, options: Options) -> Outcome {
         desktop,
         Outcome::Replaced {
             direction,
-            word_selected,
+            words_selected: selection.words,
         },
     );
 
@@ -215,6 +251,200 @@ fn copy_text<D: Desktop>(desktop: &D, window: WindowId) -> Result<Option<String>
         .ok()
         .flatten()
         .filter(|text| !text.is_empty()))
+}
+
+/// The selected text and the part of it to convert.
+struct Selection {
+    text: String,
+    /// Byte offset in `text` where the part to convert starts (0: all of it).
+    tail_start: usize,
+    /// Words the run selected itself (Ctrl+Shift+Left presses); 0 for the user's own selection.
+    words: usize,
+}
+
+/// No selection: selects the word before the cursor, then keeps adding the word to its left
+/// while [`wrong_layout_tail`] asks for more, up to [`MAX_WORDS`] words. `Ok(None)` when even the
+/// first word copied nothing.
+fn select_words<D: Desktop>(desktop: &D, window: WindowId) -> Result<Option<Selection>, Outcome> {
+    if !desktop.ready_to_send(window) {
+        return Err(Outcome::FocusChanged);
+    }
+    if !desktop.send_select_previous_word() {
+        return Err(Outcome::InputBlocked);
+    }
+    let Some(mut text) = copy_text(desktop, window)? else {
+        return Ok(None);
+    };
+    let mut words = 1;
+    // A first word that already spans a line break is converted whole, as before.
+    if text.contains(LINE_BREAKS) {
+        return Ok(Some(Selection {
+            text,
+            tail_start: 0,
+            words,
+        }));
+    }
+
+    let mut tail = wrong_layout_tail(&text);
+    while tail.extend && words < MAX_WORDS {
+        if !desktop.ready_to_send(window) {
+            return Err(Outcome::FocusChanged);
+        }
+        if !desktop.send_select_previous_word() {
+            return Err(Outcome::InputBlocked);
+        }
+        // From here on the selection is only known from what Ctrl+C returns.
+        let Some(grown) = copy_text(desktop, window)? else {
+            return Err(Outcome::SelectionChanged);
+        };
+        if grown == text {
+            // The line or field start: nothing more to the left.
+            break;
+        }
+        if !grown.ends_with(text.as_str()) {
+            return Err(Outcome::SelectionChanged);
+        }
+        text = grown;
+        words += 1;
+        tail = wrong_layout_tail(&text);
+    }
+    Ok(Some(Selection {
+        tail_start: tail.start,
+        text,
+        words,
+    }))
+}
+
+/// Whether the selection holds more than spaces before its last `tail_len` bytes (the part to
+/// convert): words, or a line break, that should not be pasted over.
+fn needs_shrinking(selected: &str, tail_len: usize) -> bool {
+    selected[..selected.len() - tail_len]
+        .chars()
+        .any(|c| !c.is_whitespace() || LINE_BREAKS.contains(&c))
+}
+
+/// Shrinks the grown selection from the left, one Ctrl+Shift+Right at a time, until only spaces
+/// are left before its last `tail_len` bytes; returns the text then selected (a suffix of
+/// `selection.text` that still holds the whole tail). Apps differ in where Ctrl+Right stops
+/// (VS Code stops at word ends), so the selection is copied after every press; if a press goes
+/// past the start of the tail, one Ctrl+Shift+Left takes it back and what is left stays selected.
+fn drop_leading_words<D: Desktop>(
+    desktop: &D,
+    window: WindowId,
+    selection: &Selection,
+    tail_len: usize,
+) -> Result<String, Outcome> {
+    let mut selected = selection.text.clone();
+    // It never takes more presses than the words that were added.
+    for _ in 1..selection.words {
+        if !needs_shrinking(&selected, tail_len) {
+            break;
+        }
+        if !desktop.ready_to_send(window) {
+            return Err(Outcome::FocusChanged);
+        }
+        if !desktop.send_select_next_word() {
+            return Err(Outcome::InputBlocked);
+        }
+        let Some(shrunk) = copy_text(desktop, window)? else {
+            return Err(Outcome::SelectionChanged);
+        };
+        if !selected.ends_with(shrunk.as_str()) {
+            return Err(Outcome::SelectionChanged);
+        }
+        if shrunk.len() < tail_len {
+            // Past the start of the tail (VS Code, after a line break, skips to the end of the
+            // line's first word): take one word back.
+            if !desktop.ready_to_send(window) {
+                return Err(Outcome::FocusChanged);
+            }
+            if !desktop.send_select_previous_word() {
+                return Err(Outcome::InputBlocked);
+            }
+            return match copy_text(desktop, window)? {
+                Some(regrown)
+                    if regrown.len() >= tail_len && selection.text.ends_with(regrown.as_str()) =>
+                {
+                    Ok(regrown)
+                }
+                _ => Err(Outcome::SelectionChanged),
+            };
+        }
+        if shrunk.len() == selected.len() {
+            // Ctrl+Shift+Right didn't move: paste the rest back unchanged.
+            break;
+        }
+        selected = shrunk;
+    }
+    Ok(selected)
+}
+
+/// Where the part to convert starts in a selection grown word by word, and whether to add the
+/// next word to the left.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Tail {
+    /// Byte offset of the first word to convert (the text length when there is no word).
+    start: usize,
+    extend: bool,
+}
+
+/// Judges the whitespace-separated words of `selection` from right to left (LAYOUT-005): the
+/// rightmost word, the one the user asked for, is always converted; a word to its left joins
+/// when it looks typed in the wrong layout in the same direction ([`is_wrong_layout`]); words too
+/// short to tell join only when a wrong-layout word lies beyond them. The first word that looks
+/// right, or wrong the other way round, ends it; so does a line break.
+fn wrong_layout_tail(selection: &str) -> Tail {
+    let floor = selection.rfind(LINE_BREAKS).map_or(0, |i| i + 1);
+    let mut words = word_spans(&selection[floor..])
+        .into_iter()
+        .rev()
+        .map(|(offset, word)| (floor + offset, word));
+    let Some((mut start, last)) = words.next() else {
+        return Tail {
+            start: selection.len(),
+            extend: false,
+        };
+    };
+    let mut direction = detect_direction(last);
+    for (offset, word) in words {
+        match is_wrong_layout(word) {
+            None => {}
+            Some(true) if direction.is_none() || detect_direction(word) == direction => {
+                direction = detect_direction(word);
+                start = offset;
+            }
+            Some(_) => {
+                return Tail {
+                    start,
+                    extend: false,
+                };
+            }
+        }
+    }
+    Tail {
+        start,
+        extend: floor == 0,
+    }
+}
+
+/// The whitespace-separated words of `text` with their byte offsets.
+fn word_spans(text: &str) -> Vec<(usize, &str)> {
+    let mut spans = Vec::new();
+    let mut word_start = None;
+    for (i, c) in text.char_indices() {
+        match (c.is_whitespace(), word_start) {
+            (true, Some(start)) => {
+                spans.push((start, &text[start..i]));
+                word_start = None;
+            }
+            (false, None) => word_start = Some(i),
+            _ => {}
+        }
+    }
+    if let Some(start) = word_start {
+        spans.push((start, &text[start..]));
+    }
+    spans
 }
 
 /// The user's clipboard text from before the run, and the sequence number right after saving.
@@ -350,6 +580,10 @@ mod win {
 
         fn send_select_previous_word(&self) -> bool {
             input::send_select_previous_word()
+        }
+
+        fn send_select_next_word(&self) -> bool {
+            input::send_select_next_word()
         }
 
         fn send_paste(&self) -> bool {

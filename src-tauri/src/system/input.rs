@@ -83,7 +83,7 @@ mod win {
         GetAsyncKeyState, GetKeyboardLayout, GetKeyboardLayoutList, HKL, INPUT, INPUT_0,
         INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP, MAPVK_VK_TO_VSC,
         MapVirtualKeyW, SendInput, VIRTUAL_KEY, VK_C, VK_CONTROL, VK_LEFT, VK_LWIN, VK_MENU,
-        VK_RWIN, VK_SHIFT, VK_V,
+        VK_RIGHT, VK_RWIN, VK_SHIFT, VK_V,
     };
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         GetClassNameW, GetForegroundWindow, GetWindowThreadProcessId, PostMessageW,
@@ -272,8 +272,8 @@ mod win {
         // SAFETY: plain call; maps the virtual key to its scan code (0 if there is none).
         let scan = unsafe { MapVirtualKeyW(u32::from(key), MAPVK_VK_TO_VSC) };
         let mut flags = if up { KEYEVENTF_KEYUP } else { 0 };
-        // Arrow keys share scan codes with the numpad; without this flag apps may read Numpad 4.
-        if key == VK_LEFT {
+        // Arrow keys share scan codes with the numpad; without this flag apps may read Numpad 4 or 6.
+        if key == VK_LEFT || key == VK_RIGHT {
             flags |= KEYEVENTF_EXTENDEDKEY;
         }
         INPUT {
@@ -330,6 +330,12 @@ mod win {
     /// Sends Ctrl+Shift+Left (select the previous word) to the foreground window.
     pub fn send_select_previous_word() -> bool {
         send_chord(&[VK_CONTROL, VK_SHIFT], VK_LEFT)
+    }
+
+    /// Sends Ctrl+Shift+Right (move the selection's moving end one word right) to the foreground
+    /// window.
+    pub fn send_select_next_word() -> bool {
+        send_chord(&[VK_CONTROL, VK_SHIFT], VK_RIGHT)
     }
 
     pub fn sequence_number() -> u32 {
