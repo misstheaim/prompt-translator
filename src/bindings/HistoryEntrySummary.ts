@@ -6,4 +6,12 @@ import type { ProviderKind } from "./ProviderKind";
 /**
  * A row of the history list: the first 120 characters of source and output.
  */
-export type HistoryEntrySummary = { id: number, createdAt: string, mode: Mode, provider: ProviderKind, model: string, sourcePreview: string, outputPreview: string, issueCount: number, accepted: AcceptedTarget | null, };
+export type HistoryEntrySummary = { id: number, createdAt: string, mode: Mode, provider: ProviderKind, model: string, sourcePreview: string, outputPreview: string, issueCount: number, accepted: AcceptedTarget | null, 
+/**
+ * ISO 639-1 code of the language translated from (`ru` for entries saved before T52).
+ */
+sourceLanguage: string, 
+/**
+ * ISO 639-1 code of the result's language (`en` for entries saved before T52).
+ */
+targetLanguage: string, };

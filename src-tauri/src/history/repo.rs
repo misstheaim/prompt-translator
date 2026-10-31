@@ -17,6 +17,7 @@ use super::{
     RecurringMistake, VocabularyItem,
 };
 use crate::error::{AppError, AppResult};
+use crate::translation::language::{self, LanguagePair};
 use crate::translation::model::{
     Issue, IssueCategory, Mode, TokenWarning, TranslationRequest, TranslationResult,
 };
@@ -58,18 +59,28 @@ fn accepted_from_row(
     }
 }
 
-/// Stores a translation and its issues in one transaction and returns the new id.
+/// The pair of an entry; NULL columns (entries saved before T52) were Russian → English.
+fn languages_from_row(source: Option<String>, target: Option<String>) -> (String, String) {
+    (
+        source.unwrap_or_else(|| language::DEFAULT_NATIVE.to_owned()),
+        target.unwrap_or_else(|| language::DEFAULT_TARGET.to_owned()),
+    )
+}
+
+/// Stores a translation and its issues in one transaction and returns the new id. `pair` is
+/// the language pair the request used.
 pub fn insert(
     conn: &Connection,
     result: &TranslationResult,
     request: &TranslationRequest,
+    pair: LanguagePair,
 ) -> AppResult<i64> {
     let tx = conn.unchecked_transaction()?;
     tx.execute(
         &format!(
             "INSERT INTO translations (created_at, mode, provider, model, preset_id, source_text, \
-             output_text, duration_ms, token_warnings) \
-             VALUES ({TIMESTAMP_SQL}, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"
+             output_text, duration_ms, token_warnings, source_language, target_language) \
+             VALUES ({TIMESTAMP_SQL}, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)"
         ),
         params![
             enum_to_str(&request.mode)?,
@@ -80,6 +91,8 @@ pub fn insert(
             result.output,
             i64::try_from(result.duration_ms).unwrap_or(i64::MAX),
             serde_json::to_string(&result.token_warnings)?,
+            pair.native.code,
+            pair.target.code,
         ],
     )?;
     let id = tx.last_insert_rowid();
@@ -165,7 +178,8 @@ pub fn list(
     let mut sql = String::from(
         "SELECT t.id, t.created_at, t.mode, t.provider, t.model, t.source_text, t.output_text, \
          (SELECT COUNT(*) FROM issues i WHERE i.translation_id = t.id), \
-         t.accepted_target, t.accepted_session_id, t.accepted_session_name \
+         t.accepted_target, t.accepted_session_id, t.accepted_session_name, \
+         t.source_language, t.target_language \
          FROM translations t WHERE 1 = 1",
     );
     let mut args: Vec<Box<dyn ToSql>> = Vec::new();
@@ -221,6 +235,7 @@ pub fn list(
         |row| {
             let source: String = row.get(5)?;
             let output: String = row.get(6)?;
+            let (source_language, target_language) = languages_from_row(row.get(11)?, row.get(12)?);
             Ok(HistoryEntrySummary {
                 id: row.get(0)?,
                 created_at: row.get(1)?,
@@ -231,6 +246,8 @@ pub fn list(
                 output_preview: preview(&output),
                 issue_count: row.get(7)?,
                 accepted: accepted_from_row(row.get(8)?, row.get(9)?, row.get(10)?),
+                source_language,
+                target_language,
             })
         },
     )?;
@@ -241,7 +258,8 @@ pub fn list(
 pub fn get(conn: &Connection, id: i64) -> AppResult<Option<HistoryEntry>> {
     let entry = conn.query_row(
         "SELECT id, created_at, mode, provider, model, preset_id, source_text, output_text, \
-         duration_ms, token_warnings, accepted_target, accepted_session_id, accepted_session_name \
+         duration_ms, token_warnings, accepted_target, accepted_session_id, accepted_session_name, \
+         source_language, target_language \
          FROM translations WHERE id = ?1",
         [id],
         |row| {
@@ -251,6 +269,7 @@ pub fn get(conn: &Connection, id: i64) -> AppResult<Option<HistoryEntry>> {
                     rusqlite::Error::FromSqlConversionFailure(9, Type::Text, Box::new(e))
                 })?;
             let duration: i64 = row.get(8)?;
+            let (source_language, target_language) = languages_from_row(row.get(13)?, row.get(14)?);
             Ok(HistoryEntry {
                 id: row.get(0)?,
                 created_at: row.get(1)?,
@@ -264,6 +283,8 @@ pub fn get(conn: &Connection, id: i64) -> AppResult<Option<HistoryEntry>> {
                 token_warnings,
                 accepted: accepted_from_row(row.get(10)?, row.get(11)?, row.get(12)?),
                 issues: Vec::new(),
+                source_language,
+                target_language,
             })
         },
     );

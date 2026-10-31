@@ -20,6 +20,7 @@ use ts_rs::TS;
 
 use crate::error::{AppError, AppResult};
 use crate::settings::Settings;
+use crate::translation::language;
 use crate::translation::model::{Mode, ProviderKind, TranslationRequest};
 use crate::translation::providers::ollama::same_model;
 use crate::translation::service::TranslationService;
@@ -617,6 +618,9 @@ pub async fn benchmark(
             mode,
             provider: ProviderKind::Ollama,
             preset_id: preset_id.to_owned(),
+            // The benchmark texts are Russian and English, whatever pair the user chose.
+            native_language: Some(language::DEFAULT_NATIVE.to_owned()),
+            target_language: Some(language::DEFAULT_TARGET.to_owned()),
         };
         service.translate_with(req, bench_settings.clone())
     };

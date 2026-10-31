@@ -8,4 +8,12 @@ import type { TokenWarning } from "./TokenWarning";
 /**
  * A full history entry with its issues.
  */
-export type HistoryEntry = { id: number, createdAt: string, mode: Mode, provider: ProviderKind, model: string, presetId: string, sourceText: string, outputText: string, durationMs: number, tokenWarnings: Array<TokenWarning>, accepted: AcceptedTarget | null, issues: Array<Issue>, };
+export type HistoryEntry = { id: number, createdAt: string, mode: Mode, provider: ProviderKind, model: string, presetId: string, sourceText: string, outputText: string, durationMs: number, tokenWarnings: Array<TokenWarning>, accepted: AcceptedTarget | null, issues: Array<Issue>, 
+/**
+ * ISO 639-1 code of the language translated from (`ru` for entries saved before T52).
+ */
+sourceLanguage: string, 
+/**
+ * ISO 639-1 code of the result's language (`en` for entries saved before T52).
+ */
+targetLanguage: string, };

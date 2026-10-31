@@ -18,7 +18,7 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutEvent, S
 
 use crate::layout_fix;
 use crate::settings::{SETTINGS_CHANGED_EVENT, Settings, SettingsStore};
-use crate::translation::{mode_detect, model::Mode};
+use crate::translation::{language::LanguagePair, mode_detect, model::Mode};
 
 use super::clipboard;
 use super::popup::{self, PopupSource};
@@ -211,11 +211,17 @@ fn open_popup<R: Runtime>(app: &AppHandle<R>) {
     // Capturing may wait (auto-copy), so it must not block the event loop.
     tauri::async_runtime::spawn_blocking(move || {
         let text = capture_source(&app);
-        let last = app
+        let (last, pair) = app
             .try_state::<SettingsStore>()
-            .map(|s| s.get().last_popup_mode)
-            .unwrap_or(Mode::Correct);
-        let mode = mode_detect::detect_mode(&text, last);
+            .map(|s| {
+                let settings = s.get();
+                (
+                    settings.last_popup_mode,
+                    LanguagePair::from_settings(&settings),
+                )
+            })
+            .unwrap_or_else(|| (Mode::Correct, LanguagePair::default()));
+        let mode = mode_detect::detect_mode(&text, last, pair);
         popup::show(&app, PopupSource { text, mode });
     });
 }

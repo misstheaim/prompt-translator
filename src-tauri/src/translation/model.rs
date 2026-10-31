@@ -32,6 +32,15 @@ pub struct TranslationRequest {
     pub mode: Mode,
     pub provider: ProviderKind,
     pub preset_id: String,
+    /// ISO 639-1 code of the language to translate from; the settings' `nativeLanguage` when
+    /// missing. A reverse translation (target → native) swaps the pair here.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub native_language: Option<String>,
+    /// ISO 639-1 code of the result's language; the settings' `targetLanguage` when missing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub target_language: Option<String>,
 }
 
 /// Matches the LLM output schema, so `snake_case`.

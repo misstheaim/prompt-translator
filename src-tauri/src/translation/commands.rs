@@ -3,6 +3,7 @@
 use tauri::{AppHandle, State};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
+use super::language::{self, Language, LanguagePair};
 use super::mode_detect;
 use super::model::{Mode, TranslationRequest, TranslationResult};
 use super::providers::ProviderStatus;
@@ -14,9 +15,28 @@ use crate::history::{self, AcceptedTarget};
 use crate::settings::SettingsStore;
 
 /// Picks Translate or Correct for the popup; `last` is used when the text is too short to tell.
+/// The language pair is the given one, each missing code taken from the settings (as in
+/// `translate`).
 #[tauri::command]
-pub fn detect_mode(text: String, last: Mode) -> Mode {
-    mode_detect::detect_mode(&text, last)
+pub fn detect_mode(
+    settings: State<'_, SettingsStore>,
+    text: String,
+    last: Mode,
+    native_language: Option<String>,
+    target_language: Option<String>,
+) -> AppResult<Mode> {
+    let pair = LanguagePair::resolve(
+        native_language.as_deref(),
+        target_language.as_deref(),
+        &settings.get(),
+    )?;
+    Ok(mode_detect::detect_mode(&text, last, pair))
+}
+
+/// The languages that can be chosen as native or target language, sorted by English name.
+#[tauri::command]
+pub fn list_languages() -> Vec<Language> {
+    language::list()
 }
 
 /// Runs one request through its provider; cancel it with `cancel_translation(req.requestId)`.

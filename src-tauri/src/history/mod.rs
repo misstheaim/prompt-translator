@@ -35,6 +35,10 @@ pub struct HistoryEntrySummary {
     pub output_preview: String,
     pub issue_count: u32,
     pub accepted: Option<AcceptedTarget>,
+    /// ISO 639-1 code of the language translated from (`ru` for entries saved before T52).
+    pub source_language: String,
+    /// ISO 639-1 code of the result's language (`en` for entries saved before T52).
+    pub target_language: String,
 }
 
 /// A full history entry with its issues.
@@ -56,6 +60,10 @@ pub struct HistoryEntry {
     pub token_warnings: Vec<TokenWarning>,
     pub accepted: Option<AcceptedTarget>,
     pub issues: Vec<Issue>,
+    /// ISO 639-1 code of the language translated from (`ru` for entries saved before T52).
+    pub source_language: String,
+    /// ISO 639-1 code of the result's language (`en` for entries saved before T52).
+    pub target_language: String,
 }
 
 /// Filter of `history_list`: entries containing this mistake (case-insensitive).

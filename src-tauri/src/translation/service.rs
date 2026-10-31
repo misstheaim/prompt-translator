@@ -1,7 +1,7 @@
 //! `TranslationService`: runs one request through any provider (plan §4.1, T12).
 //!
 //! Flow of [`TranslationService::translate`]: validate the request → load the settings and the
-//! preset → build the prompt → pick the provider by kind → run it under the provider's timeout
+//! preset → resolve the language pair (the request's, or the settings') → build the prompt → pick the provider by kind → run it under the provider's timeout
 //! and the request's cancellation token → parse its answer → check technical tokens → result
 //! with `duration_ms`.
 //!
@@ -17,6 +17,7 @@ use async_trait::async_trait;
 use serde_json::Value;
 use tokio_util::sync::CancellationToken;
 
+use super::language::LanguagePair;
 use super::model::{ProviderKind, TranslationRequest, TranslationResult};
 use super::prompt_builder::{self, BuiltPrompt};
 use super::{output_parser, token_check};
@@ -121,7 +122,12 @@ impl TranslationService {
             AppError::InvalidInput(format!("The preset \"{}\" doesn't exist", req.preset_id))
         })?;
         let provider = self.provider(req.provider, &settings)?;
-        let prompt = prompt_builder::build(req.mode, &preset, &req.source_text);
+        let pair = LanguagePair::resolve(
+            req.native_language.as_deref(),
+            req.target_language.as_deref(),
+            &settings,
+        )?;
+        let prompt = prompt_builder::build(req.mode, &preset, &req.source_text, pair);
         let timeout = provider.timeout(&settings);
 
         let output = tokio::select! {
@@ -173,7 +179,7 @@ impl TranslationService {
             model: output.model,
             duration_ms: u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
         };
-        self.on_result(&req, &settings, &mut result);
+        self.on_result(&req, pair, &settings, &mut result);
         log::info!(
             "Translation ({:?}) via {:?} finished in {} ms",
             req.mode,
@@ -200,10 +206,11 @@ impl TranslationService {
     ///
     /// T28 saves the entry here when `settings.history_enabled` is on and sets
     /// `result.history_id`. A history failure must not fail the translation: log it and
-    /// leave `history_id` as `None`.
+    /// leave `history_id` as `None`. The entry stores the language pair the request used.
     fn on_result(
         &self,
         req: &TranslationRequest,
+        pair: LanguagePair,
         settings: &Settings,
         result: &mut TranslationResult,
     ) {
@@ -215,7 +222,7 @@ impl TranslationService {
         };
         let saved = history
             .conn()
-            .and_then(|conn| crate::history::repo::insert(&conn, result, req));
+            .and_then(|conn| crate::history::repo::insert(&conn, result, req, pair));
         match saved {
             Ok(id) => result.history_id = Some(id),
             Err(e) => log::warn!("Couldn't save the translation to history: {e:?}"),

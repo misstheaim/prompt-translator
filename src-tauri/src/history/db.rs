@@ -36,8 +36,15 @@ CREATE INDEX idx_issues_category ON issues(category);
 CREATE INDEX idx_issues_translation ON issues(translation_id);
 ";
 
+/// The language pair of each entry (T52); NULL in entries saved before it, which were all
+/// Russian → English.
+const SCHEMA_V2: &str = "
+ALTER TABLE translations ADD COLUMN source_language TEXT;
+ALTER TABLE translations ADD COLUMN target_language TEXT;
+";
+
 fn migrations() -> Migrations<'static> {
-    Migrations::new(vec![M::up(SCHEMA_V1)])
+    Migrations::new(vec![M::up(SCHEMA_V1), M::up(SCHEMA_V2)])
 }
 
 /// Applies `PRAGMA`s, the Unicode-aware `ulower` SQL function and the pending migrations.
