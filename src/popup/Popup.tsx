@@ -216,13 +216,7 @@ export function Popup() {
   const issues = result?.issues ?? [];
 
   return (
-    <main className="flex h-full flex-col gap-2 bg-bg px-3 pb-3 text-text">
-      <div
-        data-tauri-drag-region
-        className="-mx-3 flex h-6 shrink-0 select-none items-center justify-center border-b border-border text-[10px] uppercase tracking-wide text-muted"
-      >
-        Prompt Translator
-      </div>
+    <main className="flex h-full flex-col gap-2 bg-bg p-3 text-text">
       {!hasText ? (
         <p className="m-auto text-muted">
           {text === null ? "Waiting for text..." : "Select or copy some text first"}
