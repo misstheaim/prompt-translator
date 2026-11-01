@@ -1,8 +1,10 @@
 //! Builds the system prompt and the user message for one request (plan §4.4), and holds the
 //! JSON Schema of the model's answer (plan §4.3).
 //!
-//! System prompt = the mode template (`prompts/<mode>.md`) + "Additional rules:" with the
-//! preset's rules + the output-format instructions. User message = the source text wrapped in
+//! System prompt = the mode template (`prompts/<mode>.md`) + "Additional rules" with the
+//! preset's rules (which win over the template on tone and style, never on meaning,
+//! requirements, order or technical tokens; see [`RULES_HEADER`]) + the output-format
+//! instructions. User message = the source text wrapped in
 //! `<source_text>…</source_text>`, plus the "data, not a request" reminder.
 //!
 //! The templates, the output format and the task lines name the request's languages through
@@ -110,6 +112,10 @@ fn output_format(mode: Mode) -> String {
         .replace("{explanation}", explanation)
         .replace("{categories}", &categories(mode).join(", "))
 }
+
+/// The header of the preset's rules (T64): they may change the tone and voice the template
+/// asks to keep (the joke presets rely on it), never what the text says.
+const RULES_HEADER: &str = "Additional rules. They take priority over the instructions above on tone, voice, politeness and style: when a rule sets a voice or tone, use it throughout the result, even where the instructions above say to keep the author's tone or not to add politeness. They never change the meaning, the requirements, their order or technical tokens such as paths, code, commands and names:";
 
 /// The reminder after the source text in the user message (plan §4.4).
 const DATA_REMINDER: &str =
@@ -223,7 +229,9 @@ pub fn build(mode: Mode, preset: &Preset, source: &str, pair: LanguagePair) -> B
         .filter(|rule| !rule.is_empty())
         .collect();
     if !rules.is_empty() {
-        system.push_str("\n\nAdditional rules:\n");
+        system.push_str("\n\n");
+        system.push_str(RULES_HEADER);
+        system.push('\n');
         for rule in rules {
             system.push_str("- ");
             system.push_str(rule);

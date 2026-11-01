@@ -410,6 +410,13 @@ function SettingsForm({ initial }: { initial: Settings }) {
           checked={draft.historyEnabled}
           onChange={(v) => patch({ historyEnabled: v })}
         />
+        <Toggle
+          label="Save popup runs"
+          description="Also save results made in the hotkey popup. While this is off, popup runs are not saved and can't be recovered later."
+          checked={draft.savePopupRuns}
+          onChange={(v) => patch({ savePopupRuns: v })}
+          disabled={!draft.historyEnabled}
+        />
         <div>
           <Button variant="danger" size="sm" onClick={() => setConfirmClear(true)}>
             Clear all history

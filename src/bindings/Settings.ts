@@ -9,7 +9,12 @@ import type { ProviderKind } from "./ProviderKind";
 /**
  * The contents of `settings.json`. Unknown or missing fields fall back to defaults.
  */
-export type Settings = { defaultProvider: ProviderKind, defaultPresetId: string, ollama: OllamaSettings, claude: ClaudeSettings, historyEnabled: boolean, hotkey: string, autostart: boolean, closeToTray: boolean, setupCompleted: boolean, autoCheckUpdates: boolean, autoCopySelection: boolean, sessionAppendHintShown: boolean, lastPopupMode: Mode, 
+export type Settings = { defaultProvider: ProviderKind, defaultPresetId: string, ollama: OllamaSettings, claude: ClaudeSettings, historyEnabled: boolean, 
+/**
+ * Whether results made in the hotkey popup are saved to history too (T64). Off by
+ * default: History and Mistakes then hold main-window runs only.
+ */
+savePopupRuns: boolean, hotkey: string, autostart: boolean, closeToTray: boolean, setupCompleted: boolean, autoCheckUpdates: boolean, autoCopySelection: boolean, sessionAppendHintShown: boolean, lastPopupMode: Mode, 
 /**
  * The popup's starting mode for text from an editable or unknown place (T54).
  */

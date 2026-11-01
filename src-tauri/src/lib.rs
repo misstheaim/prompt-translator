@@ -154,6 +154,7 @@ pub fn run() {
             history::commands::history_delete,
             history::commands::history_clear,
             history::commands::mistakes_summary,
+            history::commands::history_target_languages,
             setup::commands::environment_check,
             setup::commands::ollama_install,
             setup::commands::ollama_start,

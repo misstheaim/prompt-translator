@@ -10,6 +10,7 @@ import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { ErrorBanner } from "../../components/ErrorBanner";
 import { IssueList } from "../../components/IssueList";
 import { Spinner } from "../../components/Spinner";
+import { TargetLanguageFilter } from "../../components/TargetLanguageFilter";
 import {
   copyResult,
   historyDelete,
@@ -77,6 +78,10 @@ export function HistoryScreen() {
   const issueCorrected = historyFilter?.issue?.corrected ?? null;
   const categoryFilter = historyFilter?.category ?? null;
   const sinceDays = historyFilter?.sinceDays ?? null;
+  // Starts with the Mistakes screen's language when opened from there; not kept across restarts.
+  const [languageFilter, setLanguageFilter] = useState<string | null>(
+    () => historyFilter?.targetLanguage ?? null,
+  );
   function listFilters() {
     return {
       query: query === "" ? null : query,
@@ -87,6 +92,7 @@ export function HistoryScreen() {
       mode: modeFilter,
       category: categoryFilter,
       sinceDays,
+      targetLanguage: languageFilter,
     };
   }
 
@@ -108,6 +114,7 @@ export function HistoryScreen() {
     modeFilter,
     categoryFilter,
     sinceDays,
+    languageFilter,
   ]);
   const loading = loadedQuery !== listKey || moreLoading;
 
@@ -222,7 +229,8 @@ export function HistoryScreen() {
   }
 
   const historyDisabled = settings !== null && !settings.historyEnabled;
-  const searching = query !== "" || modeFilter !== null || historyFilter !== null;
+  const searching =
+    query !== "" || modeFilter !== null || languageFilter !== null || historyFilter !== null;
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-4">
@@ -249,6 +257,7 @@ export function HistoryScreen() {
             </option>
           ))}
         </select>
+        <TargetLanguageFilter value={languageFilter} onChange={setLanguageFilter} />
       </div>
 
       {historyFilter && (
@@ -329,7 +338,12 @@ export function HistoryScreen() {
           {hasMore && !loading && <Button onClick={loadMore}>Load more</Button>}
         </section>
 
-        <section aria-label="Entry details" className="min-w-0">
+        {/* `main` (App.tsx) is what scrolls: the panel sticks to its top while the list moves,
+            and scrolls on its own when it is taller than the view (top bar 2.5rem + padding). */}
+        <section
+          aria-label="Entry details"
+          className="min-w-0 md:sticky md:top-0 md:max-h-[calc(100vh-5rem)] md:self-start md:overflow-y-auto"
+        >
           {detailError && <ErrorBanner error={detailError} />}
           {!detail && !detailError && (
             <p className="py-8 text-center text-muted">Select an entry to see it in full.</p>

@@ -1,0 +1,16 @@
+{
+  "id": "shakespearean",
+  "name": "Shakespearean Drama",
+  "description": "Just for fun: Early Modern English, thee and thou, dramatic asides",
+  "defaultMode": "improve",
+  "rules": [
+    "Rewrite the whole text as a line from a Shakespearean drama. This voice replaces the author's tone, even where the instructions above say to keep it; every sentence must clearly sound theatrical and old-fashioned.",
+    "Use Early Modern English (thee, thou, thy, hath, doth, prithee, wherefore) and theatrical phrasing; for a target language other than English, use its archaic, theatrical register instead.",
+    "Add one short dramatic aside or exclamation (for example \"Alas!\" or \"O cruel fate!\"); do not add new requests.",
+    "Example of the voice: \"Please update the README.\" becomes \"Prithee, good friend, amend thou the README, for it doth deceive us all. Alas!\"",
+    "Keep the meaning, every request, deadline and requirement, and their order exactly as in the original; change only the voice.",
+    "Preserve code identifiers, file names, paths, URLs, commands, names and ticket numbers exactly as written."
+  ],
+  "builtIn": true,
+  "saveToHistory": false
+}

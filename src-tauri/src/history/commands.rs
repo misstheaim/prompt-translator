@@ -42,7 +42,7 @@ pub async fn mark_accepted(app: &AppHandle, id: i64, target: super::AcceptedTarg
 }
 
 /// Newest first; `query` searches source and output, `issue` keeps entries with that mistake,
-/// `mode`, `category` and `since_days` narrow further (all must match).
+/// `mode`, `category`, `since_days` and `target_language` narrow further (all must match).
 #[tauri::command]
 #[allow(clippy::too_many_arguments)] // flat arguments are the command's contract with the UI
 pub async fn history_list(
@@ -52,6 +52,7 @@ pub async fn history_list(
     mode: Option<Mode>,
     category: Option<IssueCategory>,
     since_days: Option<u32>,
+    target_language: Option<String>,
     limit: u32,
     offset: u32,
 ) -> AppResult<Vec<HistoryEntrySummary>> {
@@ -63,6 +64,7 @@ pub async fn history_list(
             mode,
             category,
             since_days,
+            target_language: target_language.as_deref(),
         };
         repo::list(conn, &filters, limit, offset)
     })
@@ -87,10 +89,22 @@ pub async fn history_clear(app: AppHandle) -> AppResult<()> {
     run(&app, repo::clear).await
 }
 
+/// The mistakes aggregates; `target_language` keeps entries whose result is in that language.
 #[tauri::command]
 pub async fn mistakes_summary(
     app: AppHandle,
     since_days: Option<u32>,
+    target_language: Option<String>,
 ) -> AppResult<MistakesSummary> {
-    run(&app, move |conn| repo::mistakes_summary(conn, since_days)).await
+    run(&app, move |conn| {
+        repo::mistakes_summary(conn, since_days, target_language.as_deref())
+    })
+    .await
+}
+
+/// The distinct target languages (ISO 639-1 codes) of the saved entries, for the language
+/// filter of History and Mistakes.
+#[tauri::command]
+pub async fn history_target_languages(app: AppHandle) -> AppResult<Vec<String>> {
+    run(&app, repo::target_languages).await
 }

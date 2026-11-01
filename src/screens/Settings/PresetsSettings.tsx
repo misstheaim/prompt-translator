@@ -10,7 +10,7 @@ import { TextArea } from "../../components/TextArea";
 import { cx } from "../../lib/cx";
 import { deletePreset, resetPresets, savePreset, toAppError, type AppError } from "../../lib/api";
 import { useAppStore } from "../../store/app";
-import { TextField } from "./fields";
+import { TextField, Toggle } from "./fields";
 
 const MODE_OPTIONS: SelectOption[] = [
   { value: "translate", label: "Translate" },
@@ -27,6 +27,7 @@ interface Draft {
   /** One rule per line. */
   rules: string;
   builtIn: boolean;
+  saveToHistory: boolean;
 }
 
 const NEW_DRAFT: Draft = {
@@ -36,6 +37,7 @@ const NEW_DRAFT: Draft = {
   defaultMode: "translate",
   rules: "",
   builtIn: false,
+  saveToHistory: true,
 };
 
 function toDraft(p: Preset): Draft {
@@ -46,6 +48,7 @@ function toDraft(p: Preset): Draft {
     defaultMode: p.defaultMode,
     rules: p.rules.join("\n"),
     builtIn: p.builtIn,
+    saveToHistory: p.saveToHistory,
   };
 }
 
@@ -123,6 +126,7 @@ export function PresetsSettings() {
       defaultMode: draft.defaultMode,
       rules: parseRules(draft.rules),
       builtIn: draft.builtIn,
+      saveToHistory: draft.saveToHistory,
     };
     void run(
       () => savePreset(preset),
@@ -245,6 +249,12 @@ export function PresetsSettings() {
                 {ruleCount === 1 ? "" : "s"}.
               </p>
             </div>
+            <Toggle
+              label="Save to history"
+              description="Save results made with this preset to History and Mistakes. Turn off for presets whose rewrites aren't real mistakes."
+              checked={draft.saveToHistory}
+              onChange={(saveToHistory) => patch({ saveToHistory })}
+            />
 
             {error && <ErrorBanner error={error} />}
 
@@ -289,7 +299,7 @@ export function PresetsSettings() {
         open={confirm === "reset"}
         destructive
         title="Reset built-in presets?"
-        message="The built-in presets return to their original name, description, mode and rules. Presets you created are kept."
+        message="Every built-in preset returns with its original name, description, mode, rules and history setting, including the ones you deleted. Presets you created are kept."
         confirmLabel="Reset"
         onConfirm={reset}
         onCancel={() => setConfirm(null)}
