@@ -20,6 +20,7 @@ import {
 } from "../../lib/api";
 import { cx } from "../../lib/cx";
 import { useAppStore } from "../../store/app";
+import { DEFAULT_TAB, useSessionTabs } from "../Translate/sessionTabs";
 import { useTranslateStore } from "../Translate/store";
 
 const PAGE_SIZE = 50;
@@ -215,6 +216,8 @@ export function HistoryScreen() {
       resultMode: detail.mode,
       error: null,
     });
+    // The entry loads into the default tab.
+    useSessionTabs.getState().activate(DEFAULT_TAB);
     setScreen("translate");
   }
 

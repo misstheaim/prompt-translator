@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useStore } from "zustand";
 
 import type { Mode } from "../../bindings/Mode";
 import type { ProviderKind } from "../../bindings/ProviderKind";
@@ -12,12 +13,14 @@ import { Select, type SelectOption } from "../../components/Select";
 import { Spinner } from "../../components/Spinner";
 import { TextArea } from "../../components/TextArea";
 import { TokenWarningBanner } from "../../components/TokenWarningBanner";
-import { copyResult, toAppError } from "../../lib/api";
+import { copyResult, deliverToTarget, toAppError } from "../../lib/api";
 import { cx } from "../../lib/cx";
 import { useAppStore } from "../../store/app";
 import { CompactToggle } from "../../components/CompactToggle";
+import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { LanguagePairControl } from "./LanguagePairControl";
-import { MAX_INPUT_CHARS, useTranslateStore, type LanguagePair } from "./store";
+import type { BoundTab } from "./sessionTabs";
+import { MAX_INPUT_CHARS, type LanguagePair, type TabStore } from "./store";
 
 const MODE_OPTIONS: SegmentedOption<Mode>[] = [
   { value: "translate", label: "Translate" },
@@ -35,28 +38,37 @@ function formatDuration(ms: number): string {
   return ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`;
 }
 
-export function TranslateScreen() {
+interface TranslateScreenProps {
+  /** The tab's state: the default tab's store, or a bound tab's own. */
+  store: TabStore;
+  /** Set for a tab bound to a session: Accept sends there and Improve is off. */
+  bound?: BoundTab;
+}
+
+export function TranslateScreen({ store, bound }: TranslateScreenProps) {
   const settings = useAppStore((s) => s.settings);
   const presets = useAppStore((s) => s.presets);
   const showToast = useAppStore((s) => s.showToast);
 
-  const input = useTranslateStore((s) => s.input);
-  const modeOverride = useTranslateStore((s) => s.mode);
-  const providerOverride = useTranslateStore((s) => s.provider);
-  const presetOverride = useTranslateStore((s) => s.presetId);
-  const status = useTranslateStore((s) => s.status);
-  const result = useTranslateStore((s) => s.result);
-  const output = useTranslateStore((s) => s.output);
-  const resultSource = useTranslateStore((s) => s.resultSource);
-  const resultMode = useTranslateStore((s) => s.resultMode);
-  const error = useTranslateStore((s) => s.error);
+  const input = useStore(store, (s) => s.input);
+  const modeOverride = useStore(store, (s) => s.mode);
+  const providerOverride = useStore(store, (s) => s.provider);
+  const presetOverride = useStore(store, (s) => s.presetId);
+  const status = useStore(store, (s) => s.status);
+  const result = useStore(store, (s) => s.result);
+  const output = useStore(store, (s) => s.output);
+  const resultSource = useStore(store, (s) => s.resultSource);
+  const resultMode = useStore(store, (s) => s.resultMode);
+  const error = useStore(store, (s) => s.error);
   // The result whose token warnings the user dismissed (a new result shows its own).
   const [ignoredWarningsFor, setIgnoredWarningsFor] = useState<TranslationResult | null>(null);
+  // The D35 confirmation: the text to send once the user agrees (prefix `!`, `/` or `#`).
+  const [confirmSend, setConfirmSend] = useState<string | null>(null);
   const inputWrapRef = useRef<HTMLDivElement>(null);
-  const pairOverride = useTranslateStore((s) => s.pair);
+  const pairOverride = useStore(store, (s) => s.pair);
   const compact = useAppStore((s) => s.compact !== null);
   const { setInput, setMode, setProvider, setPreset, setOutput, setPair, run, cancel } =
-    useTranslateStore.getState();
+    store.getState();
 
   // Effective selections: the user's choice, else the settings defaults.
   const showMock = import.meta.env.DEV || settings?.devMockProvider === true;
@@ -66,7 +78,16 @@ export function TranslateScreen() {
   const provider: ProviderKind = providerOverride ?? settings?.defaultProvider ?? "ollama";
   const presetId = presetOverride ?? settings?.defaultPresetId ?? presets[0]?.id ?? "";
   const preset = presets.find((p) => p.id === presetId) ?? presets[0];
-  const mode: Mode = modeOverride ?? preset?.defaultMode ?? "translate";
+  const rawMode: Mode = modeOverride ?? preset?.defaultMode ?? "translate";
+  // Improve is off in bound tabs (it rewrites idiomatically, which makes prompts less precise).
+  const mode: Mode = bound && rawMode === "improve" ? "translate" : rawMode;
+  const modeOptions: SegmentedOption<Mode>[] = bound
+    ? MODE_OPTIONS.map((o) =>
+        o.value === "improve"
+          ? { ...o, disabled: true, title: "Improve is off for prompts sent to Claude" }
+          : o,
+      )
+    : MODE_OPTIONS;
   const pair: LanguagePair = pairOverride ?? {
     native: settings?.nativeLanguage ?? "ru",
     target: settings?.targetLanguage ?? "en",
@@ -82,9 +103,29 @@ export function TranslateScreen() {
     void run({ mode, provider, presetId: preset?.id ?? presetId, pair });
   }
 
+  async function sendToSession(text: string, historyId: number | null, confirmed: boolean) {
+    if (!bound) return;
+    try {
+      const outcome = await deliverToTarget(bound.target, text, historyId, confirmed);
+      if (outcome.kind === "delivered") {
+        showToast("success", `Sent to ${bound.title}: press Enter in Claude`);
+      } else {
+        showToast("info", outcome.reason);
+      }
+    } catch (e) {
+      const err = toAppError(e);
+      if (err.kind === "PrefixNeedsConfirmation") setConfirmSend(text);
+      else showToast("error", err.message);
+    }
+  }
+
   async function handleAccept() {
-    const { output: text, result: res } = useTranslateStore.getState();
+    const { output: text, result: res } = store.getState();
     if (text.trim() === "") return;
+    if (bound) {
+      await sendToSession(text, res?.historyId ?? null, false);
+      return;
+    }
     try {
       await copyResult(text, res?.historyId ?? null);
       showToast("success", "Copied");
@@ -112,6 +153,23 @@ export function TranslateScreen() {
     if (e.shiftKey) void handleAccept();
     else runNow();
   }
+
+  const confirmDialog = (
+    <ConfirmDialog
+      open={confirmSend !== null}
+      title="Send this text?"
+      message="The text starts with !, / or #. In Claude Code that runs a shell command, runs a slash command or writes a memory note when you press Enter."
+      confirmLabel="Send"
+      onCancel={() => setConfirmSend(null)}
+      onConfirm={() => {
+        const text = confirmSend;
+        setConfirmSend(null);
+        if (text !== null) {
+          void sendToSession(text, store.getState().result?.historyId ?? null, true);
+        }
+      }}
+    />
+  );
 
   if (compact) {
     return (
@@ -158,6 +216,7 @@ export function TranslateScreen() {
             </div>
           )}
         </div>
+        {confirmDialog}
       </div>
     );
   }
@@ -167,7 +226,7 @@ export function TranslateScreen() {
       <div className="flex flex-wrap items-center gap-3">
         <SegmentedControl
           aria-label="Mode"
-          options={MODE_OPTIONS}
+          options={modeOptions}
           value={mode}
           onChange={setMode}
           disabled={loading}
@@ -249,7 +308,11 @@ export function TranslateScreen() {
               {PROVIDER_LABELS[result.provider]} · {result.model} ·{" "}
               {formatDuration(result.durationMs)}
             </span>
-            <AcceptButton disabled={output.trim() === ""} onAccept={() => void handleAccept()} />
+            <AcceptButton
+              label={bound ? `Send to ${bound.title}` : "Copy"}
+              disabled={output.trim() === ""}
+              onAccept={() => void handleAccept()}
+            />
           </div>
           {result.tokenWarnings.length > 0 && ignoredWarningsFor !== result && (
             <TokenWarningBanner
@@ -274,15 +337,31 @@ export function TranslateScreen() {
           )}
         </section>
       )}
+      {confirmDialog}
     </div>
   );
 }
 
-/** The main action. T40 changes the label and routing (clipboard vs. session). */
-function AcceptButton({ disabled, onAccept }: { disabled: boolean; onAccept: () => void }) {
+/** The main action: Copy in the default tab, "Send to <session>" in a bound tab. */
+function AcceptButton({
+  label,
+  disabled,
+  onAccept,
+}: {
+  label: string;
+  disabled: boolean;
+  onAccept: () => void;
+}) {
   return (
-    <Button variant="primary" disabled={disabled} onClick={onAccept} shortcut="Ctrl+Shift+Enter">
-      Copy
+    <Button
+      variant="primary"
+      disabled={disabled}
+      onClick={onAccept}
+      shortcut="Ctrl+Shift+Enter"
+      title={label}
+      className="max-w-72"
+    >
+      <span className="truncate">{label}</span>
     </Button>
   );
 }
