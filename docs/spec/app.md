@@ -7,8 +7,8 @@ The application shell: what launches, the main window with its tabs, error banne
 ## Behaviour
 
 ### APP-001 Main window
-The window `main` (title "Prompt Translator", 800x600, minimum 640x480 in normal mode and 160x100 in compact mode, TRANS-016) is created hidden and shown right after startup, unless the app was started by autostart (APP-029). It has a top bar with four tabs, Translate, History, Mistakes and Settings (Translate selected at start), and below it the selected screen: Translate (TRANS-013), History (HISTORY-010), Mistakes (HISTORY-011) or Settings (SETTINGS-007). While the hotkey registration has failed, a warning banner is shown under the tab bar (POPUP-002). When a newer release is known, the update banner shows there too (APP-035). In dev builds of the UI (`npm run dev`) the Translate tab also shows the "Mock provider (dev)" panel above the screen (TRANS-011). While `setupCompleted` is false the first-run setup wizard replaces this whole UI (SETUP-008), and after the user leaves it a "Resume setup" banner is shown under the tab bar (SETUP-009). The right end of the top bar has the compact mode button (before "Unload model"); in compact mode the tab bar, banners and the rest of the shell are hidden and only the two text boxes of the Translate screen and the button show (TRANS-016). The window can be resized by the app through the command `set_compact_window(compact, resize)`.
-Since: #34 · Changed: #35, #44, #52, #57, #53, #55, #58, #64, #65, #71, #68, #168, #179
+The window `main` (title "Prompt Translator", 800x600, minimum 640x480 in normal mode and 420x216 in compact mode, TRANS-016) is created hidden and shown right after startup, unless the app was started by autostart (APP-029). It has a top bar with four tabs, Translate, History, Mistakes and Settings (Translate selected at start), and below it the selected screen: Translate (TRANS-013), History (HISTORY-010), Mistakes (HISTORY-011) or Settings (SETTINGS-007). While the hotkey registration has failed, a warning banner is shown under the tab bar (POPUP-002). When a newer release is known, the update banner shows there too (APP-035). In dev builds of the UI (`npm run dev`) the Translate tab also shows the "Mock provider (dev)" panel above the screen (TRANS-011). While `setupCompleted` is false the first-run setup wizard replaces this whole UI (SETUP-008), and after the user leaves it a "Resume setup" banner is shown under the tab bar (SETUP-009). The right end of the top bar has the compact mode button (before "Unload model"); in compact mode the tab bar, banners and the rest of the shell are hidden and only the compact layout of the selected Translate tab shows (TRANS-016). The window itself never scrolls: the top bar stays in place and only the area below it scrolls (APP-039). Theme and accent colour follow the settings (SETTINGS-012). The window can be resized by the app through the command `set_compact_window(compact, resize)`.
+Since: #34 · Changed: #35, #44, #52, #57, #53, #55, #58, #64, #65, #71, #68, #168, #179, #185, #189
 
 ### APP-003 Popup page
 A second page (`popup.html`, title "Prompt Translator Popup") is the content of the hidden `popup` window created at startup; the hotkey opens it (`popup.md`). The page translates the captured text (POPUP-005, POPUP-009).
@@ -202,6 +202,10 @@ Since: #146
 ### APP-038 Crypto provider at startup
 The app installs the process-wide rustls crypto provider (ring) before anything else, so HTTP clients can be created and the app starts without a panic. The `eval` binary does the same.
 Since: #138
+
+### APP-039 Scrolling and scrollbars
+In the main window and the popup the page and the window never scroll or overscroll; in the main window only the content area under the top bar scrolls, so the top bar stays fixed. Scrollbars everywhere are thin (8 px), have no arrow buttons and take their colour from the theme (a muted thumb on a transparent track, stronger on hover). On the Translate screen the "×" clear button of the input sits clear of the scrollbar.
+Since: #189
 
 ## Known issues
 
