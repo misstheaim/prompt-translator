@@ -11,6 +11,7 @@ import { ErrorBanner } from "./components/ErrorBanner";
 import { ToastHost } from "./components/Toast";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { toAppError, unloadModel } from "./lib/api";
+import { applyAppearance } from "./lib/appearance";
 import { cx } from "./lib/cx";
 import { HistoryScreen } from "./screens/History/HistoryScreen";
 import { MistakesScreen } from "./screens/Mistakes/MistakesScreen";
@@ -66,6 +67,12 @@ function App() {
   const compact = useAppStore((s) => s.compact);
   const translating = useTranslateStore((s) => s.status === "loading");
   const [unloading, setUnloading] = useState(false);
+
+  const theme = useAppStore((s) => s.settings?.theme);
+  const accent = useAppStore((s) => s.settings?.accent);
+  useEffect(() => {
+    if (theme && accent) applyAppearance(theme, accent);
+  }, [theme, accent]);
 
   useEffect(() => {
     const unlisten = initAppStore();

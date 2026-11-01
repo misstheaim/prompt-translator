@@ -278,7 +278,7 @@ export function TranslateScreen({ store, bound, tabPicker }: TranslateScreenProp
               title="Clear"
               disabled={loading}
               onClick={clearInput}
-              className="absolute bottom-1 right-1.5 flex h-5 w-5 items-center justify-center rounded text-muted hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40"
+              className="absolute bottom-1 right-3 flex h-5 w-5 items-center justify-center rounded text-muted hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40"
             >
               ×
             </button>
@@ -293,7 +293,7 @@ export function TranslateScreen({ store, bound, tabPicker }: TranslateScreenProp
             onChange={(e) => setOutput(e.target.value)}
           />
           {loading && (
-            <div className="absolute bottom-1.5 right-1.5">
+            <div className="absolute bottom-1.5 right-3">
               <Spinner />
             </div>
           )}
@@ -354,7 +354,7 @@ export function TranslateScreen({ store, bound, tabPicker }: TranslateScreenProp
               title="Clear"
               disabled={loading}
               onClick={clearInput}
-              className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded text-muted hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40"
+              className="absolute right-3 top-1.5 flex h-6 w-6 items-center justify-center rounded text-muted hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40"
             >
               ×
             </button>
