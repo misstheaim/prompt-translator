@@ -64,19 +64,55 @@ export function Popup() {
   const [sourceKind, setSourceKind] = useState<SourceKind>("unknown");
   const languages = useLanguages();
 
-  /** Id of the request whose answer the popup is waiting for; other answers are stale. */
-  const requestIdRef = useRef<string | null>(null);
-
   /** Finished results of the current capture, by mode; cleared by a new capture. */
   const resultsRef = useRef<Partial<Record<Mode, TranslationResult>>>({});
 
   /** The current capture's source; set synchronously on `popup://source`. */
   const captureRef = useRef<Capture>({ sourceKind: "unknown", languagePair: null });
 
+  /** Failed runs of the current capture, by mode; shown when that mode is selected. */
+  const errorsRef = useRef<Partial<Record<Mode, AppError>>>({});
+
+  /** The one request in flight; other answers are stale. */
+  const runningRef = useRef<{ mode: Mode; requestId: string } | null>(null);
+
+  /** Modes waiting for the running request to finish. */
+  const queueRef = useRef<Mode[]>([]);
+
+  /** The mode shown right now; set synchronously (the state lags a render behind). */
+  const shownModeRef = useRef<Mode>("translate");
+
+  /** Cancels the request in flight and forgets the queue. */
   const cancelRunning = useCallback(() => {
-    const id = requestIdRef.current;
-    requestIdRef.current = null;
-    if (id) void cancelTranslation(id).catch(() => undefined);
+    const running = runningRef.current;
+    runningRef.current = null;
+    queueRef.current = [];
+    if (running) void cancelTranslation(running.requestId).catch(() => undefined);
+  }, []);
+
+  /** Shows `shown` from what the capture has so far: result, error, waiting or nothing. */
+  const showMode = useCallback((shown: Mode) => {
+    shownModeRef.current = shown;
+    setMode(shown);
+    setCopyError(null);
+    setIssuesOpen(false);
+    setWarningsIgnored(false);
+    const kept = resultsRef.current[shown];
+    const failed = errorsRef.current[shown];
+    if (kept) {
+      setResult(kept);
+      setError(null);
+      setStatus("success");
+    } else if (failed) {
+      setResult(null);
+      setError(failed);
+      setStatus("error");
+    } else {
+      setResult(null);
+      setError(null);
+      const waiting = runningRef.current?.mode === shown || queueRef.current.includes(shown);
+      setStatus(waiting ? "loading" : "idle");
+    }
   }, []);
 
   /**
@@ -88,49 +124,73 @@ export function Popup() {
     void setLastPopupMode(used).catch(() => undefined);
   }, []);
 
-  const run = useCallback(
-    async (source: string, runMode: Mode) => {
-      cancelRunning();
+  /** `enqueue` for its own use when a run settles. */
+  const enqueueRef = useRef<((source: string, runMode: Mode) => void) | null>(null);
+
+  /**
+   * Runs `runMode` now if no request is in flight, otherwise queues it. A mode that is
+   * already running, queued or finished is left alone. When a run settles, the next queued
+   * mode starts, the shown one first.
+   */
+  const enqueue = useCallback(
+    (source: string, runMode: Mode) => {
+      if (resultsRef.current[runMode] || errorsRef.current[runMode]) return;
+      if (runningRef.current?.mode === runMode || queueRef.current.includes(runMode)) return;
+      if (runningRef.current) {
+        queueRef.current.push(runMode);
+        return;
+      }
       const requestId = crypto.randomUUID();
-      requestIdRef.current = requestId;
-      setStatus("loading");
-      setError(null);
-      setCopyError(null);
-      setResult(null);
-      setIssuesOpen(false);
-      setWarningsIgnored(false);
+      runningRef.current = { mode: runMode, requestId };
       // A reverse translation swaps the pair for Translate only; Improve and Correct always
       // use the settings' pair.
       const pair = runMode === "translate" ? captureRef.current.languagePair : null;
-      try {
-        const settings = await getSettings();
-        if (requestIdRef.current !== requestId) return;
-        const res = await translate({
-          requestId,
-          sourceText: source,
-          mode: runMode,
-          provider: settings.defaultProvider,
-          presetId: settings.defaultPresetId,
-          ...(pair ?? {}),
-        });
-        if (requestIdRef.current !== requestId) return;
-        requestIdRef.current = null;
-        resultsRef.current[runMode] = res;
-        setResult(res);
-        setStatus("success");
-      } catch (e) {
-        if (requestIdRef.current !== requestId) return;
-        requestIdRef.current = null;
-        const err = toAppError(e);
-        if (err.kind === "Cancelled") {
-          setStatus("idle");
-        } else {
-          setError(err);
-          setStatus("error");
+
+      /** Stores the outcome for its mode, updates the view if it's shown, starts the next. */
+      const settle = (res: TranslationResult | null, err: AppError | null) => {
+        if (runningRef.current?.requestId !== requestId) return; // cancelled: stale
+        runningRef.current = null;
+        if (res) resultsRef.current[runMode] = res;
+        else if (err && err.kind !== "Cancelled") errorsRef.current[runMode] = err;
+        if (shownModeRef.current === runMode) showMode(runMode);
+        const queue = queueRef.current;
+        const next = queue.includes(shownModeRef.current) ? shownModeRef.current : queue[0];
+        if (next === undefined) return;
+        queueRef.current = queue.filter((m) => m !== next);
+        enqueueRef.current?.(source, next);
+      };
+
+      void (async () => {
+        try {
+          const settings = await getSettings();
+          if (runningRef.current?.requestId !== requestId) return;
+          const res = await translate({
+            requestId,
+            sourceText: source,
+            mode: runMode,
+            provider: settings.defaultProvider,
+            presetId: settings.defaultPresetId,
+            ...(pair ?? {}),
+          });
+          settle(res, null);
+        } catch (e) {
+          settle(null, toAppError(e));
         }
-      }
+      })();
     },
-    [cancelRunning],
+    [showMode],
+  );
+  useEffect(() => {
+    enqueueRef.current = enqueue;
+  }, [enqueue]);
+
+  /** Starts `runMode` (or queues it) and shows the waiting state if it's the shown mode. */
+  const run = useCallback(
+    (source: string, runMode: Mode) => {
+      enqueue(source, runMode);
+      if (shownModeRef.current === runMode) showMode(runMode);
+    },
+    [enqueue, showMode],
   );
 
   // Latest values for the keyboard handler, which is registered once.
@@ -141,25 +201,14 @@ export function Popup() {
 
   const changeMode = useCallback(
     (next: Mode) => {
-      const { text: source, mode: current } = stateRef.current;
-      if (source === null || source.trim() === "" || next === current) return;
-      setMode(next);
+      const { text: source } = stateRef.current;
+      if (source === null || source.trim() === "" || next === shownModeRef.current) return;
       rememberMode(next);
-      const kept = resultsRef.current[next];
-      if (kept) {
-        // Already ran for this capture: show it, no new run.
-        cancelRunning();
-        setResult(kept);
-        setStatus("success");
-        setError(null);
-        setCopyError(null);
-        setIssuesOpen(false);
-        setWarningsIgnored(false);
-        return;
-      }
-      void run(source, next);
+      // A run in progress is never cancelled by a switch; a mode without a result is queued.
+      enqueue(source, next);
+      showMode(next);
     },
-    [run, cancelRunning, rememberMode],
+    [enqueue, showMode, rememberMode],
   );
 
   /** Enter replaces the selection when the source was editable; Ctrl+Enter only copies. */
@@ -193,9 +242,19 @@ export function Popup() {
   }, []);
 
   const retry = useCallback(() => {
-    const { text: source, mode: used } = stateRef.current;
+    const { text: source } = stateRef.current;
     if (source === null || source.trim() === "") return;
-    void run(source, used);
+    const shown = shownModeRef.current;
+    const running = runningRef.current;
+    // Only the shown mode is rerun. If it is waiting in the queue, it will run anyway.
+    if (queueRef.current.includes(shown)) return;
+    if (running?.mode === shown) {
+      runningRef.current = null;
+      void cancelTranslation(running.requestId).catch(() => undefined);
+    }
+    delete resultsRef.current[shown];
+    delete errorsRef.current[shown];
+    run(source, shown);
   }, [run]);
 
   // A new capture from the hotkey: reset and auto-run.
@@ -204,25 +263,19 @@ export function Popup() {
       const { text: captured, mode: detected, sourceKind, languagePair: pair } = event.payload;
       cancelRunning();
       resultsRef.current = {};
+      errorsRef.current = {};
       captureRef.current = { sourceKind, languagePair: pair ?? null };
       setLanguagePair(pair ?? null);
       setSourceKind(sourceKind);
       setText(captured);
-      setMode(detected);
       setExcerptOpen(false);
-      setResult(null);
-      setError(null);
-      setCopyError(null);
-      if (captured.trim() === "") {
-        setStatus("idle");
-      } else {
-        void run(captured, detected);
-      }
+      showMode(detected);
+      if (captured.trim() !== "") run(captured, detected);
     });
     return () => {
       void unlisten.then((fn) => fn());
     };
-  }, [run, cancelRunning]);
+  }, [run, cancelRunning, showMode]);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
