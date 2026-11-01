@@ -17,12 +17,14 @@ import { MistakesScreen } from "./screens/Mistakes/MistakesScreen";
 import { SetupScreen } from "./screens/Setup/SetupScreen";
 import { SettingsScreen } from "./screens/Settings/SettingsScreen";
 import { initSessionTabs, useSessionTabs, DEFAULT_TAB } from "./screens/Translate/sessionTabs";
+import { initTabSettingsSync } from "./screens/Translate/settingsSync";
 import { TranslateTabs } from "./screens/Translate/TranslateTabs";
 import { useTranslateStore } from "./screens/Translate/store";
 import {
   COMPACT_EXIT_MARGIN,
   initAppStore,
   NORMAL_MIN_HEIGHT,
+  NORMAL_MIN_WIDTH,
   resizeIsSettled,
   SCREENS,
   useAppStore,
@@ -87,6 +89,9 @@ function App() {
     };
   }, []);
 
+  // Saved settings and preset changes reach the open Translate tabs.
+  useEffect(() => initTabSettingsSync(), []);
+
   // The popup's "Open in main window" sends `main://open-entry` (Rust shows this window).
   useEffect(() => {
     const unlisten = listen<OpenEntryPayload>("main://open-entry", (event) => {
@@ -136,15 +141,24 @@ function App() {
     }
   }
 
-  // Compact mode follows the window height (TRANS-015): dragging down to the normal minimum
-  // turns it on, dragging past the minimum plus a margin turns a resize-entered one off again.
+  // Compact mode follows the window size (TRANS-016): dragging the width or the height down to
+  // the normal minimum turns it on; a resize-entered one turns off again only once the window is
+  // past the minimum plus a margin on both sides (so it doesn't leave right after entering).
   useEffect(() => {
     function onResize() {
       if (!resizeIsSettled()) return;
       const { compact, enterCompact, exitCompact } = useAppStore.getState();
+      const width = window.innerWidth;
       const height = window.innerHeight;
-      if (compact === null && height <= NORMAL_MIN_HEIGHT + 2) void enterCompact("resize");
-      else if (compact === "resize" && height > NORMAL_MIN_HEIGHT + COMPACT_EXIT_MARGIN) {
+      if (compact === null) {
+        if (width <= NORMAL_MIN_WIDTH + 2 || height <= NORMAL_MIN_HEIGHT + 2) {
+          void enterCompact("resize");
+        }
+      } else if (
+        compact === "resize" &&
+        width > NORMAL_MIN_WIDTH + COMPACT_EXIT_MARGIN &&
+        height > NORMAL_MIN_HEIGHT + COMPACT_EXIT_MARGIN
+      ) {
         void exitCompact();
       }
     }
@@ -184,10 +198,11 @@ function App() {
     );
   }
 
-  // Compact mode: only the two text boxes and the toggle (the shell's bars and banners are hidden).
+  // Compact mode: the current Translate tab in its compact layout (the shell's bars and banners
+  // are hidden). Never a window scrollbar: the layout fits down to the compact minimum size.
   if (compact !== null) {
     return (
-      <div className="h-full bg-bg text-text">
+      <div className="h-full overflow-hidden bg-bg text-text">
         <TranslateTabs strip={false} />
         <ToastHost />
       </div>

@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { Select } from "../../components/Select";
 import { cx } from "../../lib/cx";
 import { BindSessionDialog } from "./BindSessionDialog";
 import { DEFAULT_TAB, MAX_BOUND_TABS, useSessionTabs } from "./sessionTabs";
@@ -14,9 +15,23 @@ export function TranslateTabs({ strip = true }: { strip?: boolean }) {
   const close = useSessionTabs((s) => s.close);
   const [binding, setBinding] = useState(false);
 
-  // Compact mode (no strip) always shows the default tab.
-  const active = strip ? tabs.find((t) => t.id === requestedId) : undefined;
+  // Compact mode (no strip) shows the same tab, with a dropdown to switch tabs instead.
+  const active = tabs.find((t) => t.id === requestedId);
   const atLimit = tabs.length >= MAX_BOUND_TABS;
+  const tabPicker = strip ? undefined : (
+    <Select
+      size="sm"
+      aria-label="Translate tab"
+      title={active ? active.title : "Translate"}
+      wrapClassName="min-w-20 max-w-40"
+      options={[
+        { value: DEFAULT_TAB, label: "Translate" },
+        ...tabs.map((t) => ({ value: t.id, label: `>_ ${t.title}` })),
+      ]}
+      value={active?.id ?? DEFAULT_TAB}
+      onChange={activate}
+    />
+  );
 
   const tabClass = (selected: boolean) =>
     cx(
@@ -79,9 +94,14 @@ export function TranslateTabs({ strip = true }: { strip?: boolean }) {
         </div>
       )}
       {active ? (
-        <TranslateScreen key={active.id} store={active.store} bound={active} />
+        <TranslateScreen
+          key={active.id}
+          store={active.store}
+          bound={active}
+          tabPicker={tabPicker}
+        />
       ) : (
-        <TranslateScreen key={DEFAULT_TAB} store={useTranslateStore} />
+        <TranslateScreen key={DEFAULT_TAB} store={useTranslateStore} tabPicker={tabPicker} />
       )}
       {binding && <BindSessionDialog onClose={() => setBinding(false)} />}
     </div>

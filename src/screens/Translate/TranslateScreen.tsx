@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useStore } from "zustand";
 
 import type { Mode } from "../../bindings/Mode";
@@ -19,8 +19,9 @@ import { useAppStore } from "../../store/app";
 import { CompactToggle } from "../../components/CompactToggle";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { LanguagePairControl } from "./LanguagePairControl";
+import { effectiveSelection, offeredProviders } from "./selection";
 import type { BoundTab } from "./sessionTabs";
-import { MAX_INPUT_CHARS, type LanguagePair, type TabStore } from "./store";
+import { MAX_INPUT_CHARS, type TabStore } from "./store";
 
 const MODE_OPTIONS: SegmentedOption<Mode>[] = [
   { value: "translate", label: "Translate" },
@@ -43,9 +44,11 @@ interface TranslateScreenProps {
   store: TabStore;
   /** Set for a tab bound to a session: Accept sends there and Improve is off. */
   bound?: BoundTab;
+  /** Compact mode: the dropdown that switches tabs (shown in the top row). */
+  tabPicker?: ReactNode;
 }
 
-export function TranslateScreen({ store, bound }: TranslateScreenProps) {
+export function TranslateScreen({ store, bound, tabPicker }: TranslateScreenProps) {
   const settings = useAppStore((s) => s.settings);
   const presets = useAppStore((s) => s.presets);
   const showToast = useAppStore((s) => s.showToast);
@@ -71,14 +74,26 @@ export function TranslateScreen({ store, bound }: TranslateScreenProps) {
     store.getState();
 
   // Effective selections: the user's choice, else the settings defaults.
-  const showMock = import.meta.env.DEV || settings?.devMockProvider === true;
-  const providerOptions: SelectOption[] = (["ollama", "claudeCode"] as ProviderKind[])
-    .concat(showMock ? ["mock"] : [])
-    .map((p) => ({ value: p, label: PROVIDER_LABELS[p] }));
-  const provider: ProviderKind = providerOverride ?? settings?.defaultProvider ?? "ollama";
-  const presetId = presetOverride ?? settings?.defaultPresetId ?? presets[0]?.id ?? "";
-  const preset = presets.find((p) => p.id === presetId) ?? presets[0];
-  const rawMode: Mode = modeOverride ?? preset?.defaultMode ?? "translate";
+  const providerOptions: SelectOption[] = offeredProviders(settings).map((p) => ({
+    value: p,
+    label: PROVIDER_LABELS[p],
+  }));
+  const {
+    provider,
+    preset,
+    presetId,
+    mode: rawMode,
+    pair,
+  } = effectiveSelection(
+    {
+      mode: modeOverride,
+      provider: providerOverride,
+      presetId: presetOverride,
+      pair: pairOverride,
+    },
+    settings,
+    presets,
+  );
   // Improve is off in bound tabs (it rewrites idiomatically, which makes prompts less precise).
   const mode: Mode = bound && rawMode === "improve" ? "translate" : rawMode;
   const modeOptions: SegmentedOption<Mode>[] = bound
@@ -88,10 +103,6 @@ export function TranslateScreen({ store, bound }: TranslateScreenProps) {
           : o,
       )
     : MODE_OPTIONS;
-  const pair: LanguagePair = pairOverride ?? {
-    native: settings?.nativeLanguage ?? "ru",
-    target: settings?.targetLanguage ?? "en",
-  };
 
   const loading = status === "loading";
   const tooLong = input.length > MAX_INPUT_CHARS;
@@ -100,7 +111,7 @@ export function TranslateScreen({ store, bound }: TranslateScreenProps) {
 
   function runNow() {
     if (!canRun) return;
-    void run({ mode, provider, presetId: preset?.id ?? presetId, pair });
+    void run({ mode, provider, presetId, pair });
   }
 
   async function sendToSession(text: string, historyId: number | null, confirmed: boolean) {
@@ -171,24 +182,95 @@ export function TranslateScreen({ store, bound }: TranslateScreenProps) {
     />
   );
 
+  const presetOptions: SelectOption[] = presets.map((p) => ({ value: p.id, label: p.name }));
+  function choosePreset(id: string) {
+    const p = presets.find((x) => x.id === id);
+    if (p) setPreset(p.id, p.defaultMode);
+  }
+  const acceptLabel = bound ? `Send to ${bound.title}` : "Copy";
+
+  // Compact mode (TRANS-016): a small complete window. Its height is split by the two boxes;
+  // everything else has a fixed height, and wide items shrink (with an ellipsis) instead of
+  // wrapping, so the window never needs a scrollbar down to the compact minimum size.
   if (compact) {
+    const counter = (
+      <span
+        className={cx(
+          "pointer-events-none absolute bottom-1 left-2 text-[10px] leading-3",
+          tooLong ? "text-danger" : "text-muted",
+        )}
+        aria-live="polite"
+      >
+        {input.length} / {MAX_INPUT_CHARS}
+        {tooLong && " (too long)"}
+      </span>
+    );
     return (
       <div
-        className="relative flex h-full min-h-0 flex-col gap-2 p-2"
+        className="flex h-full min-h-0 flex-col gap-1.5 overflow-hidden p-2"
         data-compact="true"
         onKeyDown={onKeyDown}
       >
-        <CompactToggle className="absolute right-3 top-3 z-10" />
-        <div ref={inputWrapRef} className="relative min-h-0 flex-1">
+        <div className="flex shrink-0 items-center gap-1.5">
+          {tabPicker}
+          <SegmentedControl
+            size="sm"
+            aria-label="Mode"
+            options={modeOptions}
+            value={mode}
+            onChange={setMode}
+            disabled={loading}
+          />
+          <Button
+            size="xs"
+            variant="primary"
+            disabled={output.trim() === ""}
+            onClick={() => void handleAccept()}
+            title={`${acceptLabel} (Ctrl+Shift+Enter)`}
+            className="ml-auto min-w-12 max-w-48"
+          >
+            <span className="truncate">{acceptLabel}</span>
+          </Button>
+          <CompactToggle className="shrink-0" />
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <Select
+            size="sm"
+            aria-label="Provider"
+            title="Provider"
+            options={providerOptions}
+            value={provider}
+            onChange={(v) => setProvider(v as ProviderKind)}
+            disabled={loading}
+          />
+          <Select
+            size="sm"
+            aria-label="Preset"
+            title={preset ? `Preset: ${preset.name}` : "Preset"}
+            options={presetOptions}
+            value={preset?.id ?? ""}
+            onChange={choosePreset}
+            disabled={loading || presets.length === 0}
+          />
+          <LanguagePairControl
+            size="sm"
+            className="ml-auto"
+            pair={pair}
+            onChange={setPair}
+            disabled={loading}
+          />
+        </div>
+        <div ref={inputWrapRef} className="relative min-h-14 flex-1">
           <TextArea
             compact
             aria-label="Text to process"
             placeholder="Type or paste your text (any language)"
             autoFocus
-            className="pr-8"
+            className="pb-4 pr-7"
             value={input}
             onChange={(e) => setInput(e.target.value)}
           />
+          {counter}
           {input !== "" && (
             <button
               type="button"
@@ -202,7 +284,7 @@ export function TranslateScreen({ store, bound }: TranslateScreenProps) {
             </button>
           )}
         </div>
-        <div className="relative min-h-0 flex-1">
+        <div className="relative min-h-14 flex-1">
           <TextArea
             compact
             aria-label="Result text"
@@ -216,6 +298,12 @@ export function TranslateScreen({ store, bound }: TranslateScreenProps) {
             </div>
           )}
         </div>
+        <p
+          className="shrink-0 truncate text-[11px] leading-4 text-muted"
+          title={`Ctrl+Enter run · Ctrl+Shift+Enter ${bound ? `send to ${bound.title}` : "copy"}`}
+        >
+          Ctrl+Enter run · Ctrl+Shift+Enter {bound ? `send to ${bound.title}` : "copy"}
+        </p>
         {confirmDialog}
       </div>
     );
@@ -240,12 +328,9 @@ export function TranslateScreen({ store, bound }: TranslateScreenProps) {
         />
         <Select
           label="Preset"
-          options={presets.map((p) => ({ value: p.id, label: p.name }))}
+          options={presetOptions}
           value={preset?.id ?? ""}
-          onChange={(id) => {
-            const p = presets.find((x) => x.id === id);
-            if (p) setPreset(p.id, p.defaultMode);
-          }}
+          onChange={choosePreset}
           disabled={loading || presets.length === 0}
         />
         <LanguagePairControl pair={pair} onChange={setPair} disabled={loading} />
@@ -309,7 +394,7 @@ export function TranslateScreen({ store, bound }: TranslateScreenProps) {
               {formatDuration(result.durationMs)}
             </span>
             <AcceptButton
-              label={bound ? `Send to ${bound.title}` : "Copy"}
+              label={acceptLabel}
               disabled={output.trim() === ""}
               onAccept={() => void handleAccept()}
             />
