@@ -7,7 +7,8 @@ export type ButtonVariant = "primary" | "secondary" | "danger" | "ghost";
 
 interface ButtonProps extends ComponentProps<"button"> {
   variant?: ButtonVariant;
-  size?: "sm" | "md";
+  /** `xs` is the compact-mode size. */
+  size?: "xs" | "sm" | "md";
   loading?: boolean;
   /** Muted suffix showing the keyboard shortcut, e.g. "Ctrl+Enter". */
   shortcut?: string;
@@ -37,7 +38,11 @@ export function Button({
       disabled={disabled || loading}
       className={cx(
         "inline-flex items-center justify-center gap-2 rounded-md font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none",
-        size === "sm" ? "h-7 px-2 text-xs" : "h-8 px-3 text-sm",
+        size === "xs"
+          ? "h-6 px-2 text-xs"
+          : size === "sm"
+            ? "h-7 px-2 text-xs"
+            : "h-8 px-3 text-sm",
         VARIANTS[variant],
         className,
       )}

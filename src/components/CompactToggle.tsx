@@ -1,7 +1,7 @@
 import { cx } from "../lib/cx";
 import { useAppStore } from "../store/app";
 
-/** Icon button that turns the Translate screen's compact mode on and off (TRANS-015). */
+/** Icon button that turns the Translate screen's compact mode on and off (TRANS-016). */
 export function CompactToggle({ className }: { className?: string }) {
   const compact = useAppStore((s) => s.compact !== null);
   const label = compact ? "Leave compact mode" : "Compact mode";

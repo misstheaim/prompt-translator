@@ -19,10 +19,14 @@ import {
 export const SCREENS = ["translate", "history", "mistakes", "settings"] as const;
 export type Screen = (typeof SCREENS)[number];
 
-/** What turned compact mode on: the button, or dragging the window to its minimum height. */
+/** What turned compact mode on: the button, or dragging the window to its minimum width or height. */
 export type CompactSource = "button" | "resize";
 
-/** Normal-mode minimum window height and the margin above it that leaves resize-entered compact mode. */
+/**
+ * Normal-mode minimum window size (`NORMAL_MIN_SIZE` in Rust), and the margin above it, on both
+ * sides, that leaves resize-entered compact mode.
+ */
+export const NORMAL_MIN_WIDTH = 640;
 export const NORMAL_MIN_HEIGHT = 480;
 export const COMPACT_EXIT_MARGIN = 40;
 /** Window resizes within this long of a programmatic change are ignored by the auto rules. */
@@ -79,9 +83,12 @@ interface AppState {
   /** Called when the wizard finishes. */
   finishSetup: () => void;
 
-  /** Compact mode of the Translate screen (TRANS-015): `null` off, else what turned it on. */
+  /** Compact mode of the Translate screen (TRANS-016): `null` off, else what turned it on. */
   compact: CompactSource | null;
-  /** Turns compact mode on (the button also switches to Translate and shrinks the window). */
+  /**
+   * Turns compact mode on, on the current Translate tab (the button also switches to the
+   * Translate screen and resizes the window).
+   */
   enterCompact: (by: CompactSource) => Promise<void>;
   /** Turns compact mode off and restores the window limits (and, for the button, the size). */
   exitCompact: () => Promise<void>;

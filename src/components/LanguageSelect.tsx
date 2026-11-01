@@ -10,10 +10,20 @@ interface LanguageSelectProps {
   onChange: (code: string) => void;
   error?: string;
   disabled?: boolean;
+  /** `sm`: the smaller compact-mode size (narrower field, shorter list). */
+  size?: "sm" | "md";
 }
 
 /** A searchable language picker: type to filter the English names, pick with click or Enter. */
-export function LanguageSelect({ label, value, onChange, error, disabled }: LanguageSelectProps) {
+export function LanguageSelect({
+  label,
+  value,
+  onChange,
+  error,
+  disabled,
+  size = "md",
+}: LanguageSelectProps) {
+  const small = size === "sm";
   const languages = useLanguages();
   const id = useId();
   const listId = `${id}-list`;
@@ -83,7 +93,8 @@ export function LanguageSelect({ label, value, onChange, error, disabled }: Lang
           }
         }}
         className={cx(
-          "h-8 w-48 rounded-md border bg-surface px-2 text-sm text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50",
+          "rounded-md border bg-surface text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50",
+          small ? "h-6 w-40 px-1.5 text-xs" : "h-8 w-48 px-2 text-sm",
           error ? "border-danger" : "border-border",
         )}
       />
@@ -92,9 +103,14 @@ export function LanguageSelect({ label, value, onChange, error, disabled }: Lang
           id={listId}
           role="listbox"
           aria-label={label}
-          className="absolute left-0 top-full z-20 mt-1 max-h-56 w-48 overflow-auto rounded-md border border-border bg-surface py-1 shadow-lg"
+          className={cx(
+            "absolute left-0 top-full z-20 mt-1 overflow-auto rounded-md border border-border bg-surface py-1 shadow-lg",
+            small ? "max-h-36 w-40" : "max-h-56 w-48",
+          )}
         >
-          {matches.length === 0 && <li className="px-2 py-1 text-sm text-muted">No match</li>}
+          {matches.length === 0 && (
+            <li className={cx("px-2 py-1 text-muted", small ? "text-xs" : "text-sm")}>No match</li>
+          )}
           {matches.map((l, i) => (
             <li
               key={l.code}
@@ -109,7 +125,8 @@ export function LanguageSelect({ label, value, onChange, error, disabled }: Lang
               }}
               onMouseEnter={() => setActive(i)}
               className={cx(
-                "cursor-pointer px-2 py-1 text-sm text-text",
+                "cursor-pointer px-2 py-1 text-text",
+                small ? "text-xs" : "text-sm",
                 i === active && "bg-accent/20",
                 l.code === value && "font-medium",
               )}

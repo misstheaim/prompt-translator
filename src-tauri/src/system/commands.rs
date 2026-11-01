@@ -13,22 +13,27 @@ use crate::error::{AppError, AppResult};
 use crate::settings::SettingsStore;
 use crate::translation::providers::ollama::OllamaProvider;
 
-/// Minimum inner size of the main window in normal mode (TRANS-015). Keep in step with
-/// `minWidth`/`minHeight` in `tauri.conf.json`, which apply from startup.
+/// Minimum inner size of the main window in normal mode (TRANS-016). Keep in step with
+/// `minWidth`/`minHeight` in `tauri.conf.json`, which apply from startup, and with
+/// `NORMAL_MIN_WIDTH`/`NORMAL_MIN_HEIGHT` in `src/store/app.ts`.
 const NORMAL_MIN_SIZE: (f64, f64) = (640.0, 480.0);
-/// Minimum inner size in compact mode.
-const COMPACT_MIN_SIZE: (f64, f64) = (160.0, 100.0);
+/// Minimum inner size in compact mode: the smallest size at which the compact layout fits
+/// without a scrollbar (two rows of controls, the two boxes at their 56 px minimum and the key
+/// hint: 216 px high; the controls row with the default content measures 416 px wide, plus a
+/// few px for font differences). Longer labels (tab titles, language names) get an ellipsis.
+const COMPACT_MIN_SIZE: (f64, f64) = (420.0, 216.0);
 /// Inner size the button gives the window when it turns compact mode on.
-const COMPACT_SIZE: (f64, f64) = (210.0, 150.0);
+const COMPACT_SIZE: (f64, f64) = (600.0, 350.0);
 
 /// The logical size the window had before the compact button resized it.
 static REMEMBERED_SIZE: std::sync::Mutex<Option<(f64, f64)>> = std::sync::Mutex::new(None);
 
-/// Switches the main window between its normal and compact limits (TRANS-015).
+/// Switches the main window between its normal and compact limits (TRANS-016).
 ///
-/// With `resize` (the compact button) turning compact on remembers the current size and shrinks
+/// With `resize` (the compact button) turning compact on remembers the current size and resizes
 /// the window to the compact size, and turning it off restores the remembered size. Without
-/// `resize` (the window was dragged to or from its minimum height) only the minimum size changes.
+/// `resize` (the window was dragged to or from its minimum width or height) only the minimum
+/// size changes.
 /// Leaving compact mode always makes sure the window is at least the normal minimum.
 #[tauri::command]
 pub fn set_compact_window(app: AppHandle, compact: bool, resize: bool) -> AppResult<()> {
