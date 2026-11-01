@@ -1,8 +1,8 @@
 # Claude sessions
 
-The terminal windows that a Translate tab can be bound to, and delivering the accepted text into one. A session target is a terminal window running Claude Code: a Windows Terminal tab or a classic console window. VS Code sessions are not targets; their text goes through the clipboard. The commands exist in the core and in `api.ts`; no screen uses them yet.
+The terminal windows that a Translate tab can be bound to, and delivering the accepted text into one. A session target is a terminal window running Claude Code: a Windows Terminal tab or a classic console window. VS Code sessions are not targets in v0.1.0; their text goes through the clipboard. The commands are used by the bound Translate tabs of the main window (SESSION-007).
 
-> Code: `src-tauri/src/target/` (`commands.rs`, `sessions.rs`, `deliver.rs`), `src-tauri/src/system/` (`uia.rs`, `input.rs`, `process.rs`), `src/lib/api.ts`
+> Code: `src-tauri/src/target/` (`commands.rs`, `sessions.rs`, `deliver.rs`), `src-tauri/src/system/` (`uia.rs`, `input.rs`, `process.rs`), `src/lib/api.ts`, `src/screens/Translate/` (`TranslateTabs.tsx`, `BindSessionDialog.tsx`, `sessionTabs.ts`)
 
 ## Behaviour
 
@@ -39,6 +39,16 @@ Since: #74
 ### SESSION-006 Clipboard fallback
 When the terminal cannot take the text, nothing is pasted, the text is copied to the clipboard instead, the outcome is `{ kind: "deliveredToClipboard", reason }` and the history entry is marked accepted with the session as target all the same. `reason` reads "<cause>. The prompt was copied; paste it with Ctrl+V." Causes: the window has closed, is no longer the bound one, or is a translator run's; the bound tab was not found, cannot be identified or cannot be selected, or is no longer selected; a classic console and a text of several lines ("A classic console window can't take several lines safely (line breaks would act as Enter)"); a modifier key or Enter still held down for 500 ms, or the keyboard in use (input within 300 ms) for 1.5 s; the terminal could not be restored or brought to the front, or lost the focus before the paste; the clipboard in use by another app; Windows blocked the keystroke (is the terminal running as administrator?). If the copy itself fails the call fails with `Io` "Can't write to the clipboard: ..." and the entry is not marked.
 Since: #74
+
+### SESSION-007 Bound Translate tabs
+The Translate screen has a tab strip (TRANS-013): the default tab plus up to 5 tabs bound to a Claude session. Compact mode shows the default tab only.
+- **Binding:** "+ Bind session" (disabled with the tooltip "At most 5 bound tabs" once 5 exist) opens the dialog "Bind a Claude session". It lists the session targets (SESSION-001: title and "Windows Terminal" or "Console window"; "Looking for terminal windows" while loading, "No terminal windows found." when empty) and has "Click into a terminal…", which binds by focus (SESSION-002) with a 10 s wait and the button text "Click into a terminal (<n> s)" counting down. Picking a target or a successful focus bind adds a tab and selects it, titled with the session's title at that moment (a label only). A failed bind shows an error toast and the dialog stays open; Cancel and Esc close it, but not while a bind is running.
+- **Tabs:** each tab has its own text, mode, provider, preset, language pair, result and edited output, and starts empty with the settings' defaults and mode Translate. A tab's "×" ("Unbind and close this tab") closes it and releases its binding. Binding a target that already has a tab selects that tab and releases the extra binding. Tabs are not restored after a restart.
+- **Improve is off** in a bound tab: its option in the mode switch is disabled (tooltip "Improve is off for prompts sent to Claude") and a mode of Improve (e.g. a preset's default) is shown and run as Translate.
+- **Sending:** the result's accept button reads "Send to <title>" instead of "Copy" (Ctrl+Shift+Enter as before, disabled for a blank result) and delivers the edited text with the entry's `historyId` (SESSION-005). Success shows the toast "Sent to <title>: press Enter in Claude"; the clipboard fallback (SESSION-006) shows its `reason` as an info toast; other failures show an error toast. If the text starts with `!`, `/` or `#`, a dialog "Send this text?" asks first and sends only after "Send" (with `confirmed`).
+- **Closed sessions:** when `target://closed` (SESSION-004) names a bound tab's window (and, if it names a tab id, that tab), the tab closes without unbinding and the toast "<title> closed" shows; the default tab is selected if it was the closed one.
+- Opening an entry from History (HISTORY-010) or the popup (POPUP-006) selects the default tab and loads it there.
+Since: #75
 
 ## Known issues
 

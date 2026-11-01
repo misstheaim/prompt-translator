@@ -1,6 +1,6 @@
 # Hotkey and popup
 
-The global hotkey that captures text from any app and opens the popup window, with the auto-copy of the current selection. The popup page translates the captured text right away in the detected mode, shows the result and copies it with Enter. The layout-fix hotkey is registered by the same code (see `layout-fix.md`).
+The global hotkey that captures text from any app and opens the popup window, with the auto-copy of the current selection. The popup page translates the captured text right away in the detected mode, shows the result and replaces the selection with it (Enter) or copies it (Ctrl+Enter). The layout-fix hotkey is registered by the same code (see `layout-fix.md`).
 
 > Code: `src-tauri/src/system/hotkey.rs`, `src-tauri/src/system/popup.rs`, `src-tauri/src/system/clipboard.rs`, `src-tauri/src/system/input.rs`, `src-tauri/capabilities/popup.json`, `src/popup/`, `src/App.tsx`, `src/store/app.ts`
 
@@ -30,13 +30,13 @@ Until it receives `popup://source` the page shows "Waiting for text...". After i
 - the source text, cut to 3 lines; with a "Show more" / "Show less" toggle when the text is over 180 characters or 3 lines;
 - a mode switch (Translate / Improve / Correct) set to the mode from the event; when the event has a `languagePair` and the mode is Translate, a small label "<from> → <to>" (English names, e.g. "English → Russian", tooltip "Translation direction") beside it. Switching to Improve or Correct hides it and uses the settings' pair; switching back to Translate shows it again;
 - the result area (POPUP-009);
-- a footer "Enter: copy · Esc: close · Ctrl+R: retry · Tab: mode" and an "Open in main window" button (POPUP-006).
-Each new `popup://source` resets the page (cancelling a running request) and starts a run for a non-blank text. With a blank text the footer hint shows but there is no "Open in main window" button.
-Since: #34 · Changed: #58, #61, #152
+- a footer "Enter: replace · Ctrl+Enter: copy · Esc: close · Ctrl+R: retry · Tab: mode" when the source kind is editable (POPUP-012), otherwise "Enter: copy · Esc: close · Ctrl+R: retry · Tab: mode", and an "Open in main window" button (POPUP-006).
+Each new `popup://source` resets the page (cancelling a running request) and starts a run for a non-blank text. With a blank text the footer hint shows but there is no "Open in main window" button. Before the first source (and for an unknown or read-only source) the footer shows the copy form.
+Since: #34 · Changed: #58, #61, #152, #153
 
 ### POPUP-006 Opening an entry in the main window
-When the event `main://open-entry` with `{ input, mode, result }` (`result` a translation result or null) is emitted, the core shows and focuses the main window and hides the popup, and the main window selects the Translate tab and loads it: the input, the mode, the provider of the result (none, so the settings default, when `result` is null), and, when a result is given, that result as a finished translation with its output in the editable output box. The popup's "Open in main window" button sends it with the captured text, the current mode and the finished result (null while loading, after an error or when nothing ran yet); the popup does not cancel a request still running.
-Since: #58 · Changed: #61
+When the event `main://open-entry` with `{ input, mode, result }` (`result` a translation result or null) is emitted, the core shows and focuses the main window and hides the popup, and the main window selects the Translate tab and its default tab (never a bound tab, SESSION-007) and loads it: the input, the mode, the provider of the result (none, so the settings default, when `result` is null), and, when a result is given, that result as a finished translation with its output in the editable output box. The popup's "Open in main window" button sends it with the captured text, the current mode and the finished result (null while loading, after an error or when nothing ran yet); the popup does not cancel a request still running.
+Since: #58 · Changed: #61, #75
 
 ### POPUP-007 Auto-copy of the selection
 When `autoCopySelection` is on (default), pressing the hotkey first tries to copy what is selected in the foreground app, so no manual Ctrl+C is needed:
@@ -59,11 +59,11 @@ For a non-blank text the page runs `translate` (TRANS-008) at once with a new re
 Since: #61 · Changed: #145, #152
 
 ### POPUP-010 Popup keys
-- Enter (without Ctrl, Shift or Alt) after a successful run copies the output with its `historyId` (TRANS-010, which marks the history entry accepted), saves the mode as `lastPopupMode` (not for a read-only source) and hides the popup. If the copy fails the popup stays open with the error banner; Enter does nothing in other states.
+- Enter (without Shift or Alt) after a successful run accepts the output. Plain Enter replaces the selection in the source app when the source kind is editable (POPUP-013) and otherwise copies the output with its `historyId` (TRANS-010). Ctrl+Enter always copies. Both mark the history entry accepted, save the mode as `lastPopupMode` (not for a read-only source) and hide the popup. If the copy (or, for a replace, the fallback copy) fails the popup stays open with the error banner; Enter does nothing in other states.
 - Esc cancels a running request and hides the popup.
 - Ctrl+R runs the same text and mode again (also while one runs); it does not reload the page.
 - Tab and Shift+Tab move the mode forward and back through Translate, Improve, Correct, wrapping around.
-Since: #61 · Changed: #152
+Since: #61 · Changed: #152, #153
 
 ### POPUP-012 Source kind
 When `autoCopySelection` is on and the foreground window isn't a terminal (POPUP-007), pressing the hotkey asks UI Automation, before Ctrl+C is sent, for the focused element and classifies the capture:
@@ -72,5 +72,12 @@ When `autoCopySelection` is on and the foreground window isn't a terminal (POPUP
 - **unknown:** anything else, a failed call, no answer within about 100 ms of the hotkey (the capture never waits longer for it), an earlier query still stuck on a hung app, a terminal, `autoCopySelection` off, or a clipboard fallback (POPUP-008), which is always unknown.
 The kind is sent as `sourceKind` (`editable`, `readOnly`, `unknown`) in `popup://source` (POPUP-003). Unknown is treated like editable.
 Since: #152
+
+### POPUP-013 Replace the selection
+Plain Enter (POPUP-010) replaces the selection only when the source kind is editable (an unknown, read-only or clipboard-fallback source copies instead) and the window the text was selected in is recorded from the hotkey press. The command `replace_selection(text, historyId?)` (wrapper `replaceSelection`) hides the popup, brings that window to the front (restoring it if minimised; up to 1 s), waits for Enter and the modifier keys to be released (up to 500 ms), puts the result on the clipboard (hidden from clipboard history) and sends Ctrl+V. After 200 ms the previous clipboard text is put back, unless the clipboard changed meanwhile. Blank text fails with `InvalidInput` "There is nothing to paste".
+- **Fallback:** if the window is gone, hidden or does not come to the front, a modifier stays down, the input is blocked or the clipboard cannot be used, nothing is pasted: the result is copied and the notification "Couldn't paste: the result was copied instead" shows (title: the app name).
+- If even that copy fails the command fails with `Io` "Can't write to the clipboard: ...", the popup is shown again with the error banner and the history entry is not marked.
+- Otherwise (pasted or copied) the entry with `historyId` is marked accepted with target `clipboard` (HISTORY-009).
+Since: #153
 
 Retired IDs: POPUP-011
