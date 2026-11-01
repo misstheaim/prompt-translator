@@ -8,6 +8,7 @@ pub mod input;
 pub mod paths;
 pub mod popup;
 pub mod process;
+pub mod replace;
 pub mod tray;
 #[cfg(windows)]
 pub mod uia;

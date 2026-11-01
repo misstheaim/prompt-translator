@@ -217,6 +217,62 @@ pub fn run_uninstaller(app: AppHandle) -> AppResult<()> {
     Ok(())
 }
 
+/// Popup Enter (POPUP-013): hides the popup and pastes `text` over the selection in the source
+/// window, then marks the history entry accepted. If pasting isn't possible the text is copied
+/// instead and a notification says so; only a failed copy is an error (the popup is shown again).
+#[tauri::command]
+pub async fn replace_selection(
+    app: AppHandle,
+    text: String,
+    history_id: Option<i64>,
+) -> AppResult<()> {
+    use tauri_plugin_clipboard_manager::ClipboardExt;
+    use tauri_plugin_notification::NotificationExt;
+
+    if text.trim().is_empty() {
+        return Err(AppError::InvalidInput("There is nothing to paste".into()));
+    }
+    super::popup::hide(&app);
+    let worker = app.clone();
+    let worker_text = text.clone();
+    let pasted = tokio::task::spawn_blocking(move || {
+        super::replace::replace_selection(&worker, &worker_text)
+    })
+    .await
+    .map_err(|e| AppError::Io(format!("The paste failed: {e}")))?;
+
+    if let Err(failure) = pasted {
+        log::info!("Replace failed ({failure:?}); copying instead");
+        if let Err(e) = app.clipboard().write_text(text) {
+            super::popup::show_again(&app);
+            return Err(AppError::Io(format!("Can't write to the clipboard: {e}")));
+        }
+        let title = app
+            .config()
+            .product_name
+            .clone()
+            .unwrap_or_else(|| "Prompt Translator".into());
+        if let Err(e) = app
+            .notification()
+            .builder()
+            .title(title)
+            .body(super::replace::FALLBACK_HINT)
+            .show()
+        {
+            log::warn!("Could not show a notification: {e}");
+        }
+    }
+    if let Some(id) = history_id {
+        crate::history::commands::mark_accepted(
+            &app,
+            id,
+            crate::history::AcceptedTarget::Clipboard,
+        )
+        .await;
+    }
+    Ok(())
+}
+
 /// Native file picker (Settings, "Browse" for the claude.exe path). `filter` lists the allowed
 /// extensions without dots, e.g. `["exe", "cmd"]`; `None` allows any file. Returns `None` when
 /// the user cancels.

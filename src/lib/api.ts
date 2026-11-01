@@ -155,6 +155,14 @@ export function copyResult(text: string, historyId: number | null = null): Promi
   return call<void>("copy_result", { text, historyId });
 }
 
+/**
+ * Popup Enter: hides the popup and pastes the text over the selection in the source app. Falls
+ * back to copying (with a notification) when pasting isn't possible.
+ */
+export function replaceSelection(text: string, historyId: number | null = null): Promise<void> {
+  return call<void>("replace_selection", { text, historyId });
+}
+
 // ---- session targets ----
 
 /**

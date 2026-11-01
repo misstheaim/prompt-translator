@@ -214,7 +214,15 @@ fn open_popup<R: Runtime>(app: &AppHandle<R>) {
             .try_state::<SettingsStore>()
             .map(|s| s.get())
             .unwrap_or_default();
+        // The window the selection is in, kept for "Enter replaces" (POPUP-013).
+        #[cfg(windows)]
+        let source_window = super::input::foreground_window().map(|w| w.id());
+        #[cfg(not(windows))]
+        let source_window: Option<usize> = None;
         let (text, source_kind) = capture_source(&app, &settings);
+        if let Some(state) = app.try_state::<super::replace::SourceWindow>() {
+            state.set(source_window.filter(|_| source_kind == SourceKind::Editable));
+        }
         let pair = LanguagePair::from_settings(&settings);
         let (mode, language_pair) = start_mode(&text, source_kind, &settings, pair);
         log::debug!("Popup source: {source_kind:?}, mode {mode:?}");

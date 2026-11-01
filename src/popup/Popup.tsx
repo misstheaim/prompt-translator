@@ -17,6 +17,7 @@ import {
   cancelTranslation,
   copyResult,
   getSettings,
+  replaceSelection,
   setLastPopupMode,
   toAppError,
   translate,
@@ -60,6 +61,7 @@ export function Popup() {
   const [issuesOpen, setIssuesOpen] = useState(false);
   const [warningsIgnored, setWarningsIgnored] = useState(false);
   const [languagePair, setLanguagePair] = useState<PopupLanguagePair | null>(null);
+  const [sourceKind, setSourceKind] = useState<SourceKind>("unknown");
   const languages = useLanguages();
 
   /** Id of the request whose answer the popup is waiting for; other answers are stale. */
@@ -160,19 +162,29 @@ export function Popup() {
     [run, cancelRunning, rememberMode],
   );
 
-  const accept = useCallback(async () => {
-    const { mode: used, status: s, result: res } = stateRef.current;
-    if (s !== "success" || !res) return;
-    try {
-      await copyResult(res.output, res.historyId);
-    } catch (e) {
-      // Stay open so the user sees why nothing was copied.
-      setCopyError(toAppError(e));
-      return;
-    }
-    rememberMode(used);
-    hidePopup();
-  }, [rememberMode]);
+  /** Enter replaces the selection when the source was editable; Ctrl+Enter only copies. */
+  const accept = useCallback(
+    async (replace: boolean) => {
+      const { mode: used, status: s, result: res } = stateRef.current;
+      if (s !== "success" || !res) return;
+      const doReplace = replace && captureRef.current.sourceKind === "editable";
+      if (doReplace) rememberMode(used);
+      try {
+        if (doReplace) {
+          await replaceSelection(res.output, res.historyId);
+        } else {
+          await copyResult(res.output, res.historyId);
+        }
+      } catch (e) {
+        // Stay open so the user sees why nothing was copied.
+        setCopyError(toAppError(e));
+        return;
+      }
+      if (!doReplace) rememberMode(used);
+      hidePopup();
+    },
+    [rememberMode],
+  );
 
   const openInMain = useCallback(() => {
     const { text: source, mode: used, result: res } = stateRef.current;
@@ -194,6 +206,7 @@ export function Popup() {
       resultsRef.current = {};
       captureRef.current = { sourceKind, languagePair: pair ?? null };
       setLanguagePair(pair ?? null);
+      setSourceKind(sourceKind);
       setText(captured);
       setMode(detected);
       setExcerptOpen(false);
@@ -217,9 +230,9 @@ export function Popup() {
         e.preventDefault();
         cancelRunning();
         hidePopup();
-      } else if (e.key === "Enter" && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+      } else if (e.key === "Enter" && !e.shiftKey && !e.altKey) {
         e.preventDefault();
-        void accept();
+        void accept(!e.ctrlKey);
       } else if ((e.key === "r" || e.key === "R") && e.ctrlKey) {
         // Also stops the webview from reloading.
         e.preventDefault();
@@ -329,7 +342,10 @@ export function Popup() {
       )}
 
       <footer className="flex items-center justify-between gap-2 border-t border-border pt-2 text-xs text-muted">
-        <span>Enter: copy · Esc: close · Ctrl+R: retry · Tab: mode</span>
+        <span>
+          {sourceKind === "editable" ? "Enter: replace · Ctrl+Enter: copy" : "Enter: copy"} · Esc:
+          close · Ctrl+R: retry · Tab: mode
+        </span>
         {hasText && (
           <Button size="sm" variant="ghost" onClick={openInMain}>
             Open in main window
