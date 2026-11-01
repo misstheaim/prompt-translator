@@ -17,9 +17,9 @@ use crate::translation::providers::ollama::OllamaProvider;
 /// `minWidth`/`minHeight` in `tauri.conf.json`, which apply from startup.
 const NORMAL_MIN_SIZE: (f64, f64) = (640.0, 480.0);
 /// Minimum inner size in compact mode.
-const COMPACT_MIN_SIZE: (f64, f64) = (320.0, 200.0);
+const COMPACT_MIN_SIZE: (f64, f64) = (160.0, 100.0);
 /// Inner size the button gives the window when it turns compact mode on.
-const COMPACT_SIZE: (f64, f64) = (420.0, 300.0);
+const COMPACT_SIZE: (f64, f64) = (210.0, 150.0);
 
 /// The logical size the window had before the compact button resized it.
 static REMEMBERED_SIZE: std::sync::Mutex<Option<(f64, f64)>> = std::sync::Mutex::new(None);
