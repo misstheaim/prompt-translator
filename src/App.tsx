@@ -16,7 +16,8 @@ import { HistoryScreen } from "./screens/History/HistoryScreen";
 import { MistakesScreen } from "./screens/Mistakes/MistakesScreen";
 import { SetupScreen } from "./screens/Setup/SetupScreen";
 import { SettingsScreen } from "./screens/Settings/SettingsScreen";
-import { TranslateScreen } from "./screens/Translate/TranslateScreen";
+import { initSessionTabs, useSessionTabs, DEFAULT_TAB } from "./screens/Translate/sessionTabs";
+import { TranslateTabs } from "./screens/Translate/TranslateTabs";
 import { useTranslateStore } from "./screens/Translate/store";
 import {
   COMPACT_EXIT_MARGIN,
@@ -78,6 +79,14 @@ function App() {
     };
   }, []);
 
+  // A bound terminal window closing closes its Translate tab.
+  useEffect(() => {
+    const unlisten = initSessionTabs();
+    return () => {
+      void unlisten.then((fn) => fn());
+    };
+  }, []);
+
   // The popup's "Open in main window" sends `main://open-entry` (Rust shows this window).
   useEffect(() => {
     const unlisten = listen<OpenEntryPayload>("main://open-entry", (event) => {
@@ -94,6 +103,8 @@ function App() {
         resultMode: mode,
         error: null,
       });
+      // Opening an entry always loads the default tab.
+      useSessionTabs.getState().activate(DEFAULT_TAB);
       setScreen("translate");
     });
     return () => {
@@ -177,7 +188,7 @@ function App() {
   if (compact !== null) {
     return (
       <div className="h-full bg-bg text-text">
-        <TranslateScreen />
+        <TranslateTabs strip={false} />
         <ToastHost />
       </div>
     );
@@ -264,7 +275,7 @@ function App() {
       <main className="min-h-0 flex-1 overflow-auto p-4">
         {screen === "translate" && import.meta.env.DEV && <DevMockPanel />}
         {screen === "translate" ? (
-          <TranslateScreen />
+          <TranslateTabs />
         ) : screen === "history" ? (
           <HistoryScreen />
         ) : screen === "mistakes" ? (

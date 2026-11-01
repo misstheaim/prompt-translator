@@ -5,6 +5,9 @@ import { cx } from "../lib/cx";
 export interface SegmentedOption<T extends string> {
   value: T;
   label: string;
+  /** This option can't be chosen; `title` explains why. */
+  disabled?: boolean;
+  title?: string;
 }
 
 interface SegmentedControlProps<T extends string> {
@@ -34,7 +37,12 @@ export function SegmentedControl<T extends string>({
           : 0;
     if (step === 0) return;
     e.preventDefault();
-    const next = (index + step + options.length) % options.length;
+    let next = index;
+    for (let i = 0; i < options.length; i++) {
+      next = (next + step + options.length) % options.length;
+      if (!options[next].disabled) break;
+    }
+    if (options[next].disabled) return;
     onChange(options[next].value);
     refs.current[next]?.focus();
   }
@@ -57,7 +65,8 @@ export function SegmentedControl<T extends string>({
             role="radio"
             aria-checked={selected}
             tabIndex={selected ? 0 : -1}
-            disabled={disabled}
+            disabled={disabled || o.disabled}
+            title={o.title}
             onClick={() => onChange(o.value)}
             onKeyDown={(e) => onKeyDown(e, i)}
             className={cx(
