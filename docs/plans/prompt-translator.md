@@ -461,11 +461,13 @@ No automated tests (owner's decision, 2026-10-15). A ticket is done when build a
 │   ├── [Task][frontend] T21 Result details: diff, issues, token warnings (#54)
 │   ├── [Task][frontend] T49 Fix the Settings save bar gap and add a clear button to the Translate box (#144)
 │   ├── [Task][frontend] T61 Compact mode for the Translate screen (#168)
-│   └── [Task][frontend] T62 Compact mode window half the size (#179)
+│   ├── [Task][frontend] T62 Compact mode window half the size (#179)
+│   └── [Task][frontend] T63 Compact mode: 600×350, per tab, with controls and no scrollbar; Settings reach open tabs (#185)
 └── [Story] S5.2 Configure providers, defaults and presets (#22)
     ├── [Task][frontend] T22 Settings screen (#55)
     ├── [Task][frontend] T23 Preset editor (#56)
-    └── [Task][frontend] T53 Language pair in setup, Settings and the Translate tab (#151)
+    ├── [Task][frontend] T53 Language pair in setup, Settings and the Translate tab (#151)
+    └── [Task][frontend] T67 Theme and accent colour settings, thin scrollbars, fixed top bar (#189)
 [Epic] E6 Tray and hotkey popup (#6)
 ├── [Story] S6.1 The app lives in the tray (#23)
 │   └── [Task][backend]  T24 Tray, close-to-tray, single instance, autostart (#57)
@@ -478,16 +480,19 @@ No automated tests (owner's decision, 2026-10-15). A ticket is done when build a
 │   ├── [Task][frontend] T50 Popup: keep each mode's result, movable, resizable, remembers size and position (#145)
 │   ├── [Task][backend]  T59 Remove popup drag and resize (#162)   (changed in #162)
 │   ├── [Task][backend]  T54 Popup starting mode from where the text was selected (#152)
-│   └── [Task][backend]  T55 Popup: Enter replaces the selection, Ctrl+Enter copies (#153)
+│   ├── [Task][backend]  T55 Popup: Enter replaces the selection, Ctrl+Enter copies (#153)
+│   └── [Task][frontend] T65 Popup: queue mode runs instead of cancelling; paste multiline prompts twice (#187)
 └── [Story] S6.3 Fix text typed in the wrong keyboard layout with a hotkey (#76)
     ├── [Task][backend]  T41 Keyboard layout conversion module (#77)
     ├── [Task][backend]  T42 Layout-fix hotkey: capture, replace and switch layout (#78)
     ├── [Task][frontend] T43 Layout-fix settings (#79)
-    └── [Task][backend]  T57 Layout fix: convert every wrong-layout word before the cursor (#147)
+    ├── [Task][backend]  T57 Layout fix: convert every wrong-layout word before the cursor (#147)
+    └── [Task][backend]  T66 Layout fix: convert the whole wrong-layout line before the cursor (#188)
 [Epic] E7 History and learning log (#7)
 ├── [Story] S7.1 Translations and mistakes are saved (#25)
 │   ├── [Task][database] T27 SQLite schema, migrations and repository (#62)
-│   └── [Task][backend]  T28 Wire history into the service and expose commands (#63)
+│   ├── [Task][backend]  T28 Wire history into the service and expose commands (#63)
+│   └── [Task][backend]  T64 Don't save popup runs, per-preset history flag, joke presets, language filter in History and Mistakes (#186)
 ├── [Story] S7.2 Review and search past translations (#26)
 │   └── [Task][frontend] T29 History screen (#64)
 └── [Story] S7.3 See my recurring mistakes and new vocabulary (#27)
@@ -510,7 +515,7 @@ No automated tests (owner's decision, 2026-10-15). A ticket is done when build a
     └── [Task][research] T60 Spike: paste into an open VS Code Claude chat by focusing its window (#167)   (no milestone)
 ```
 
-Totals: **9 epics, 23 stories, 59 tasks** (T37 dropped).
+Totals: **9 epics, 23 stories, 64 tasks** (T37 dropped).
 
 ---
 
@@ -1318,17 +1323,58 @@ Write `docs/spikes/local-model-eval.md` with:
 - **Depends on:** T61.
 - **Suggested model:** Haiku 5.5 (confidence: Medium).
 
+### T63. Compact mode: 600×350, per tab, with controls and no scrollbar; Settings reach open tabs  `frontend` · parent: S5.1 · issue: #185
+- **Goal:** compact mode becomes a small complete window, and Settings changes reach open Translate tabs (owner's manual test, 2026-11-01).
+- **Details:** the button sets 600×350; the compact minimum is the smallest size without a scrollbar; compact keeps the current tab (bound tabs too) with a tab dropdown, smaller mode/provider/preset/pair controls, the counter inside the input, a key hint and a Copy / "Send to <title>" button at the top. Enter by width ≤ 640 or height ≤ 480; a resize-entered compact leaves at width > 680 and height > 520. A changed settings pair resets every tab's pair; changed default provider/preset apply to new tabs only; invalid selections fall back to the defaults. Spec: TRANS-016, TRANS-013, SESSION-007, APP-001.
+- **Acceptance criteria:**
+  - [ ] As in #185 (AC1–AC8).
+- **Depends on:** none.
+- **Suggested model:** Opus 5.5 (confidence: Medium).
+
+### T64. Don't save popup runs, per-preset history flag, joke presets, language filter in History and Mistakes  `backend` · parent: S7.1 · issue: #186
+- **Goal:** keep History and Mistakes about deliberate practice, and make them filterable by language (owner, 2026-11-01).
+- **Details:** popup runs are not saved unless the new setting `savePopupRuns` is on (origin from the calling window's label); new preset field `saveToHistory` (default true); five joke built-in presets (`improve`, `saveToHistory` false) with preset rules overriding tone; built-ins never seeded before are added at startup (deleted ones are not restored); a target-language filter on History and Mistakes; sticky History detail panel; hover states on Mistakes statistics. Spec: HISTORY-004/006/007/010/011, SETTINGS-001/008, PRESETS-001/002/003/009, TRANS-006.
+- **Acceptance criteria:**
+  - [ ] As in #186 (AC1–AC9).
+- **Depends on:** none (small expected conflict with T67 in the settings fields).
+- **Suggested model:** Opus 5.5 (confidence: Medium).
+
+### T65. Popup: queue mode runs instead of cancelling; paste multiline prompts twice  `frontend` · parent: S6.2 · issue: #187
+- **Goal:** fast mode switching in the popup doesn't throw runs away, and multiline prompts arrive whole in Claude sessions (owner, 2026-11-01).
+- **Details:** a mode without a result starts at once if nothing runs, otherwise is queued; a mode switch never cancels a run; one request at a time, the shown mode first; Esc, hide or a new capture cancel and clear the queue. Session delivery pastes text with more than one line twice. Spec: POPUP-009, SESSION-005.
+- **Acceptance criteria:**
+  - [ ] As in #187 (AC1–AC5).
+- **Depends on:** none.
+- **Suggested model:** Sonnet 5.5 (confidence: Medium).
+
+### T66. Layout fix: convert the whole wrong-layout line before the cursor  `backend` · parent: S6.3 · issue: #188
+- **Goal:** the word-before-cursor layout fix converts a long wrong-layout line, not only its last ~10 words (owner, 2026-11-01; Chrome and VS Code).
+- **Details:** likely cause: `MAX_WORDS` counts Ctrl+Shift+Left presses, and `,` `.` are word boundaries in editors; count words of the selected text instead, with a press safety cap, and check the tail rules for `{`, `,`, `.` words. Spec: LAYOUT-005 (LAYOUT-008 if the tail rules change).
+- **Acceptance criteria:**
+  - [ ] As in #188 (AC1–AC5).
+- **Depends on:** none.
+- **Suggested model:** Sonnet 5.5 (confidence: Medium).
+
+### T67. Theme and accent colour settings, thin scrollbars, fixed top bar  `frontend` · parent: S5.2 · issue: #189
+- **Goal:** Appearance settings and scrolling fixes (owner, 2026-11-01).
+- **Details:** settings `theme` (system default, light, dark) and `accent` (blue default, orange, lime; shades tuned for WCAG AA per theme) applied at once to the main window and popup through `data-theme`/`data-accent` tokens in `src/index.css`; thin scrollbars without arrows that don't cover buttons in boxes; the window never scrolls, so the top bar stays fixed with a touchpad. Spec: SETTINGS-001, SETTINGS-012 (new), APP-001, APP-039 (new).
+- **Acceptance criteria:**
+  - [ ] As in #189 (AC1–AC6).
+- **Depends on:** none (small expected conflict with T64 in the settings fields).
+- **Suggested model:** Sonnet 5.5 (confidence: High).
+
 ## 6. Order of work
 
 Done: waves 0-12 (see git history of this file). T37 was dropped (D47). Waves 10 and 11 were merged into one (owner, 2026-10-31). From wave 10, T58 and T59 are merged (2026-10-31). T60 (#167) has no milestone and no wave yet.
 
 | Wave | Tasks (parallel within a wave) | Notes |
 |---|---|---|
-| 13 | T7 | Docs for the new behaviour (README, smoke-test), then the full smoke test including Windows Sandbox; #39 closes when it passes |
+| 13 | T63, T64, T65, T66, T67 | Follow-ups from the owner's manual test of 2026-11-01; T64 and T67 both add settings fields (small merge conflict expected) |
+| 14 | T7 | Docs for the new behaviour (README, smoke-test), then the full smoke test including Windows Sandbox; #39 closes when it passes |
 
 Critical path: T1 → T2 → T3 → T11 → T12 → T20 → T21 → T26 → T7; for the follow-ups T47 → T51 → T52 → T53 → T40 → T7. The distribution chain is T24 → T6 → T31 → T32 → T33 → T7.
 
-**First public release** (`v0.1.0`) only after T47–T59, T61 and T38–T40 are merged and T7's smoke test passes (the manual test of 2026-10-31 did not pass). A test tag in T31 is fine before that, but it must stay a draft. The release follows `docs/development.md` §5: `release/0.1.0` is cut from `develop`, merged into `main` and tagged there.
+**First public release** (`v0.1.0`) only after T47–T59, T61–T67 and T38–T40 are merged and T7's smoke test passes (the manual test of 2026-10-31 did not pass). A test tag in T31 is fine before that, but it must stay a draft. The release follows `docs/development.md` §5: `release/0.1.0` is cut from `develop`, merged into `main` and tagged there.
 
 ## 7. Risks and open questions
 
@@ -1369,6 +1415,7 @@ Critical path: T1 → T2 → T3 → T11 → T12 → T20 → T21 → T26 → T7; 
 
 ## 8. Review notes
 
+- **Changed 2026-11-01 (owner's manual test):** follow-up tasks T63–T67 (#185–#189) added in milestone v0.1.0 as wave 13; T7 moved to wave 14. Owner decisions: compact mode 600×350 per tab with controls; Settings pair changes reset every tab's pair; popup runs not saved by default (`savePopupRuns`), per-preset `saveToHistory`, joke presets; language filter in History and Mistakes; popup mode runs queued instead of cancelled; multiline session sends pasted twice; theme and accent settings.
 - **Changed 2026-10-31 (owner's manual test of the v0.1.0 candidate):** follow-up tasks T47–T58 (#142–#153) added in milestone v0.1.0; decisions D43–D47 (Improve as a practice rewrite, language pair, popup starting mode and Enter-replace, local model memory, revised session delivery); D10, D31, D34, D38, D42 marked changed or superseded. E9 revived: T37 (#72) dropped, T38–T40 (#73–#75) rewritten for VS Code link / terminal focus-and-paste, new spike T58. Waves 9–14; T7 last.
 - **Changed 2026-10-30 (wave 7, part 2):** T31 (#66): real pubkey set, test tag checked. T32 (#67): updater commands, events and `AppInfo` as merged. T33 (#68): `store/update.ts`, banner rules. Follow-up T46 (#138, startup panic from the updater's rustls) added under S1.2, first in wave 8. Wave 7 collapsed.
 - **Changed 2026-10-30 (wave 7, part 1):** D38 default layout-fix hotkey → Shift+Pause (owner, #79; §4.3, T42, T43). T31 (#66) repo part: early secret check, prerelease tags, `createUpdaterArtifacts` + `plugins.updater` with a placeholder pubkey (T31, T32). T36 (#71): "Run setup again" already in the About placeholder (T33). Follow-up T45 (#128) added under S6.2.
