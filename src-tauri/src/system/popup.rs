@@ -68,6 +68,7 @@ pub struct PopupSource {
 
 /// Creates the hidden popup window and wires `main://open-entry` to the main window.
 pub fn init<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
+    app.manage(super::replace::SourceWindow::default());
     WebviewWindowBuilder::new(app, POPUP_WINDOW, WebviewUrl::App("popup.html".into()))
         .title("Prompt Translator Popup")
         .inner_size(POPUP_WIDTH, POPUP_HEIGHT)
@@ -110,6 +111,15 @@ pub fn on_window_event<R: Runtime>(window: &Window<R>, event: &WindowEvent) {
 pub fn hide<R: Runtime>(app: &AppHandle<R>) {
     if let Some(window) = app.get_webview_window(POPUP_WINDOW) {
         let _ = window.hide();
+    }
+}
+
+/// Shows and focuses the popup again, without moving it or sending a new source (after a replace
+/// that couldn't even copy, so the user sees the error).
+pub fn show_again<R: Runtime>(app: &AppHandle<R>) {
+    if let Some(window) = app.get_webview_window(POPUP_WINDOW) {
+        let _ = window.show();
+        let _ = window.set_focus();
     }
 }
 
