@@ -217,13 +217,36 @@ mod imp {
         }
         let written = input::sequence_number();
 
-        if conhost {
-            window.send_conhost_paste();
-        } else if !input::send_ctrl_v() {
-            input::write_text(saved.as_deref(), true);
-            return Err(
-                "Windows blocked the keystroke (is the terminal running as administrator?)".into(),
-            );
+        // Claude Code collapses a multiline paste into a placeholder, so a text with more than
+        // one line is pasted twice.
+        let pastes = if text.contains('\n') { 2 } else { 1 };
+        for n in 0..pastes {
+            if n > 0 {
+                sleep(PASTE_DELAY);
+                // The same checks as before the first paste.
+                let stop = if !window.is_foreground() {
+                    Some("The terminal lost the focus")
+                } else if !keys_up() {
+                    Some("The keyboard was in use")
+                } else {
+                    None
+                };
+                if let Some(reason) = stop {
+                    if input::sequence_number() == written {
+                        input::write_text(saved.as_deref(), true);
+                    }
+                    return Err(reason.into());
+                }
+            }
+            if conhost {
+                window.send_conhost_paste();
+            } else if !input::send_ctrl_v() {
+                input::write_text(saved.as_deref(), true);
+                return Err(
+                    "Windows blocked the keystroke (is the terminal running as administrator?)"
+                        .into(),
+                );
+            }
         }
 
         sleep(PASTE_DELAY);
