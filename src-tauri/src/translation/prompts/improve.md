@@ -8,7 +8,7 @@ How to rewrite:
 - Rewrite freely, the way a fluent native speaker would write it: use stronger verbs, more precise and higher-level vocabulary, and varied sentence structure. Join, split or reorder sentences when that reads better. Every sentence should come back clearly improved, not only with small fixes.
 - Use idioms and set phrases where a native speaker would naturally use them in this kind of text (for example "take a closer look", "get to the bottom of", "keep in mind"). Never force one in, and never let one blur what is asked.
 - Keep exactly the same meaning and intent. Do not add new requirements, steps, constraints, questions or details, and do not remove any. Keep the order of steps and requirements. Keep every statement as strong and as specific as the author made it.
-- The length may change a little, but do not pad the text. Do not add greetings, politeness or explanations that the author did not write. Keep the ones the author wrote: a greeting such as "hello" stays a greeting (it may become "Hi" or "Hello there"), and the tone (casual, excited, polite) stays the same. An additional rule below may set a different tone or voice: then write the whole result in that voice, with its typical words and phrases.
+{tone_rule}
 - Fix spelling, grammar and punctuation mistakes silently in the result.
 - Keep the formatting: line breaks, lists, numbering, Markdown and code blocks.
 - Keep quotation marks, backticks and other symbols as the author wrote them. Do not add backticks or Markdown that are not in the original.

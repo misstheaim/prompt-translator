@@ -46,6 +46,9 @@ struct Case {
     must_keep: Vec<String>,
     #[serde(default)]
     notes: String,
+    /// Preset for this case (T68); overrides `--preset` and the default preset.
+    #[serde(default)]
+    preset: Option<String>,
 }
 
 struct Args {
@@ -263,8 +266,10 @@ async fn run() -> Result<(), String> {
     };
 
     let presets = PresetStore::open(presets_dir);
-    if presets.get(&preset_id).is_none() {
-        return Err(format!("The preset \"{preset_id}\" doesn't exist"));
+    for id in std::iter::once(&preset_id).chain(cases.iter().filter_map(|c| c.preset.as_ref())) {
+        if presets.get(id).is_none() {
+            return Err(format!("The preset \"{id}\" doesn't exist"));
+        }
     }
     let providers: Vec<Arc<dyn TranslationProvider>> = vec![
         Arc::new(OllamaProvider::new()),
@@ -288,7 +293,7 @@ async fn run() -> Result<(), String> {
             source_text: case.source.clone(),
             mode: case.mode,
             provider: args.provider,
-            preset_id: preset_id.clone(),
+            preset_id: case.preset.clone().unwrap_or_else(|| preset_id.clone()),
             // The cases are written for the default pair, whatever the scratch settings say.
             native_language: Some(language::DEFAULT_NATIVE.to_owned()),
             target_language: Some(language::DEFAULT_TARGET.to_owned()),
@@ -493,6 +498,10 @@ fn render_report(args: &Args, model: &str, preset: &str, outcomes: &[Outcome], n
         let _ = writeln!(md);
         let _ = writeln!(md, "### {} ({:?}, {} ms)", o.case.id, o.case.mode, o.millis);
         let _ = writeln!(md);
+        if let Some(preset) = &o.case.preset {
+            let _ = writeln!(md, "Preset: {preset}");
+            let _ = writeln!(md);
+        }
         if !o.case.notes.is_empty() {
             let _ = writeln!(md, "_{}_", o.case.notes);
             let _ = writeln!(md);

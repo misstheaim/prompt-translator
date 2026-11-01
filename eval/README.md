@@ -18,7 +18,7 @@ or from `src-tauri`: `cargo run --bin eval -- --provider ollama`.
 | `--model <name>` | Ollama model tag, or the Claude model alias (`haiku`, ...) | the app's default (`qwen3.5:9b` / `haiku`) |
 | `--cases <file>` | JSONL cases file | `eval/cases.jsonl` |
 | `--out <file>` | Report path | `eval/reports/<UTC timestamp>.md` |
-| `--preset <id>` | Preset used for every case | the default preset (`technical-development`) |
+| `--preset <id>` | Preset used for every case without its own `preset` | the default preset (`technical-development`) |
 
 Needs the provider to be ready: Ollama running with the model pulled, or Claude Code installed and signed in. Progress goes to stderr; the report is written at the end. `eval/reports/` is git-ignored.
 
@@ -26,7 +26,7 @@ The harness never touches your real app data: settings and presets live in `%TEM
 
 ## Cases
 
-`eval/cases.jsonl`, one JSON object per line: `id`, `mode` (`translate`, `improve` or `correct`), `source`, `mustKeep` (tokens that must appear verbatim in the output), `notes`.
+`eval/cases.jsonl`, one JSON object per line: `id`, `mode` (`translate`, `improve` or `correct`), `source`, `mustKeep` (tokens that must appear verbatim in the output), `notes`, and optionally `preset` (the preset id for this case; it overrides `--preset`). The `voice-*` cases run the five joke presets (T68); whether the output is in the preset's voice is judged by hand from the report, which shows each case's preset.
 
 ## Report
 
