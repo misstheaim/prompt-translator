@@ -331,15 +331,19 @@ export function Popup() {
       ? `${languageName(languages, languagePair.nativeLanguage)} → ${languageName(languages, languagePair.targetLanguage)}`
       : null;
 
+  const keyHint = `${
+    sourceKind === "editable" ? "Enter: replace · Ctrl+Enter: copy" : "Enter: copy"
+  } · Esc: close · Ctrl+R: retry · Tab: mode`;
+
   return (
-    <main className="flex h-full flex-col gap-2 bg-bg p-3 text-text">
+    <main className="flex h-full flex-col gap-2 overflow-hidden bg-bg p-3 text-text">
       {!hasText ? (
         <p className="m-auto text-muted">
           {text === null ? "Waiting for text..." : "Select or copy some text first"}
         </p>
       ) : (
         <>
-          <section aria-label="Source" className="text-sm">
+          <section aria-label="Source" className="max-h-[40%] shrink-0 overflow-y-auto text-sm">
             <p
               className={cx(
                 "whitespace-pre-wrap break-words text-muted",
@@ -360,7 +364,7 @@ export function Popup() {
             )}
           </section>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
             <SegmentedControl
               aria-label="Mode"
               options={MODE_OPTIONS}
@@ -414,13 +418,18 @@ export function Popup() {
         </>
       )}
 
-      <footer className="flex items-center justify-between gap-2 border-t border-border pt-2 text-xs text-muted">
-        <span>
-          {sourceKind === "editable" ? "Enter: replace · Ctrl+Enter: copy" : "Enter: copy"} · Esc:
-          close · Ctrl+R: retry · Tab: mode
+      {/* One line whatever the width: the hint shrinks with an ellipsis (full text on hover). */}
+      <footer className="flex h-9 shrink-0 items-center justify-between gap-2 border-t border-border pt-2 text-xs text-muted">
+        <span className="min-w-0 truncate whitespace-nowrap" title={keyHint}>
+          {keyHint}
         </span>
         {hasText && (
-          <Button size="sm" variant="ghost" onClick={openInMain}>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="shrink-0 whitespace-nowrap"
+            onClick={openInMain}
+          >
             Open in main window
           </Button>
         )}

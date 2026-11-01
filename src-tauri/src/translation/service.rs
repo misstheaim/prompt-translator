@@ -147,7 +147,13 @@ impl TranslationService {
             req.target_language.as_deref(),
             &settings,
         )?;
-        let prompt = prompt_builder::build(req.mode, &preset, &req.source_text, pair);
+        let prompt = prompt_builder::build(
+            req.mode,
+            &preset,
+            &req.source_text,
+            pair,
+            req.purpose.unwrap_or_default(),
+        );
         let timeout = provider.timeout(&settings);
 
         let output = tokio::select! {

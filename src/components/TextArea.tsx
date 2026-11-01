@@ -8,12 +8,18 @@ interface TextAreaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
   maxHeight?: number;
   /** Compact mode: a smaller font, and the area fills its parent instead of auto-growing. */
   compact?: boolean;
+  /**
+   * The parent draws the border, background and focus ring (a box with a footer strip under the
+   * text, #199); the area itself has none.
+   */
+  framed?: boolean;
 }
 
 /** Auto-growing text area, at least 4 rows. */
 export function TextArea({
   mono,
   compact,
+  framed,
   maxHeight = 320,
   className,
   value,
@@ -39,9 +45,11 @@ export function TextArea({
       rows={rows}
       value={value}
       className={cx(
-        "w-full resize-none rounded-md border border-border bg-surface text-text",
+        "w-full resize-none text-text placeholder:text-muted",
+        framed
+          ? "bg-transparent focus-visible:outline-none"
+          : "rounded-md border border-border bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent read-only:bg-surface-raised",
         compact ? "h-full px-2 py-1 text-xs" : "px-3 py-2 text-sm",
-        " placeholder:text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent read-only:bg-surface-raised",
         mono ? "font-mono" : "font-sans",
         className,
       )}

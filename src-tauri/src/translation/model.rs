@@ -12,6 +12,19 @@ pub enum Mode {
     Correct,
 }
 
+/// What the result is for (#199). Only Improve uses it: a prompt for a Claude session gets the
+/// prompt-engineering rewrite of `prompts/improve_prompt.md`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, rename_all = "camelCase")]
+pub enum Purpose {
+    /// Any text: the general templates.
+    #[default]
+    General,
+    /// A prompt sent to a Claude session from a bound Translate tab.
+    ClaudePrompt,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, rename_all = "camelCase")]
@@ -41,6 +54,10 @@ pub struct TranslationRequest {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub target_language: Option<String>,
+    /// What the result is for; `general` when missing (#199).
+    #[serde(default)]
+    #[ts(optional)]
+    pub purpose: Option<Purpose>,
 }
 
 /// Matches the LLM output schema, so `snake_case`.

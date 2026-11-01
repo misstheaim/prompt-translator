@@ -487,7 +487,8 @@ No automated tests (owner's decision, 2026-10-15). A ticket is done when build a
     ├── [Task][backend]  T42 Layout-fix hotkey: capture, replace and switch layout (#78)
     ├── [Task][frontend] T43 Layout-fix settings (#79)
     ├── [Task][backend]  T57 Layout fix: convert every wrong-layout word before the cursor (#147)
-    └── [Task][backend]  T66 Layout fix: convert the whole wrong-layout line before the cursor (#188)
+    ├── [Task][backend]  T66 Layout fix: convert the whole wrong-layout line before the cursor (#188)
+    └── [Task][backend]  T69 Manual-test follow-ups: layout fix stop rule, compact buttons, accents, Improve for Claude prompts (#199)
 [Epic] E7 History and learning log (#7)
 ├── [Story] S7.1 Translations and mistakes are saved (#25)
 │   ├── [Task][database] T27 SQLite schema, migrations and repository (#62)
@@ -1373,17 +1374,25 @@ Write `docs/spikes/local-model-eval.md` with:
 - **Depends on:** T64.
 - **Suggested model:** Sonnet 5.5 (confidence: Medium).
 
+### T69. Manual-test follow-ups: layout fix stop rule, compact buttons, accents, Improve for Claude prompts  `backend` · parent: S6.3 · issue: #199
+- **Goal:** eight follow-ups from the owner's manual test (2026-11-01/02): the layout fix no longer stops at a near-tie word and allows 60 words; compact mode gets Run on top, an icon copy/send button at the bottom and a counter strip under the input; session delivery pastes twice only above 3 lines; pastel, toxic and Rainbow accents; Improve back in bound tabs as a Claude-prompt rewrite; the popup footer stays on one line; the Settings save bar stops jumping.
+- **Details:** per-word margin with a tie band and a tolerant stop rule in `layout_fix`; `Purpose` on `TranslationRequest` and `prompts/improve_prompt.md`; accents in `index.css` with a `MutationObserver` for Rainbow. Spec: LAYOUT-005, LAYOUT-008, SESSION-005, SESSION-007, TRANS-008, TRANS-016, TRANS-017 (new), SETTINGS-009, SETTINGS-012, POPUP-005, APP-013.
+- **Acceptance criteria:**
+  - [ ] As in #199 (AC1–AC10).
+- **Depends on:** none.
+- **Suggested model:** Opus 5.5 (confidence: Medium).
+
 ## 6. Order of work
 
 Done: waves 0-13 (see git history of this file). T37 was dropped (D47). Waves 10 and 11 were merged into one (owner, 2026-10-31). From wave 10, T58 and T59 are merged (2026-10-31). T60 (#167) has no milestone and no wave yet.
 
 | Wave | Tasks (parallel within a wave) | Notes |
 |---|---|---|
-| 14 | T7, T68 | T7: README and smoke-test checklist updated for wave 13, docs only (the smoke-test run was dropped, owner 2026-11-01). T68: joke preset voices (follow-up from T64) |
+| 14 | T7, T68, T69 | T7: README and smoke-test checklist updated for wave 13, docs only (the smoke-test run was dropped, owner 2026-11-01). T68: joke preset voices (follow-up from T64). T69: manual-test follow-ups (#199) |
 
 Critical path: T1 → T2 → T3 → T11 → T12 → T20 → T21 → T26 → T7; for the follow-ups T47 → T51 → T52 → T53 → T40 → T7. The distribution chain is T24 → T6 → T31 → T32 → T33 → T7.
 
-**First public release** (`v0.1.0`) only after T47–T59, T61–T68, T38–T40 and T7 are merged (the owner's manual test of 2026-11-01 passed and replaces T7's smoke-test run). A test tag in T31 is fine before that, but it must stay a draft. The release follows `docs/development.md` §5: `release/0.1.0` is cut from `develop`, merged into `main` and tagged there.
+**First public release** (`v0.1.0`) only after T47–T59, T61–T69, T38–T40 and T7 are merged (the owner's manual test of 2026-11-01 passed and replaces T7's smoke-test run). A test tag in T31 is fine before that, but it must stay a draft. The release follows `docs/development.md` §5: `release/0.1.0` is cut from `develop`, merged into `main` and tagged there.
 
 ## 7. Risks and open questions
 
@@ -1424,6 +1433,7 @@ Critical path: T1 → T2 → T3 → T11 → T12 → T20 → T21 → T26 → T7; 
 
 ## 8. Review notes
 
+- **Changed 2026-11-02:** follow-up T69 (#199, manual-test fixes: layout fix stop rule, compact Run and send buttons, paste twice above 3 lines, pastel/toxic/Rainbow accents, Improve for Claude prompts in bound tabs, popup footer, Settings save bar) added under S6.3 in wave 14.
 - **Changed 2026-11-01 (wave 13):** T7 (#39) rescoped to docs only: the owner's manual test passed, so the smoke-test run before v0.1.0 is dropped. Follow-up T68 (#193, joke preset voices) added under S7.1 in wave 14. Wave 13 collapsed.
 - **Changed 2026-11-01 (owner's manual test):** follow-up tasks T63–T67 (#185–#189) added in milestone v0.1.0 as wave 13; T7 moved to wave 14. Owner decisions: compact mode 600×350 per tab with controls; Settings pair changes reset every tab's pair; popup runs not saved by default (`savePopupRuns`), per-preset `saveToHistory`, joke presets; language filter in History and Mistakes; popup mode runs queued instead of cancelled; multiline session sends pasted twice; theme and accent settings.
 - **Changed 2026-10-31 (owner's manual test of the v0.1.0 candidate):** follow-up tasks T47–T58 (#142–#153) added in milestone v0.1.0; decisions D43–D47 (Improve as a practice rewrite, language pair, popup starting mode and Enter-replace, local model memory, revised session delivery); D10, D31, D34, D38, D42 marked changed or superseded. E9 revived: T37 (#72) dropped, T38–T40 (#73–#75) rewritten for VS Code link / terminal focus-and-paste, new spike T58. Waves 9–14; T7 last.

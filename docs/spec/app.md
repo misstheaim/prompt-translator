@@ -73,7 +73,7 @@ Since: #35 · Changed: #40, #41, #62, #46, #50, #63, #73, #74
 Rust types are exported to `src/bindings/*.ts` (one file per type, LF line endings). Field names are camelCase on the wire.
 - `Mode`: `translate` | `improve` | `correct`.
 - `ProviderKind`: `ollama` | `claudeCode` | `mock` (nothing restricts `mock` to debug builds yet).
-- `TranslationRequest`: `requestId`, `sourceText`, `mode`, `provider`, `presetId`, optional `nativeLanguage` and `targetLanguage` (TRANS-008).
+- `TranslationRequest`: `requestId`, `sourceText`, `mode`, `provider`, `presetId`, optional `nativeLanguage`, `targetLanguage` and `purpose` (TRANS-008); `Purpose`: `general` | `claudePrompt`.
 - `Language`: `code`, `name` (TRANS-015).
 - `TranslationResult`: `historyId` (number or null when history is off), `output`, `issues`, `tokenWarnings`, `provider`, `model`, `durationMs` (number).
 - `Issue`: `original`, `corrected`, `category`, `explanation`.
@@ -84,7 +84,7 @@ Rust types are exported to `src/bindings/*.ts` (one file per type, LF line endin
 - Session contracts (SESSION-001): `TerminalTarget` (`hwnd`, `pid`, optional `tabRuntimeId`, `title`, `host`), `TerminalHost` (`windowsTerminal` | `conhost`), `SessionTarget` (`{ kind: "terminal", ... }`), `DeliveryOutcome` (`{ kind: "delivered" }` | `{ kind: "deliveredToClipboard", reason }`) and `TargetClosed` (`hwnd`, optional `tabRuntimeId`).
 - `HistoryEntry` and `HistoryEntrySummary` carry `sourceLanguage` and `targetLanguage` (HISTORY-003); `Settings` carries `nativeLanguage` and `targetLanguage` (SETTINGS-001).
 `Mode` is used by `detect_mode` and `set_last_popup_mode`; `TranslationRequest` and `TranslationResult` by `translate` (TRANS-008).
-Since: #35 · Changed: #60, #44, #49, #149, #150, #73, #74
+Since: #35 · Changed: #60, #44, #49, #149, #150, #73, #74, #199
 
 ### APP-014 Regenerating bindings
 `npm run bindings` runs the Rust export tests (`cargo test export_bindings` in `src-tauri`), which write the TypeScript files into `src/bindings/`. Git keeps `src/bindings/*.ts` on LF endings regardless of `core.autocrlf`, so regeneration does not show modified files.

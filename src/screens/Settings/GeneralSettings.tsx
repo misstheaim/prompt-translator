@@ -38,6 +38,13 @@ const ACCENT_OPTIONS: SelectOption[] = [
   { value: "blue", label: "Blue" },
   { value: "orange", label: "Orange" },
   { value: "lime", label: "Lime green" },
+  { value: "red", label: "Red" },
+  { value: "yellow", label: "Yellow" },
+  { value: "violet", label: "Violet" },
+  { value: "pink", label: "Pink" },
+  { value: "toxicGreen", label: "Toxic green" },
+  { value: "toxicPink", label: "Toxic pink" },
+  { value: "rainbow", label: "Rainbow" },
 ] satisfies { value: Accent; label: string }[];
 
 type Errors = Partial<Record<string, string>>;
@@ -522,7 +529,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
 
       {saveError && <ErrorBanner error={saveError} />}
 
-      <div className="sticky -bottom-4 -mx-4 flex items-center justify-end gap-2 border-t border-border bg-bg px-4 py-3">
+      <div className="sticky bottom-0 -mx-4 -mb-4 flex items-center justify-end gap-2 border-t border-border bg-bg px-4 py-3">
         {dirty && <span className="mr-auto text-xs text-muted">Unsaved changes</span>}
         <Button disabled={!dirty || saving} onClick={revert}>
           Revert

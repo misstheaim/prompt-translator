@@ -57,7 +57,8 @@ export const useSessionTabs = create<SessionTabsState>((set, get) => ({
       return;
     }
     const id = crypto.randomUUID();
-    // A bound tab starts empty with the settings' defaults; Improve is off there, so mode Translate.
+    // A bound tab starts empty with the settings' defaults, in mode Translate (Improve there is the
+    // slower Claude-prompt rewrite, #199, so the user picks it).
     const tab: BoundTab = {
       id,
       target,

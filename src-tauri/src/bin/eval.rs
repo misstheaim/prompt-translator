@@ -22,7 +22,9 @@ use prompt_translator_lib::presets::PresetStore;
 use prompt_translator_lib::settings::SettingsStore;
 use prompt_translator_lib::system::paths;
 use prompt_translator_lib::translation::language;
-use prompt_translator_lib::translation::model::{Issue, Mode, ProviderKind, TranslationRequest};
+use prompt_translator_lib::translation::model::{
+    Issue, Mode, ProviderKind, Purpose, TranslationRequest,
+};
 use prompt_translator_lib::translation::providers::claude_code::{
     ClaudeCodeProvider, Housekeeping, TranslatorPids,
 };
@@ -49,6 +51,9 @@ struct Case {
     /// Preset for this case (T68); overrides `--preset` and the default preset.
     #[serde(default)]
     preset: Option<String>,
+    /// What the result is for (#199); `claudePrompt` tests the bound-tab Improve.
+    #[serde(default)]
+    purpose: Option<Purpose>,
 }
 
 struct Args {
@@ -297,6 +302,7 @@ async fn run() -> Result<(), String> {
             // The cases are written for the default pair, whatever the scratch settings say.
             native_language: Some(language::DEFAULT_NATIVE.to_owned()),
             target_language: Some(language::DEFAULT_TARGET.to_owned()),
+            purpose: case.purpose,
         };
         let started = std::time::Instant::now();
         let result = service.translate(request).await;

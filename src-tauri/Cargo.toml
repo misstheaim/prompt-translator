@@ -34,7 +34,7 @@ regex = "=1.13.1"
 rusqlite = { version = "=0.40.2", features = ["bundled", "functions"] }
 rusqlite_migration = "=2.6.0"
 whatlang = "=0.18.0"
-uuid ={ version = "=1.29.0", features = ["v4"] }
+uuid = { version = "=1.29.0", features = ["v4"] }
 async-trait = "=0.1.92"
 tokio-util = "=0.7.20"
 tauri-plugin-clipboard-manager = "=2.5.0"

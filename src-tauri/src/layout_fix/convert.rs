@@ -159,14 +159,30 @@ const CLOSERS: &[char] = &[
 /// Apostrophes inside a word (`don't`) only split it, although `'` is `э` on the Russian layout.
 const APOSTROPHES: &[char] = &['\'', '\u{2019}'];
 
+/// Near-ties: a word whose two averages differ by at most this much per letter pair (in the units
+/// of the `bigrams` tables, 16 per bit) is undecided rather than wrong or right (LAYOUT-008).
+/// `ршь` (`him`) scores 60 per pair as Russian and 61.25 as English.
+pub const TIE_MARGIN: i32 = 4;
+
 /// Whether `word` looks typed in the wrong keyboard layout (LAYOUT-008): `Some(true)` when its
-/// conversion is a more likely word in the other language than the word itself is in its own,
-/// `Some(false)` when the word is the more likely one. `None` for words with fewer than three
-/// letters, or as many Latin as Cyrillic letters (including none): too short or mixed to tell.
+/// conversion is a clearly more likely word in the other language than the word itself is in its
+/// own, `Some(false)` when the word is clearly the more likely one. `None` for words with fewer
+/// than three letters, as many Latin as Cyrillic letters (including none), or a near-tie
+/// ([`TIE_MARGIN`]): too short, mixed or close to tell.
+pub fn is_wrong_layout(word: &str) -> Option<bool> {
+    let margin = layout_margin(word)?;
+    (margin.abs() > TIE_MARGIN).then_some(margin > 0)
+}
+
+/// How much more likely `word`'s conversion is in the other language than the word in its own:
+/// the word's average cost per letter pair minus its conversion's, in the units of the `bigrams`
+/// tables (16 per bit); positive means wrong layout. `None` when [`is_wrong_layout`] can't judge
+/// the word at all (fewer than three letters, or no direction). A word with letters of only one
+/// of the two languages counts as far on that side.
 ///
 /// "Likely" is the average cost per letter pair under the English and Russian letter-pair
 /// tables in `bigrams` (word start and end included), so long and short words compare fairly.
-pub fn is_wrong_layout(word: &str) -> Option<bool> {
+pub fn layout_margin(word: &str) -> Option<i32> {
     let (latin, cyrillic) = letter_counts(word);
     if latin + cyrillic < MIN_LETTERS {
         return None;
@@ -181,12 +197,13 @@ pub fn is_wrong_layout(word: &str) -> Option<bool> {
         word_cost(word, &converted, own, other),
         word_cost(&converted, word, other, own),
     ) {
-        // Compares the averages `other_total / other_steps < own_total / own_steps`.
         (Some((own_total, own_steps)), Some((other_total, other_steps))) => {
-            Some(u64::from(other_total) * own_steps < u64::from(own_total) * other_steps)
+            let own_avg = f64::from(own_total) / own_steps as f64;
+            let other_avg = f64::from(other_total) / other_steps as f64;
+            Some((own_avg - other_avg).round() as i32)
         }
-        (None, Some(_)) => Some(true),
-        (Some(_), None) => Some(false),
+        (None, Some(_)) => Some(i32::from(u8::MAX)),
+        (Some(_), None) => Some(-i32::from(u8::MAX)),
         (None, None) => None,
     }
 }
