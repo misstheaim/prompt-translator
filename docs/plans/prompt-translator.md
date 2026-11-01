@@ -1320,11 +1320,10 @@ Write `docs/spikes/local-model-eval.md` with:
 
 ## 6. Order of work
 
-Done: waves 0-11 (see git history of this file). T37 was dropped (D47). Waves 10 and 11 were merged into one (owner, 2026-10-31). From wave 10, T58 and T59 are merged (2026-10-31). T60 (#167) has no milestone and no wave yet.
+Done: waves 0-12 (see git history of this file). T37 was dropped (D47). Waves 10 and 11 were merged into one (owner, 2026-10-31). From wave 10, T58 and T59 are merged (2026-10-31). T60 (#167) has no milestone and no wave yet.
 
 | Wave | Tasks (parallel within a wave) | Notes |
 |---|---|---|
-| 12 | T55, T40, T62 | Enter replaces (after T54); bound tabs (after T39, T53); compact window half size (after T61) |
 | 13 | T7 | Docs for the new behaviour (README, smoke-test), then the full smoke test including Windows Sandbox; #39 closes when it passes |
 
 Critical path: T1 → T2 → T3 → T11 → T12 → T20 → T21 → T26 → T7; for the follow-ups T47 → T51 → T52 → T53 → T40 → T7. The distribution chain is T24 → T6 → T31 → T32 → T33 → T7.
