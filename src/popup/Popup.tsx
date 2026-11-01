@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Mode } from "../bindings/Mode";
 import type { PopupLanguagePair } from "../bindings/PopupLanguagePair";
 import type { PopupSource } from "../bindings/PopupSource";
+import type { Settings } from "../bindings/Settings";
 import type { SourceKind } from "../bindings/SourceKind";
 import type { TranslationResult } from "../bindings/TranslationResult";
 import { Button } from "../components/Button";
@@ -23,6 +24,7 @@ import {
   translate,
   type AppError,
 } from "../lib/api";
+import { applyAppearance } from "../lib/appearance";
 import { cx } from "../lib/cx";
 import { languageName, useLanguages } from "../lib/useLanguages";
 
@@ -256,6 +258,24 @@ export function Popup() {
     delete errorsRef.current[shown];
     run(source, shown);
   }, [run]);
+
+  // Theme and accent: read once, then follow `settings://changed` (T67).
+  useEffect(() => {
+    let cancelled = false;
+    void getSettings().then(
+      (s) => {
+        if (!cancelled) applyAppearance(s.theme, s.accent);
+      },
+      () => undefined,
+    );
+    const unlisten = listen<Settings>("settings://changed", (event) => {
+      applyAppearance(event.payload.theme, event.payload.accent);
+    });
+    return () => {
+      cancelled = true;
+      void unlisten.then((fn) => fn());
+    };
+  }, []);
 
   // A new capture from the hotkey: reset and auto-run.
   useEffect(() => {

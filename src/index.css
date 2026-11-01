@@ -10,6 +10,7 @@
   --border: #d9dde4;
   --text: #1b1f27;
   --muted: #5d6675;
+  --scrollbar-thumb: color-mix(in srgb, var(--muted) 45%, transparent);
 
   /* Semantic */
   --accent: #2f6fed;
@@ -33,8 +34,46 @@
   --cat-other: #5d6675;
 }
 
+/*
+ * Theme (T67): `data-theme="light" | "dark"` on <html> forces a theme; without the attribute
+ * ("System") the media query below follows Windows. The dark tokens appear twice for that reason.
+ */
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #14171c;
+  --surface: #1d2128;
+  --surface-raised: #272c35;
+  --border: #343a45;
+  --text: #e8eaef;
+  --muted: #9aa3b2;
+
+  --accent: #6c9bff;
+  --accent-contrast: #0d1117;
+  --danger: #ff7b72;
+  --warning: #f0b429;
+  --success: #4cc27a;
+
+  --cat-spelling: #ff7b72;
+  --cat-grammar: #ff9f5a;
+  --cat-article: #f0b429;
+  --cat-tense: #a3d95b;
+  --cat-preposition: #2dd4bf;
+  --cat-word-choice: #4fb3ff;
+  --cat-vocabulary: #b794f6;
+  --cat-punctuation: #f472b6;
+  --cat-style: #8b9cff;
+  --cat-idiom: #e879f9;
+  --cat-phrasing: #4ade80;
+  --cat-other: #9aa3b2;
+}
+
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme]) {
     --bg: #14171c;
     --surface: #1d2128;
     --surface-raised: #272c35;
@@ -60,6 +99,43 @@
     --cat-idiom: #e879f9;
     --cat-phrasing: #4ade80;
     --cat-other: #9aa3b2;
+  }
+}
+
+/*
+ * Accent (T67): `data-accent` on <html>; blue is the default set above. Each shade reads as text
+ * on the surface and carries its own `--accent-contrast` for text on an accent-filled button
+ * (all at least 4.5:1). Dark rules come later and are more specific, so they win.
+ */
+:root[data-accent="orange"] {
+  --accent: #b45309;
+  --accent-contrast: #ffffff;
+}
+
+:root[data-accent="lime"] {
+  --accent: #4d7c0f;
+  --accent-contrast: #ffffff;
+}
+
+:root[data-theme="dark"][data-accent="orange"] {
+  --accent: #fb923c;
+  --accent-contrast: #0d1117;
+}
+
+:root[data-theme="dark"][data-accent="lime"] {
+  --accent: #a3e635;
+  --accent-contrast: #0d1117;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme])[data-accent="orange"] {
+    --accent: #fb923c;
+    --accent-contrast: #0d1117;
+  }
+
+  :root:not([data-theme])[data-accent="lime"] {
+    --accent: #a3e635;
+    --accent-contrast: #0d1117;
   }
 }
 
@@ -93,10 +169,13 @@
   --font-mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
 }
 
+/* The window itself never scrolls: only <main> does, so the top bar stays in place. */
 html,
 body,
 #root {
   height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 body {
@@ -105,4 +184,33 @@ body {
   font-family: var(--font-sans);
   font-size: 14px;
   line-height: 20px;
+}
+
+/* Thin scrollbars without arrow buttons, coloured from the theme. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+
+::-webkit-scrollbar-button {
+  display: none;
 }

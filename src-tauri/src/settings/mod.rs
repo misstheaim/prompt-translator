@@ -98,6 +98,28 @@ pub enum PopupStartMode {
     LastUsed,
 }
 
+/// The colour theme (T67): `System` follows Windows' light/dark setting.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "lowercase")]
+#[ts(export, rename_all = "lowercase")]
+pub enum Theme {
+    #[default]
+    System,
+    Light,
+    Dark,
+}
+
+/// The accent colour (T67).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "lowercase")]
+#[ts(export, rename_all = "lowercase")]
+pub enum Accent {
+    #[default]
+    Blue,
+    Orange,
+    Lime,
+}
+
 /// The contents of `settings.json`. Unknown or missing fields fall back to defaults.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase", default)]
@@ -127,6 +149,10 @@ pub struct Settings {
     pub native_language: String,
     /// ISO 639-1 code of the language the user practises: the language of every result.
     pub target_language: String,
+    /// The colour theme of the main window and the popup (T67).
+    pub theme: Theme,
+    /// The accent colour of the main window and the popup (T67).
+    pub accent: Accent,
 }
 
 impl Default for Settings {
@@ -151,6 +177,8 @@ impl Default for Settings {
             layout_fix: LayoutFixSettings::default(),
             native_language: language::DEFAULT_NATIVE.into(),
             target_language: language::DEFAULT_TARGET.into(),
+            theme: Theme::default(),
+            accent: Accent::default(),
         }
     }
 }

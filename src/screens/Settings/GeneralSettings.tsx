@@ -1,5 +1,7 @@
 import { useState } from "react";
 
+import type { Accent } from "../../bindings/Accent";
+import type { Theme } from "../../bindings/Theme";
 import type { PopupStartMode } from "../../bindings/PopupStartMode";
 import type { ProviderKind } from "../../bindings/ProviderKind";
 import type { Settings } from "../../bindings/Settings";
@@ -25,6 +27,18 @@ const POPUP_START_OPTIONS: SelectOption[] = [
   { value: "correct", label: "Correct" },
   { value: "lastUsed", label: "Last used" },
 ] satisfies { value: PopupStartMode; label: string }[];
+
+const THEME_OPTIONS: SelectOption[] = [
+  { value: "system", label: "System" },
+  { value: "light", label: "Light" },
+  { value: "dark", label: "Dark" },
+] satisfies { value: Theme; label: string }[];
+
+const ACCENT_OPTIONS: SelectOption[] = [
+  { value: "blue", label: "Blue" },
+  { value: "orange", label: "Orange" },
+  { value: "lime", label: "Lime green" },
+] satisfies { value: Accent; label: string }[];
 
 type Errors = Partial<Record<string, string>>;
 
@@ -399,6 +413,23 @@ function SettingsForm({ initial }: { initial: Settings }) {
             value={draft.targetLanguage}
             onChange={(v) => patch({ targetLanguage: v })}
             error={errors.targetLanguage}
+          />
+        </div>
+      </Section>
+
+      <Section title="Appearance" description="Applies to the main window and the popup.">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Select
+            label="Theme"
+            value={draft.theme}
+            options={THEME_OPTIONS}
+            onChange={(v) => patch({ theme: v as Theme })}
+          />
+          <Select
+            label="Accent colour"
+            value={draft.accent}
+            options={ACCENT_OPTIONS}
+            onChange={(v) => patch({ accent: v as Accent })}
           />
         </div>
       </Section>
