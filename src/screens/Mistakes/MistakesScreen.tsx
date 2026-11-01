@@ -5,6 +5,7 @@ import type { IssueFilter } from "../../bindings/IssueFilter";
 import type { MistakesSummary } from "../../bindings/MistakesSummary";
 import { ErrorBanner } from "../../components/ErrorBanner";
 import { Spinner } from "../../components/Spinner";
+import { TargetLanguageFilter } from "../../components/TargetLanguageFilter";
 import { mistakesSummary, toAppError, type AppError } from "../../lib/api";
 import { cx } from "../../lib/cx";
 import { useAppStore } from "../../store/app";
@@ -31,6 +32,17 @@ const CATEGORY_BG: Record<IssueCategory, string> = {
   other: "bg-cat-other",
 };
 
+// Clickable statistics: an accent hover highlight, a pointer cursor and the focus ring.
+const CLICKABLE =
+  "cursor-pointer transition-colors duration-150 hover:border-accent hover:bg-accent/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent motion-reduce:transition-none";
+/** A "By category" bar: a borderless row whose border only shows on hover. */
+const CATEGORY_ROW = cx(CLICKABLE, "rounded-md border border-transparent px-1.5 py-1");
+/** A recurring-mistake or vocabulary row. */
+const STAT_ROW = cx(
+  CLICKABLE,
+  "flex w-full items-baseline gap-2 rounded-md border border-border bg-surface p-2 text-left text-sm",
+);
+
 function formatDate(iso: string): string {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString();
@@ -45,29 +57,35 @@ export function MistakesScreen() {
   const setHistoryFilter = useAppStore((s) => s.setHistoryFilter);
 
   const [periodIndex, setPeriodIndex] = useState(1);
+  // ISO code of the results' language; null for all languages. Not kept across restarts.
+  const [language, setLanguage] = useState<string | null>(null);
   const [summary, setSummary] = useState<MistakesSummary | null>(null);
-  const [loadedIndex, setLoadedIndex] = useState<number | null>(null);
+  const [loadedKey, setLoadedKey] = useState<string | null>(null);
   const [error, setError] = useState<AppError | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const request = useRef(0);
 
+  // The summary is loading while it shows another period or language than the controls.
+  const summaryKey = JSON.stringify([periodIndex, language]);
+
   useEffect(() => {
     const id = ++request.current;
-    mistakesSummary(PERIODS[periodIndex].days)
+    mistakesSummary(PERIODS[periodIndex].days, language)
       .then((s) => {
         if (id !== request.current) return;
         setSummary(s);
         setError(null);
-        setLoadedIndex(periodIndex);
+        setLoadedKey(summaryKey);
       })
       .catch((e: unknown) => {
         if (id !== request.current) return;
         setError(toAppError(e));
-        setLoadedIndex(periodIndex);
+        setLoadedKey(summaryKey);
       });
-  }, [periodIndex, reloadKey]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- summaryKey covers period and language
+  }, [summaryKey, reloadKey]);
 
-  const loading = loadedIndex !== periodIndex;
+  const loading = loadedKey !== summaryKey;
   const empty =
     summary !== null &&
     summary.byCategory.length === 0 &&
@@ -80,6 +98,7 @@ export function MistakesScreen() {
       issue: filter.issue ?? null,
       category: filter.category ?? null,
       sinceDays: PERIODS[periodIndex].days,
+      targetLanguage: language,
     });
     setScreen("history");
   }
@@ -88,7 +107,10 @@ export function MistakesScreen() {
     <div className="mx-auto flex max-w-3xl flex-col gap-5">
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-lg font-semibold text-text">Mistakes</h1>
-        <div role="group" aria-label="Period" className="ml-auto flex gap-1">
+        <div className="ml-auto">
+          <TargetLanguageFilter value={language} onChange={setLanguage} />
+        </div>
+        <div role="group" aria-label="Period" className="flex gap-1">
           {PERIODS.map((p, i) => (
             <button
               key={p.label}
@@ -118,8 +140,8 @@ export function MistakesScreen() {
 
       {empty && !loading && (
         <p className="py-8 text-center text-muted">
-          No mistakes recorded for this period. They appear here after Correct and Improve runs,
-          which explain what you wrote wrong.
+          No mistakes recorded for this period{language !== null && " in this language"}. They
+          appear here after Correct and Improve runs, which explain what you wrote wrong.
         </p>
       )}
 
@@ -133,7 +155,7 @@ export function MistakesScreen() {
                   <button
                     type="button"
                     onClick={() => openHistory({ category: c.category })}
-                    className="flex w-full items-center gap-3 rounded text-left text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                    className={cx(CATEGORY_ROW, "flex w-full items-center gap-3 text-left text-sm")}
                   >
                     <span className="w-24 shrink-0 text-muted">{c.category.replace("_", " ")}</span>
                     <span className="h-3 min-w-0 flex-1 rounded bg-surface-raised">
@@ -164,7 +186,7 @@ export function MistakesScreen() {
                       onClick={() =>
                         openHistory({ issue: { original: m.original, corrected: m.corrected } })
                       }
-                      className="flex w-full items-baseline gap-2 rounded-md border border-border bg-surface p-2 text-left text-sm transition-colors duration-150 hover:bg-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent motion-reduce:transition-none"
+                      className={STAT_ROW}
                     >
                       <span className="text-muted line-through">{m.original}</span>
                       <span aria-hidden="true">→</span>
@@ -193,7 +215,7 @@ export function MistakesScreen() {
                       onClick={() =>
                         openHistory({ issue: { original: v.original, corrected: v.corrected } })
                       }
-                      className="flex w-full items-baseline gap-2 rounded-md border border-border bg-surface p-2 text-left text-sm transition-colors duration-150 hover:bg-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent motion-reduce:transition-none"
+                      className={STAT_ROW}
                     >
                       <span className="text-muted">{v.original}</span>
                       <span aria-hidden="true">→</span>

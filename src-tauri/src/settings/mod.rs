@@ -108,6 +108,9 @@ pub struct Settings {
     pub ollama: OllamaSettings,
     pub claude: ClaudeSettings,
     pub history_enabled: bool,
+    /// Whether results made in the hotkey popup are saved to history too (T64). Off by
+    /// default: History and Mistakes then hold main-window runs only.
+    pub save_popup_runs: bool,
     pub hotkey: String,
     pub autostart: bool,
     pub close_to_tray: bool,
@@ -134,6 +137,7 @@ impl Default for Settings {
             ollama: OllamaSettings::default(),
             claude: ClaudeSettings::default(),
             history_enabled: true,
+            save_popup_runs: false,
             hotkey: "Ctrl+Shift+Space".into(),
             autostart: false,
             close_to_tray: true,

@@ -221,7 +221,8 @@ export function onTargetClosed(handler: (closed: TargetClosed) => void): Promise
 
 /**
  * Newest first. `query` searches source and output; `issue` keeps entries with that mistake;
- * `mode`, `category` (entries with an issue of it) and `sinceDays` narrow further.
+ * `mode`, `category` (entries with an issue of it), `sinceDays` and `targetLanguage` (ISO code of
+ * the result's language) narrow further.
  */
 export function historyList(args: {
   query?: string | null;
@@ -229,6 +230,7 @@ export function historyList(args: {
   mode?: Mode | null;
   category?: IssueCategory | null;
   sinceDays?: number | null;
+  targetLanguage?: string | null;
   limit: number;
   offset: number;
 }): Promise<HistoryEntrySummary[]> {
@@ -238,6 +240,7 @@ export function historyList(args: {
     mode: args.mode ?? null,
     category: args.category ?? null,
     sinceDays: args.sinceDays ?? null,
+    targetLanguage: args.targetLanguage ?? null,
     limit: args.limit,
     offset: args.offset,
   });
@@ -257,9 +260,20 @@ export function historyClear(): Promise<void> {
   return call<void>("history_clear");
 }
 
-/** The "my mistakes" aggregates for the last `sinceDays` days (all when null). */
-export function mistakesSummary(sinceDays: number | null = null): Promise<MistakesSummary> {
-  return call<MistakesSummary>("mistakes_summary", { sinceDays });
+/**
+ * The "my mistakes" aggregates for the last `sinceDays` days (all when null), of entries whose
+ * result is in `targetLanguage` (every language when null).
+ */
+export function mistakesSummary(
+  sinceDays: number | null = null,
+  targetLanguage: string | null = null,
+): Promise<MistakesSummary> {
+  return call<MistakesSummary>("mistakes_summary", { sinceDays, targetLanguage });
+}
+
+/** The distinct target languages (ISO codes) of the saved entries, for the language filter. */
+export function historyTargetLanguages(): Promise<string[]> {
+  return call<string[]>("history_target_languages");
 }
 
 // ---- system ----

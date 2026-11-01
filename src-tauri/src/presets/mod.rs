@@ -17,7 +17,7 @@ const MAX_RULE_CHARS: usize = 500;
 
 /// The bundled presets (`src-tauri/resources/presets/`), embedded at compile time so the store
 /// needs neither an `AppHandle` nor resource paths.
-const BUILT_INS: [(&str, &str); 4] = [
+const BUILT_INS: [(&str, &str); 9] = [
     (
         "general",
         include_str!("../../resources/presets/general.json"),
@@ -34,7 +34,44 @@ const BUILT_INS: [(&str, &str); 4] = [
         "work-communication",
         include_str!("../../resources/presets/work-communication.json"),
     ),
+    (
+        "grumpy-senior-dev",
+        include_str!("../../resources/presets/grumpy-senior-dev.json"),
+    ),
+    (
+        "passive-aggressive",
+        include_str!("../../resources/presets/passive-aggressive.json"),
+    ),
+    (
+        "pirate-captain",
+        include_str!("../../resources/presets/pirate-captain.json"),
+    ),
+    (
+        "shakespearean",
+        include_str!("../../resources/presets/shakespearean.json"),
+    ),
+    (
+        "startup-founder",
+        include_str!("../../resources/presets/startup-founder.json"),
+    ),
 ];
+
+/// The built-ins shipped before the seed record existed (T64): an install that has preset files
+/// but no record has seeded exactly these.
+const ORIGINAL_BUILT_INS: [&str; 4] = [
+    "general",
+    "technical-development",
+    "code-review",
+    "work-communication",
+];
+
+/// The file in the presets folder that lists the built-in ids already seeded (a JSON array of
+/// strings). Without a `.json` extension, so [`PresetStore::list`] never reads it as a preset.
+const SEED_RECORD: &str = ".seeded";
+
+fn default_true() -> bool {
+    true
+}
 
 /// Domain rules plus a default mode (plan D7).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
@@ -48,9 +85,13 @@ pub struct Preset {
     pub default_mode: Mode,
     #[serde(default)]
     pub rules: Vec<String>,
-    /// True for the four bundled presets (also after the user edits them).
+    /// True for the bundled presets (also after the user edits them).
     #[serde(default)]
     pub built_in: bool,
+    /// Whether results made with this preset are saved to history (T64). Missing in files
+    /// written before T64: saved.
+    #[serde(default = "default_true")]
+    pub save_to_history: bool,
 }
 
 impl Preset {
@@ -116,26 +157,80 @@ pub struct PresetStore {
 }
 
 impl PresetStore {
-    /// Opens the store at `dir`. When the directory has no preset files yet (first run), the
-    /// bundled presets are copied in. A failure to seed is logged, not fatal.
+    /// Opens the store at `dir` and copies in every bundled preset that was never seeded there
+    /// (all of them on the first run; the ones added by an update later). A built-in the user
+    /// deleted is not brought back. A failure to seed is logged, not fatal.
     pub fn open(dir: impl Into<PathBuf>) -> Self {
         let store = Self {
             dir: dir.into(),
             write_lock: Arc::new(Mutex::new(())),
         };
-        if let Err(e) = store.seed_if_empty() {
+        if let Err(e) = store.seed_missing() {
             log::error!("Can't seed presets in {}: {e}", store.dir.display());
         }
         store
     }
 
-    fn seed_if_empty(&self) -> AppResult<()> {
+    /// Seeds the built-ins missing from the seed record, then updates the record. Without a
+    /// record, an empty folder is a first run (nothing seeded yet) and a folder with preset
+    /// files is an install from before the record (the four original built-ins seeded).
+    fn seed_missing(&self) -> AppResult<()> {
         fs::create_dir_all(&self.dir)?;
-        if !self.json_files().is_empty() {
-            return Ok(());
-        }
+        let record = self.read_seed_record();
+        let mut seeded: Vec<String> = match &record {
+            Some(ids) => ids.clone(),
+            None if self.json_files().is_empty() => Vec::new(),
+            None => ORIGINAL_BUILT_INS
+                .iter()
+                .map(|id| (*id).to_string())
+                .collect(),
+        };
+        let mut changed = record.is_none();
         for preset in built_in_presets() {
-            self.write(&preset)?;
+            if seeded.contains(&preset.id) {
+                continue;
+            }
+            // A preset file with this id already there (made by the user) is kept as it is.
+            if !self.file_for(&preset.id).exists() {
+                self.write(&preset)?;
+            }
+            seeded.push(preset.id);
+            changed = true;
+        }
+        if changed {
+            self.write_seed_record(&seeded)?;
+        }
+        Ok(())
+    }
+
+    /// The ids in the seed record; `None` when there is no record or it can't be read.
+    fn read_seed_record(&self) -> Option<Vec<String>> {
+        let path = self.dir.join(SEED_RECORD);
+        let text = match fs::read_to_string(&path) {
+            Ok(text) => text,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return None,
+            Err(e) => {
+                log::warn!("Can't read {}: {e}", path.display());
+                return None;
+            }
+        };
+        match serde_json::from_str(&text) {
+            Ok(ids) => Some(ids),
+            Err(e) => {
+                log::warn!("Ignoring {}: invalid JSON ({e})", path.display());
+                None
+            }
+        }
+    }
+
+    /// Atomic write of the seed record: temp file + rename.
+    fn write_seed_record(&self, ids: &[String]) -> AppResult<()> {
+        let path = self.dir.join(SEED_RECORD);
+        let tmp = self.dir.join(format!("{SEED_RECORD}.tmp"));
+        fs::write(&tmp, serde_json::to_string_pretty(ids)?)?;
+        if let Err(e) = fs::rename(&tmp, &path) {
+            let _ = fs::remove_file(&tmp);
+            return Err(e.into());
         }
         Ok(())
     }
@@ -198,12 +293,18 @@ impl PresetStore {
         Ok(self.list())
     }
 
-    /// Restores the four bundled presets and keeps user-created ones. Returns the full list.
+    /// Restores all bundled presets and keeps user-created ones. Returns the full list.
     pub fn reset(&self) -> AppResult<Vec<Preset>> {
         let _guard = self.lock();
         fs::create_dir_all(&self.dir)?;
+        let mut seeded = Vec::new();
         for preset in built_in_presets() {
             self.write(&preset)?;
+            seeded.push(preset.id);
+        }
+        // Every built-in is there now; a later start must not see any of them as never seeded.
+        if let Err(e) = self.write_seed_record(&seeded) {
+            log::warn!("Can't update the preset seed record: {e}");
         }
         Ok(self.list())
     }

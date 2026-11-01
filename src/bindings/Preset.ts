@@ -6,6 +6,11 @@ import type { Mode } from "./Mode";
  */
 export type Preset = { id: string, name: string, description: string, defaultMode: Mode, rules: Array<string>, 
 /**
- * True for the four bundled presets (also after the user edits them).
+ * True for the bundled presets (also after the user edits them).
  */
-builtIn: boolean, };
+builtIn: boolean, 
+/**
+ * Whether results made with this preset are saved to history (T64). Missing in files
+ * written before T64: saved.
+ */
+saveToHistory: boolean, };

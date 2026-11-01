@@ -50,12 +50,17 @@ const TOAST_MS: Record<ToastKind, number> = { info: 3000, success: 3000, error: 
 const MAX_TOASTS = 3;
 let nextToastId = 1;
 
-/** A History filter coming from the Mistakes screen: a category or a pair, for a period. */
+/**
+ * A History filter coming from the Mistakes screen: a category or a pair, for a period, in the
+ * Mistakes screen's target language.
+ */
 export interface HistoryFilter {
   issue: IssueFilter | null;
   category: IssueCategory | null;
   /** Last N days; null for all time. */
   sinceDays: number | null;
+  /** ISO code of the results' language the History language filter starts with; null for all. */
+  targetLanguage: string | null;
 }
 
 interface AppState {

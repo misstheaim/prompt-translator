@@ -1,6 +1,6 @@
 //! Tauri commands of the `translation` module.
 
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, State, WebviewWindow};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
 use super::language::{self, Language, LanguagePair};
@@ -9,10 +9,11 @@ use super::model::{Mode, TranslationRequest, TranslationResult};
 use super::providers::ProviderStatus;
 use super::providers::claude_code;
 use super::providers::ollama::OllamaProvider;
-use super::service::TranslationService;
+use super::service::{RunOrigin, TranslationService};
 use crate::error::{AppError, AppResult};
 use crate::history::{self, AcceptedTarget};
 use crate::settings::SettingsStore;
+use crate::system::popup::POPUP_WINDOW;
 
 /// Picks Translate or Correct for the popup; `last` is used when the text is too short to tell.
 /// The language pair is the given one, each missing code taken from the settings (as in
@@ -40,12 +41,20 @@ pub fn list_languages() -> Vec<Language> {
 }
 
 /// Runs one request through its provider; cancel it with `cancel_translation(req.requestId)`.
+/// The calling window decides whether the result is saved: a popup run only with
+/// `savePopupRuns` on (T64).
 #[tauri::command]
 pub async fn translate(
+    window: WebviewWindow,
     service: State<'_, TranslationService>,
     req: TranslationRequest,
 ) -> AppResult<TranslationResult> {
-    service.translate(req).await
+    let origin = if window.label() == POPUP_WINDOW {
+        RunOrigin::Popup
+    } else {
+        RunOrigin::Main
+    };
+    service.translate_from(req, origin).await
 }
 
 /// Cancels a running request (no-op when it already finished); it then fails with `Cancelled`.

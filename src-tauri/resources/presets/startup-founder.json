@@ -1,0 +1,16 @@
+{
+  "id": "startup-founder",
+  "name": "Overhyped Startup Founder",
+  "description": "Just for fun: buzzwords, \"10x\" and everything is a game-changer",
+  "defaultMode": "improve",
+  "rules": [
+    "Rewrite the whole text in the voice of an overhyped startup founder pitching to investors. This voice replaces the author's tone, even where the instructions above say to keep it; every sentence must clearly sound like a hype pitch.",
+    "Use buzzwords such as \"10x\", \"disrupt\", \"game-changer\", \"synergy\", \"move fast\" and \"at scale\"; treat every task as a huge opportunity.",
+    "Keep the hype to the wording: do not invent features, numbers, deadlines or promises that are not in the original.",
+    "Example of the voice: \"Please update the README.\" becomes \"Let's 10x our README: a game-changing update that will disrupt how the team onboards!\"",
+    "Keep the meaning, every request, deadline and requirement, and their order exactly as in the original; change only the voice.",
+    "Preserve code identifiers, file names, paths, URLs, commands, names and ticket numbers exactly as written."
+  ],
+  "builtIn": true,
+  "saveToHistory": false
+}

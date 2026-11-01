@@ -23,7 +23,7 @@ use super::prompt_builder::{self, BuiltPrompt};
 use super::{output_parser, token_check};
 use crate::error::{AppError, AppResult};
 use crate::history::HistoryDb;
-use crate::presets::PresetStore;
+use crate::presets::{Preset, PresetStore};
 use crate::settings::{Settings, SettingsStore};
 
 /// The longest source text accepted, in characters. The prompt builder's context-budget
@@ -100,8 +100,19 @@ impl TranslationService {
     /// Runs one request. Errors: `InvalidInput` (empty or too long text, unknown preset,
     /// unavailable provider, duplicate `request_id`), `Cancelled`, `Timeout`, the parser's
     /// `EmptyOutput` / `MalformedOutput`, and whatever the provider returns.
+    /// The request counts as made in the main window (the eval binary uses it).
     pub async fn translate(&self, req: TranslationRequest) -> AppResult<TranslationResult> {
-        self.translate_with(req, self.settings.get()).await
+        self.translate_from(req, RunOrigin::Main).await
+    }
+
+    /// Like [`translate`](Self::translate), for a request made in `origin` (which decides
+    /// whether the result is saved to history).
+    pub async fn translate_from(
+        &self,
+        req: TranslationRequest,
+        origin: RunOrigin,
+    ) -> AppResult<TranslationResult> {
+        self.run(req, self.settings.get(), origin).await
     }
 
     /// Like [`translate`](Self::translate), but with the given settings instead of the saved
@@ -110,6 +121,15 @@ impl TranslationService {
         &self,
         req: TranslationRequest,
         settings: Settings,
+    ) -> AppResult<TranslationResult> {
+        self.run(req, settings, RunOrigin::Main).await
+    }
+
+    async fn run(
+        &self,
+        req: TranslationRequest,
+        settings: Settings,
+        origin: RunOrigin,
     ) -> AppResult<TranslationResult> {
         let started = Instant::now();
         validate(&req)?;
@@ -179,7 +199,9 @@ impl TranslationService {
             model: output.model,
             duration_ms: u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
         };
-        self.on_result(&req, pair, &settings, &mut result);
+        if should_save(&settings, &preset, origin) {
+            self.on_result(&req, pair, &mut result);
+        }
         log::info!(
             "Translation ({:?}) via {:?} finished in {} ms",
             req.mode,
@@ -202,21 +224,18 @@ impl TranslationService {
         self.lock_cancels().len()
     }
 
-    /// History hook (T28): called with every successful result before it is returned.
+    /// History hook (T28): called with a successful result that [`should_save`] allows, before
+    /// it is returned.
     ///
-    /// T28 saves the entry here when `settings.history_enabled` is on and sets
-    /// `result.history_id`. A history failure must not fail the translation: log it and
-    /// leave `history_id` as `None`. The entry stores the language pair the request used.
+    /// Saves the entry and sets `result.history_id`. A history failure must not fail the
+    /// translation: log it and leave `history_id` as `None`. The entry stores the language pair
+    /// the request used.
     fn on_result(
         &self,
         req: &TranslationRequest,
         pair: LanguagePair,
-        settings: &Settings,
         result: &mut TranslationResult,
     ) {
-        if !settings.history_enabled {
-            return;
-        }
         let Some(history) = &self.history else {
             return;
         };
@@ -268,6 +287,24 @@ impl TranslationService {
     fn lock_cancels(&self) -> MutexGuard<'_, HashMap<String, CancellationToken>> {
         lock(&self.cancels)
     }
+}
+
+/// Where a request was made (T64): popup results are saved to history only when
+/// `savePopupRuns` is on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RunOrigin {
+    /// The main window (and everything outside the app's windows, such as the eval binary).
+    Main,
+    /// The hotkey popup.
+    Popup,
+}
+
+/// Whether a result is saved to history (HISTORY-007): history is on, the preset allows it, and
+/// the run is from the main window or popup runs are saved too.
+fn should_save(settings: &Settings, preset: &Preset, origin: RunOrigin) -> bool {
+    settings.history_enabled
+        && preset.save_to_history
+        && (origin == RunOrigin::Main || settings.save_popup_runs)
 }
 
 /// A request's entry in the cancellation registry; dropping it removes the entry.

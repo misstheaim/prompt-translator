@@ -159,6 +159,29 @@ pub struct ListFilters<'a> {
     pub category: Option<IssueCategory>,
     /// Keeps entries of the last N days.
     pub since_days: Option<u32>,
+    /// Keeps entries whose result is in this language (ISO 639-1 code; entries saved before
+    /// T52 count as the default target, see [`target_language_sql`]).
+    pub target_language: Option<&'a str>,
+}
+
+/// The target language of the row `t` in SQL: NULL (entries saved before T52) is the default
+/// target, as in [`languages_from_row`].
+fn target_language_sql() -> String {
+    // The default is a fixed ISO code, never user input, so it can be inlined.
+    format!(
+        "COALESCE(t.target_language, '{}')",
+        language::DEFAULT_TARGET
+    )
+}
+
+/// The distinct target languages of the saved entries (ISO 639-1 codes, sorted by code).
+pub fn target_languages(conn: &Connection) -> AppResult<Vec<String>> {
+    let mut stmt = conn.prepare(&format!(
+        "SELECT DISTINCT {} AS lang FROM translations t ORDER BY lang",
+        target_language_sql()
+    ))?;
+    let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+    Ok(rows.collect::<Result<_, _>>()?)
 }
 
 /// Newest first.
@@ -174,6 +197,7 @@ pub fn list(
         mode,
         category,
         since_days,
+        target_language,
     } = *filters;
     let mut sql = String::from(
         "SELECT t.id, t.created_at, t.mode, t.provider, t.model, t.source_text, t.output_text, \
@@ -220,6 +244,10 @@ pub fn list(
             " AND t.created_at >= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', ?{})",
             args.len()
         ));
+    }
+    if let Some(lang) = target_language {
+        args.push(Box::new(lang.to_owned()));
+        sql.push_str(&format!(" AND {} = ?{}", target_language_sql(), args.len()));
     }
     args.push(Box::new(i64::from(limit)));
     args.push(Box::new(i64::from(offset)));
@@ -359,19 +387,26 @@ fn add_pair(
     agg.sources.insert(source.to_owned());
 }
 
-/// The "my mistakes" aggregates, over entries of the last `since_days` days (all when `None`).
+/// The "my mistakes" aggregates, over entries of the last `since_days` days (all when `None`)
+/// whose result is in `target_language` (every language when `None`).
 /// Every count is per distinct source text, so re-running one text never inflates it.
-pub fn mistakes_summary(conn: &Connection, since_days: Option<u32>) -> AppResult<MistakesSummary> {
+pub fn mistakes_summary(
+    conn: &Connection,
+    since_days: Option<u32>,
+    target_language: Option<&str>,
+) -> AppResult<MistakesSummary> {
     // `-N days` modifier for strftime; NULL cut-off means "no limit".
     let since: Option<String> = since_days.map(|d| format!("-{d} days"));
 
-    let mut stmt = conn.prepare(
+    let mut stmt = conn.prepare(&format!(
         "SELECT i.category, i.original, i.corrected, t.source_text, t.created_at \
          FROM issues i JOIN translations t ON t.id = i.translation_id \
          WHERE (?1 IS NULL OR t.created_at >= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', ?1)) \
+         AND (?2 IS NULL OR {} = ?2) \
          ORDER BY t.created_at DESC, t.id DESC, i.id",
-    )?;
-    let rows = stmt.query_map([&since], |row| {
+        target_language_sql()
+    ))?;
+    let rows = stmt.query_map(params![since, target_language], |row| {
         let category: IssueCategory = col_enum(row, 0)?;
         let original: String = row.get(1)?;
         let corrected: String = row.get(2)?;

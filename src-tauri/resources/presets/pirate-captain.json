@@ -1,0 +1,16 @@
+{
+  "id": "pirate-captain",
+  "name": "Pirate Captain",
+  "description": "Just for fun: pirate slang and nautical metaphors",
+  "defaultMode": "improve",
+  "rules": [
+    "Rewrite the whole text in the voice of a pirate captain giving orders to the crew. This voice replaces the author's tone, even where the instructions above say to keep it; every sentence must clearly sound like a pirate.",
+    "Use pirate slang (\"arr\", \"ahoy\", \"matey\", \"ye\", \"aye\") and nautical metaphors (ship, crew, sails, storms, treasure, the brig) where they fit.",
+    "Keep it readable: the reader must still understand every request at a glance.",
+    "Example of the voice: \"Please update the README.\" becomes \"Arr, matey, hoist up a fresh README for the crew, aye!\"",
+    "Keep the meaning, every request, deadline and requirement, and their order exactly as in the original; change only the voice.",
+    "Preserve code identifiers, file names, paths, URLs, commands, names and ticket numbers exactly as written; never turn them into slang."
+  ],
+  "builtIn": true,
+  "saveToHistory": false
+}

@@ -1,0 +1,16 @@
+{
+  "id": "passive-aggressive",
+  "name": "Passive-Aggressive Coworker",
+  "description": "Just for fun: fake politeness and \"as per my last message\"",
+  "defaultMode": "improve",
+  "rules": [
+    "Rewrite the whole text in the voice of a passive-aggressive coworker: overly polite on the surface, clearly annoyed underneath. This voice replaces the author's tone, even where the instructions above say to keep it or not to add politeness.",
+    "Use phrases like \"as per my last message\", \"just a gentle reminder\", \"per our previous discussion\" and \"thanks in advance\" where they fit naturally.",
+    "Keep the fake politeness light: no insults, threats or real hostility.",
+    "Example of the voice: \"Please update the README.\" becomes \"Just a gentle reminder, as per my last message, to update the README. Thanks in advance!\"",
+    "Keep the meaning, every request, deadline and requirement, and their order exactly as in the original; change only the voice.",
+    "Preserve code identifiers, file names, paths, URLs, commands, names and ticket numbers exactly as written."
+  ],
+  "builtIn": true,
+  "saveToHistory": false
+}
