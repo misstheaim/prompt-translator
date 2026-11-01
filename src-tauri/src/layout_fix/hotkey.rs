@@ -11,10 +11,11 @@
 //!    send Ctrl+C and wait for the clipboard to change.
 //! 3. Nothing copied: send Ctrl+Shift+Left to select the previous word and copy again. Then keep
 //!    adding the word to the left (Ctrl+Shift+Left + copy, the new word is the difference) while
-//!    the words look typed in the wrong layout or are too short to tell
-//!    ([`is_wrong_layout`]); stop at the first word that looks right, at the line or field start
-//!    (the selection doesn't grow), at a line break or after [`MAX_WORDS`] words. Undecided words
-//!    at the left edge with no wrong-layout word beyond them are not converted. If the selection
+//!    [`wrong_layout_tail`] asks for more: the words look typed in the wrong layout, are too
+//!    close to tell, or are a single weakly right-looking word; stop at a word of the other
+//!    script, a clearly right-looking word or two right-looking words in a row, at the line or
+//!    field start (the selection doesn't grow), at a line break or after [`MAX_WORDS`] words.
+//!    Undecided words at the left edge with no wrong-layout word beyond them are not converted. If the selection
 //!    now holds words that are not to be converted, shrink it with Ctrl+Shift+Right (copying
 //!    after each press) until only whitespace is left before the part to convert; whatever can't
 //!    be dropped that way is pasted back unchanged.
@@ -36,10 +37,12 @@ use crate::system::input::{
     self, COPY_TIMEOUT, ClipboardBusy, MODIFIER_RELEASE_TIMEOUT, SETTLE_TIME,
 };
 
-use super::convert::{Direction, convert, detect_direction, is_wrong_layout};
+use super::convert::{Direction, TIE_MARGIN, convert, detect_direction, layout_margin};
 
 /// With no selection, the most whitespace-separated words the selection grows to.
-pub const MAX_WORDS: usize = 30;
+/// Each word costs one Ctrl+Shift+Left and a copy (about 30-60 ms), so a full run stays around
+/// 3 s plus the shrink; the run usually stops much earlier, at the first right-layout word.
+pub const MAX_WORDS: usize = 60;
 
 /// The most Ctrl+Shift+Left presses a run makes, the first one included. Editors stop at `,` and
 /// `.` inside a word, so a word can take several presses; this only keeps a misbehaving editor
@@ -134,7 +137,7 @@ pub enum Outcome {
     },
 }
 
-/// One layout-fix run (see the module docs). Blocks for up to about a second.
+/// One layout-fix run (see the module docs). Blocks for up to a few seconds (a long line).
 pub fn run<D: Desktop>(desktop: &D, options: Options) -> Outcome {
     let window = match desktop.foreground_window() {
         Some(window) if options.auto_copy_selection && !desktop.is_terminal(window) => window,
@@ -393,11 +396,21 @@ struct Tail {
     extend: bool,
 }
 
+/// A right-looking word this far below zero ([`layout_margin`], 1/16 bit per letter pair) ends
+/// the part to convert at once; a weaker one is tolerated once (LAYOUT-005). Real words in the
+/// owner's tests score at least 15 below zero, wrong-layout words at least 15 above.
+const CLEARLY_RIGHT_MARGIN: i32 = 24;
+
+/// Right-looking words in a row (none of them clearly right) that end the part to convert.
+const DOUBTS_TO_STOP: usize = 2;
+
 /// Judges the whitespace-separated words of `selection` from right to left (LAYOUT-005): the
 /// rightmost word, the one the user asked for, is always converted; a word to its left joins
-/// when it looks typed in the wrong layout in the same direction ([`is_wrong_layout`]); words too
-/// short to tell join only when a wrong-layout word lies beyond them. The first word that looks
-/// right, or wrong the other way round, ends it; so does a line break.
+/// when it looks typed in the wrong layout in the same direction (LAYOUT-008). Undecided words
+/// (too short, mixed or a near-tie) and a single weakly right-looking word join only when a
+/// wrong-layout word lies beyond them, so one misjudged word doesn't cut a sentence. A word of
+/// the other script, a clearly right-looking word, two right-looking words in a row and a line
+/// break end it.
 fn wrong_layout_tail(selection: &str) -> Tail {
     let floor = selection.rfind(LINE_BREAKS).map_or(0, |i| i + 1);
     let mut words = word_spans(&selection[floor..])
@@ -410,20 +423,31 @@ fn wrong_layout_tail(selection: &str) -> Tail {
             extend: false,
         };
     };
+    let stop = |start| Tail {
+        start,
+        extend: false,
+    };
     let mut direction = detect_direction(last);
+    let mut doubts = 0;
     for (offset, word) in words {
-        match is_wrong_layout(word) {
-            None => {}
-            Some(true) if direction.is_none() || detect_direction(word) == direction => {
-                direction = detect_direction(word);
+        let word_direction = detect_direction(word);
+        if direction.is_some() && word_direction.is_some() && word_direction != direction {
+            return stop(start);
+        }
+        match layout_margin(word) {
+            Some(margin) if margin > TIE_MARGIN => {
+                direction = direction.or(word_direction);
                 start = offset;
+                doubts = 0;
             }
-            Some(_) => {
-                return Tail {
-                    start,
-                    extend: false,
-                };
+            Some(margin) if margin < -CLEARLY_RIGHT_MARGIN => return stop(start),
+            Some(margin) if margin < -TIE_MARGIN => {
+                doubts += 1;
+                if doubts >= DOUBTS_TO_STOP {
+                    return stop(start);
+                }
             }
+            _ => {}
         }
     }
     Tail {

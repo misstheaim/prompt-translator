@@ -48,6 +48,9 @@ const QUIET_TIMEOUT: Duration = Duration::from_millis(1500);
 /// Time for the terminal to read the clipboard after the paste (the layout fix's delay).
 #[cfg(windows)]
 const PASTE_DELAY: Duration = Duration::from_millis(200);
+/// Claude Code shows a paste of more lines than this as a `[Pasted text]` placeholder.
+#[cfg(windows)]
+const COLLAPSED_PASTE_LINES: usize = 3;
 
 /// Whether the text (after trimming) starts with `!`, `/` or `#`: in Claude Code's input these
 /// run a shell command, a slash command or write a memory note (D35), so the user confirms
@@ -84,8 +87,8 @@ mod imp {
     use std::thread::sleep;
 
     use super::{
-        FOREGROUND_TIMEOUT, KEY_RELEASE_TIMEOUT, PASTE_DELAY, QUIET_INPUT, QUIET_TIMEOUT,
-        RESTORE_TIMEOUT, SELECT_TIMEOUT, SETTLE,
+        COLLAPSED_PASTE_LINES, FOREGROUND_TIMEOUT, KEY_RELEASE_TIMEOUT, PASTE_DELAY, QUIET_INPUT,
+        QUIET_TIMEOUT, RESTORE_TIMEOUT, SELECT_TIMEOUT, SETTLE,
     };
     use crate::error::AppError;
     use crate::system::input::{self, Window};
@@ -217,9 +220,13 @@ mod imp {
         }
         let written = input::sequence_number();
 
-        // Claude Code collapses a multiline paste into a placeholder, so a text with more than
-        // one line is pasted twice.
-        let pastes = if text.contains('\n') { 2 } else { 1 };
+        // Claude Code collapses a paste of more than 3 lines into a placeholder, so such a text
+        // is pasted twice; up to 3 lines it inserts the text itself, so once is enough.
+        let pastes = if text.lines().count() > COLLAPSED_PASTE_LINES {
+            2
+        } else {
+            1
+        };
         for n in 0..pastes {
             if n > 0 {
                 sleep(PASTE_DELAY);

@@ -42,7 +42,7 @@ function formatDuration(ms: number): string {
 interface TranslateScreenProps {
   /** The tab's state: the default tab's store, or a bound tab's own. */
   store: TabStore;
-  /** Set for a tab bound to a session: Accept sends there and Improve is off. */
+  /** Set for a tab bound to a session: Accept sends there and Improve writes a Claude prompt. */
   bound?: BoundTab;
   /** Compact mode: the dropdown that switches tabs (shown in the top row). */
   tabPicker?: ReactNode;
@@ -78,13 +78,7 @@ export function TranslateScreen({ store, bound, tabPicker }: TranslateScreenProp
     value: p,
     label: PROVIDER_LABELS[p],
   }));
-  const {
-    provider,
-    preset,
-    presetId,
-    mode: rawMode,
-    pair,
-  } = effectiveSelection(
+  const { provider, preset, presetId, mode, pair } = effectiveSelection(
     {
       mode: modeOverride,
       provider: providerOverride,
@@ -94,12 +88,11 @@ export function TranslateScreen({ store, bound, tabPicker }: TranslateScreenProp
     settings,
     presets,
   );
-  // Improve is off in bound tabs (it rewrites idiomatically, which makes prompts less precise).
-  const mode: Mode = bound && rawMode === "improve" ? "translate" : rawMode;
+  // In a bound tab Improve rewrites the text as a clearer prompt for Claude (#199).
   const modeOptions: SegmentedOption<Mode>[] = bound
     ? MODE_OPTIONS.map((o) =>
         o.value === "improve"
-          ? { ...o, disabled: true, title: "Improve is off for prompts sent to Claude" }
+          ? { ...o, title: "Improve: rewrite as a clearer prompt for Claude" }
           : o,
       )
     : MODE_OPTIONS;
@@ -111,7 +104,13 @@ export function TranslateScreen({ store, bound, tabPicker }: TranslateScreenProp
 
   function runNow() {
     if (!canRun) return;
-    void run({ mode, provider, presetId, pair });
+    void run({
+      mode,
+      provider,
+      presetId,
+      pair,
+      purpose: bound ? "claudePrompt" : undefined,
+    });
   }
 
   async function sendToSession(text: string, historyId: number | null, confirmed: boolean) {
@@ -193,18 +192,7 @@ export function TranslateScreen({ store, bound, tabPicker }: TranslateScreenProp
   // everything else has a fixed height, and wide items shrink (with an ellipsis) instead of
   // wrapping, so the window never needs a scrollbar down to the compact minimum size.
   if (compact) {
-    const counter = (
-      <span
-        className={cx(
-          "pointer-events-none absolute bottom-1 left-2 text-[10px] leading-3",
-          tooLong ? "text-danger" : "text-muted",
-        )}
-        aria-live="polite"
-      >
-        {input.length} / {MAX_INPUT_CHARS}
-        {tooLong && " (too long)"}
-      </span>
-    );
+    const acceptHint = bound ? `send to ${bound.title}` : "copy";
     return (
       <div
         className="flex h-full min-h-0 flex-col gap-1.5 overflow-hidden p-2"
@@ -224,12 +212,13 @@ export function TranslateScreen({ store, bound, tabPicker }: TranslateScreenProp
           <Button
             size="xs"
             variant="primary"
-            disabled={output.trim() === ""}
-            onClick={() => void handleAccept()}
-            title={`${acceptLabel} (Ctrl+Shift+Enter)`}
-            className="ml-auto min-w-12 max-w-48"
+            loading={loading}
+            disabled={!canRun}
+            onClick={runNow}
+            title="Run (Ctrl+Enter)"
+            className="ml-auto shrink-0"
           >
-            <span className="truncate">{acceptLabel}</span>
+            {loading ? "Running" : "Run"}
           </Button>
           <CompactToggle className="shrink-0" />
         </div>
@@ -260,29 +249,42 @@ export function TranslateScreen({ store, bound, tabPicker }: TranslateScreenProp
             disabled={loading}
           />
         </div>
-        <div ref={inputWrapRef} className="relative min-h-14 flex-1">
+        {/* The counter and the clear button sit in a strip under the text, never over it. */}
+        <div
+          ref={inputWrapRef}
+          className="flex min-h-14 flex-1 flex-col overflow-hidden rounded-md border border-border bg-surface focus-within:ring-2 focus-within:ring-accent"
+        >
           <TextArea
             compact
+            framed
             aria-label="Text to process"
             placeholder="Type or paste your text (any language)"
             autoFocus
-            className="pb-4 pr-7"
+            className="min-h-0 flex-1"
             value={input}
             onChange={(e) => setInput(e.target.value)}
           />
-          {counter}
-          {input !== "" && (
-            <button
-              type="button"
-              aria-label="Clear text"
-              title="Clear"
-              disabled={loading}
-              onClick={clearInput}
-              className="absolute bottom-1 right-3 flex h-5 w-5 items-center justify-center rounded text-muted hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40"
+          <div className="flex h-5 shrink-0 items-center justify-between gap-2 pl-2 pr-1">
+            <span
+              className={cx("text-[10px] leading-3", tooLong ? "text-danger" : "text-muted")}
+              aria-live="polite"
             >
-              ×
-            </button>
-          )}
+              {input.length} / {MAX_INPUT_CHARS}
+              {tooLong && " (too long)"}
+            </span>
+            {input !== "" && (
+              <button
+                type="button"
+                aria-label="Clear text"
+                title="Clear"
+                disabled={loading}
+                onClick={clearInput}
+                className="flex h-4 w-4 items-center justify-center rounded text-muted hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40"
+              >
+                ×
+              </button>
+            )}
+          </div>
         </div>
         <div className="relative min-h-14 flex-1">
           <TextArea
@@ -298,12 +300,25 @@ export function TranslateScreen({ store, bound, tabPicker }: TranslateScreenProp
             </div>
           )}
         </div>
-        <p
-          className="shrink-0 truncate text-[11px] leading-4 text-muted"
-          title={`Ctrl+Enter run · Ctrl+Shift+Enter ${bound ? `send to ${bound.title}` : "copy"}`}
-        >
-          Ctrl+Enter run · Ctrl+Shift+Enter {bound ? `send to ${bound.title}` : "copy"}
-        </p>
+        <div className="flex shrink-0 items-center gap-2">
+          <p
+            className="min-w-0 flex-1 truncate text-[11px] leading-4 text-muted"
+            title={`Ctrl+Enter run · Ctrl+Shift+Enter ${acceptHint}`}
+          >
+            Ctrl+Enter run · Ctrl+Shift+Enter {acceptHint}
+          </p>
+          <Button
+            size="xs"
+            variant="primary"
+            disabled={output.trim() === ""}
+            onClick={() => void handleAccept()}
+            aria-label={acceptLabel}
+            title={`${acceptLabel} (Ctrl+Shift+Enter)`}
+            className="w-8 shrink-0 px-0"
+          >
+            {bound ? <SendIcon /> : <CopyIcon />}
+          </Button>
+        </div>
         {confirmDialog}
       </div>
     );
@@ -448,5 +463,44 @@ function AcceptButton({
     >
       <span className="truncate">{label}</span>
     </Button>
+  );
+}
+
+/** Paper plane: send to the bound Claude session (compact mode). */
+function SendIcon() {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      width="14"
+      height="14"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M14.5 1.5 7 9M14.5 1.5 10 14.5 7 9 1.5 6z" />
+    </svg>
+  );
+}
+
+/** Two sheets: copy the result (compact mode, default tab). */
+function CopyIcon() {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      width="14"
+      height="14"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
+      <path d="M10.5 3.5v-1A1 1 0 0 0 9.5 1.5h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h1" />
+    </svg>
   );
 }

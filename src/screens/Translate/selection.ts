@@ -19,7 +19,6 @@ export interface EffectiveSelection {
   preset: Preset | undefined;
   /** `preset.id`, else the id the tab asks for (`""` when there is none). */
   presetId: string;
-  /** The mode before the bound-tab rule (Improve is off there) is applied. */
   mode: Mode;
   pair: LanguagePair;
 }

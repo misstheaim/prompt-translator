@@ -2,6 +2,7 @@ import { create, type StoreApi, type UseBoundStore } from "zustand";
 
 import type { Mode } from "../../bindings/Mode";
 import type { ProviderKind } from "../../bindings/ProviderKind";
+import type { Purpose } from "../../bindings/Purpose";
 import type { TranslationResult } from "../../bindings/TranslationResult";
 import { cancelTranslation, toAppError, translate, type AppError } from "../../lib/api";
 import { useAppStore } from "../../store/app";
@@ -48,6 +49,8 @@ interface TranslateState {
     provider: ProviderKind;
     presetId: string;
     pair: LanguagePair;
+    /** `claudePrompt` in a bound tab (#199). */
+    purpose?: Purpose;
   }) => Promise<void>;
   cancel: () => Promise<void>;
 }
@@ -97,11 +100,13 @@ function actions(
       provider,
       presetId,
       pair,
+      purpose,
     }: {
       mode: Mode;
       provider: ProviderKind;
       presetId: string;
       pair: LanguagePair;
+      purpose?: Purpose;
     }) => {
       const { input, status } = get();
       if (status === "loading" || input.trim() === "" || input.length > MAX_INPUT_CHARS) return;
@@ -116,6 +121,7 @@ function actions(
           presetId,
           nativeLanguage: pair.native,
           targetLanguage: pair.target,
+          purpose,
         });
         if (get().requestId !== requestId) return;
         set({

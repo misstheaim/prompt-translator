@@ -103,39 +103,165 @@
 }
 
 /*
- * Accent (T67): `data-accent` on <html>; blue is the default set above. Each shade reads as text
- * on the surface and carries its own `--accent-contrast` for text on an accent-filled button
- * (all at least 4.5:1). Dark rules come later and are more specific, so they win.
+ * Accent (T67, #199): `data-accent` on <html>; blue is the default set above. Light shades are
+ * muted, dusty versions of the dark theme's pastels (and neons), because the accent is also text
+ * on the surface: each reads at least 4.5:1 on the background, and carries its own
+ * `--accent-contrast` for text on an accent-filled button (also at least 4.5:1). Dark rules come
+ * later and are more specific, so they win.
  */
 :root[data-accent="orange"] {
-  --accent: #b45309;
+  --accent: #9e562a;
   --accent-contrast: #ffffff;
 }
 
 :root[data-accent="lime"] {
-  --accent: #4d7c0f;
+  --accent: #52722c;
+  --accent-contrast: #ffffff;
+}
+
+:root[data-accent="red"] {
+  --accent: #ad4747;
+  --accent-contrast: #ffffff;
+}
+
+:root[data-accent="yellow"] {
+  --accent: #7f6514;
+  --accent-contrast: #ffffff;
+}
+
+:root[data-accent="violet"] {
+  --accent: #6a55b5;
+  --accent-contrast: #ffffff;
+}
+
+:root[data-accent="pink"] {
+  --accent: #a8457a;
+  --accent-contrast: #ffffff;
+}
+
+:root[data-accent="toxicGreen"] {
+  --accent: #1b7a00;
+  --accent-contrast: #ffffff;
+}
+
+:root[data-accent="toxicPink"] {
+  --accent: #c2009c;
   --accent-contrast: #ffffff;
 }
 
 :root[data-theme="dark"][data-accent="orange"] {
-  --accent: #fb923c;
+  --accent: #f2b38a;
   --accent-contrast: #0d1117;
 }
 
 :root[data-theme="dark"][data-accent="lime"] {
-  --accent: #a3e635;
+  --accent: #bfe0a0;
+  --accent-contrast: #0d1117;
+}
+
+:root[data-theme="dark"][data-accent="red"] {
+  --accent: #f2a7a7;
+  --accent-contrast: #0d1117;
+}
+
+:root[data-theme="dark"][data-accent="yellow"] {
+  --accent: #f0db92;
+  --accent-contrast: #0d1117;
+}
+
+:root[data-theme="dark"][data-accent="violet"] {
+  --accent: #c3b5f2;
+  --accent-contrast: #0d1117;
+}
+
+:root[data-theme="dark"][data-accent="pink"] {
+  --accent: #f2abd1;
+  --accent-contrast: #0d1117;
+}
+
+:root[data-theme="dark"][data-accent="toxicGreen"] {
+  --accent: #39ff14;
+  --accent-contrast: #0d1117;
+}
+
+:root[data-theme="dark"][data-accent="toxicPink"] {
+  --accent: #ff3fd8;
   --accent-contrast: #0d1117;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme])[data-accent="orange"] {
-    --accent: #fb923c;
+    --accent: #f2b38a;
     --accent-contrast: #0d1117;
   }
 
   :root:not([data-theme])[data-accent="lime"] {
-    --accent: #a3e635;
+    --accent: #bfe0a0;
     --accent-contrast: #0d1117;
+  }
+
+  :root:not([data-theme])[data-accent="red"] {
+    --accent: #f2a7a7;
+    --accent-contrast: #0d1117;
+  }
+
+  :root:not([data-theme])[data-accent="yellow"] {
+    --accent: #f0db92;
+    --accent-contrast: #0d1117;
+  }
+
+  :root:not([data-theme])[data-accent="violet"] {
+    --accent: #c3b5f2;
+    --accent-contrast: #0d1117;
+  }
+
+  :root:not([data-theme])[data-accent="pink"] {
+    --accent: #f2abd1;
+    --accent-contrast: #0d1117;
+  }
+
+  :root:not([data-theme])[data-accent="toxicGreen"] {
+    --accent: #39ff14;
+    --accent-contrast: #0d1117;
+  }
+
+  :root:not([data-theme])[data-accent="toxicPink"] {
+    --accent: #ff3fd8;
+    --accent-contrast: #0d1117;
+  }
+}
+
+/*
+ * Rainbow (#199): `appearance.ts` gives every element its own random `--accent-hue`; each element
+ * builds its accent from it, at a lightness that keeps the contrast of the shades above (OKLCH
+ * keeps it nearly the same for every hue). Elements without a hue of their own inherit one.
+ */
+:root[data-accent="rainbow"] {
+  --accent-contrast: #ffffff;
+}
+
+:root[data-accent="rainbow"],
+:root[data-accent="rainbow"] * {
+  --accent: oklch(0.5 0.14 var(--accent-hue, 260));
+}
+
+:root[data-theme="dark"][data-accent="rainbow"] {
+  --accent-contrast: #0d1117;
+}
+
+:root[data-theme="dark"][data-accent="rainbow"],
+:root[data-theme="dark"][data-accent="rainbow"] * {
+  --accent: oklch(0.84 0.11 var(--accent-hue, 260));
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme])[data-accent="rainbow"] {
+    --accent-contrast: #0d1117;
+  }
+
+  :root:not([data-theme])[data-accent="rainbow"],
+  :root:not([data-theme])[data-accent="rainbow"] * {
+    --accent: oklch(0.84 0.11 var(--accent-hue, 260));
   }
 }
 

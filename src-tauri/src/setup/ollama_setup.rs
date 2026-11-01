@@ -621,6 +621,7 @@ pub async fn benchmark(
             // The benchmark texts are Russian and English, whatever pair the user chose.
             native_language: Some(language::DEFAULT_NATIVE.to_owned()),
             target_language: Some(language::DEFAULT_TARGET.to_owned()),
+            purpose: None,
         };
         service.translate_with(req, bench_settings.clone())
     };

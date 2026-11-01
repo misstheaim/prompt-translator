@@ -14,6 +14,12 @@
 //! author's tone" over rules that came after it; every other preset and mode builds the same
 //! prompt as before.
 //!
+//! Claude prompts (#199): Improve for a prompt sent to a Claude session ([`Purpose::ClaudePrompt`],
+//! from a bound Translate tab) uses `prompts/improve_prompt.md` and its own task line instead: the
+//! same rewrite and issues, plus the structure of a good Claude prompt (direct instructions,
+//! lists for several requests, XML tags around pasted data). Voice presets get no voice section
+//! there; their rules come after the template like any preset's.
+//!
 //! The templates, the output format and the task lines name the request's languages through
 //! placeholders (see [`fill_languages`]); with the default pair (Russian → English) they build
 //! exactly the prompts of before T52. The preset's rules are inserted as written.
@@ -54,12 +60,16 @@ use regex::Regex;
 use serde_json::{Value, json};
 
 use super::language::{self, LanguagePair};
-use super::model::Mode;
+use super::model::{Mode, Purpose};
 use crate::presets::Preset;
 
 const TRANSLATE_TEMPLATE: &str = include_str!("prompts/translate.md");
 const IMPROVE_TEMPLATE: &str = include_str!("prompts/improve.md");
 const CORRECT_TEMPLATE: &str = include_str!("prompts/correct.md");
+const IMPROVE_PROMPT_TEMPLATE: &str = include_str!("prompts/improve_prompt.md");
+
+/// The task line of Improve for a Claude prompt (#199).
+const IMPROVE_PROMPT_TASK_LINE: &str = "Rewrite the text inside <source_text> as a clear, well-structured prompt for Claude in natural {target}, with exactly the same requests, and explain each change.";
 
 /// Output-format instructions shared by all modes; they describe [`output_schema`] in words,
 /// for providers and models that don't enforce the schema. `{explanation}` and `{categories}`
@@ -259,15 +269,27 @@ fn fill_languages(text: &str, pair: LanguagePair) -> String {
 }
 
 /// Builds the prompt for `source` in `mode` with the preset's rules (plan §4.4), for the
-/// language pair `pair` (T52).
-pub fn build(mode: Mode, preset: &Preset, source: &str, pair: LanguagePair) -> BuiltPrompt {
+/// language pair `pair` (T52) and the result's `purpose` (#199).
+pub fn build(
+    mode: Mode,
+    preset: &Preset,
+    source: &str,
+    pair: LanguagePair,
+    purpose: Purpose,
+) -> BuiltPrompt {
     let rules: Vec<&str> = preset
         .rules
         .iter()
         .map(|rule| rule.trim())
         .filter(|rule| !rule.is_empty())
         .collect();
-    let voice = mode == Mode::Improve && is_voice_preset(&rules);
+    let claude_prompt = mode == Mode::Improve && purpose == Purpose::ClaudePrompt;
+    let voice = mode == Mode::Improve && !claude_prompt && is_voice_preset(&rules);
+    let template = if claude_prompt {
+        IMPROVE_PROMPT_TEMPLATE
+    } else {
+        template(mode)
+    };
 
     let mut system = String::new();
     if voice {
@@ -280,7 +302,7 @@ pub fn build(mode: Mode, preset: &Preset, source: &str, pair: LanguagePair) -> B
         KEEP_TONE_RULE
     };
     system.push_str(&fill_languages(
-        &template(mode).trim_end().replace("{tone_rule}", tone_rule),
+        &template.trim_end().replace("{tone_rule}", tone_rule),
         pair,
     ));
     if !voice && !rules.is_empty() {
@@ -295,7 +317,9 @@ pub fn build(mode: Mode, preset: &Preset, source: &str, pair: LanguagePair) -> B
     let source = SOURCE_TAG.replace_all(source.trim(), |caps: &regex::Captures| {
         caps[0].replace('<', "&lt;").replace('>', "&gt;")
     });
-    let task = if voice {
+    let task = if claude_prompt {
+        IMPROVE_PROMPT_TASK_LINE
+    } else if voice {
         VOICE_TASK_LINE
     } else {
         task_line(mode)

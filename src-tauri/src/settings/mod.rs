@@ -109,15 +109,24 @@ pub enum Theme {
     Dark,
 }
 
-/// The accent colour (T67).
+/// The accent colour (T67, #199). camelCase keeps the stored names of T67 (`blue`, `orange`,
+/// `lime`).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
-#[serde(rename_all = "lowercase")]
-#[ts(export, rename_all = "lowercase")]
+#[serde(rename_all = "camelCase")]
+#[ts(export, rename_all = "camelCase")]
 pub enum Accent {
     #[default]
     Blue,
     Orange,
     Lime,
+    Red,
+    Yellow,
+    Violet,
+    Pink,
+    ToxicGreen,
+    ToxicPink,
+    /// Every element gets its own random accent colour (`src/lib/appearance.ts`).
+    Rainbow,
 }
 
 /// The contents of `settings.json`. Unknown or missing fields fall back to defaults.
