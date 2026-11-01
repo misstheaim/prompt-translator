@@ -492,7 +492,8 @@ No automated tests (owner's decision, 2026-10-15). A ticket is done when build a
 ├── [Story] S7.1 Translations and mistakes are saved (#25)
 │   ├── [Task][database] T27 SQLite schema, migrations and repository (#62)
 │   ├── [Task][backend]  T28 Wire history into the service and expose commands (#63)
-│   └── [Task][backend]  T64 Don't save popup runs, per-preset history flag, joke presets, language filter in History and Mistakes (#186)
+│   ├── [Task][backend]  T64 Don't save popup runs, per-preset history flag, joke presets, language filter in History and Mistakes (#186)
+│   └── [Task][backend]  T68 Joke presets: make the voice hold on the local model (#193)
 ├── [Story] S7.2 Review and search past translations (#26)
 │   └── [Task][frontend] T29 History screen (#64)
 └── [Story] S7.3 See my recurring mistakes and new vocabulary (#27)
@@ -645,7 +646,8 @@ Totals: **9 epics, 23 stories, 64 tasks** (T37 dropped).
     - a **Windows Sandbox section** using `docs/sandbox/no-gpu.wsb`: install, wizard with no GPU and no winget (download-page fallback), wizard skipping both providers, update from the previous release, uninstall with and without data deletion, and a check that the folders and autostart entries are gone.
 - **Acceptance criteria:**
   - [ ] README covers every item above; every command in it was run once.
-  - [ ] Running the smoke test on the final build, including the Sandbox section, passes (result noted in the PR).
+  - [ ] README and `docs/smoke-test.md` describe the behaviour merged in wave 13 (T63–T67).
+  - ~~Running the smoke test on the final build, including the Sandbox section, passes.~~ Dropped (owner, 2026-11-01, changed in #39): the owner's manual test of the installer built from `develop` 342acf9 passed and produced T63–T67; no further smoke-test run before v0.1.0.
 - **Depends on:** T6, T21, T22, T23, T25b, T26, T29, T30, T31, T33, T36, T43, T44, and T40 if E9 is GO. **Can run in parallel with:** none (last).
 - **Suggested model:** Sonnet 5.5 (confidence: High). Docs from a finished app.
 
@@ -1363,18 +1365,25 @@ Write `docs/spikes/local-model-eval.md` with:
 - **Depends on:** none (small expected conflict with T64 in the settings fields).
 - **Suggested model:** Sonnet 5.5 (confidence: High).
 
+### T68. Joke presets: make the voice hold on the local model  `backend` · parent: S7.1 · issue: #193
+- **Goal:** the five joke presets from T64 rewrite a prompt clearly in their voice on qwen3.5:9b as well as on Claude Code (follow-up from #186, owner, 2026-11-01).
+- **Details:** in #186's eval runs the meaning, requirements and tokens were always kept, but qwen3.5:9b ignored most voices and Claude haiku followed 3–4 of 5; likely the Improve template's "keep the author's tone, minimal edits" wins over preset rules that come after it. Options: a voice section before the Improve template, stronger per-preset examples, or a separate rewrite path for voice presets; plain Improve and the four non-joke presets must not change. Check with `cargo run --bin eval` on both providers. Spec: TRANS-006 and the Improve template item; PRESETS-002 only if the built-in files change.
+- **Acceptance criteria:**
+  - [ ] As in #193 (AC1–AC4).
+- **Depends on:** T64.
+- **Suggested model:** Sonnet 5.5 (confidence: Medium).
+
 ## 6. Order of work
 
-Done: waves 0-12 (see git history of this file). T37 was dropped (D47). Waves 10 and 11 were merged into one (owner, 2026-10-31). From wave 10, T58 and T59 are merged (2026-10-31). T60 (#167) has no milestone and no wave yet.
+Done: waves 0-13 (see git history of this file). T37 was dropped (D47). Waves 10 and 11 were merged into one (owner, 2026-10-31). From wave 10, T58 and T59 are merged (2026-10-31). T60 (#167) has no milestone and no wave yet.
 
 | Wave | Tasks (parallel within a wave) | Notes |
 |---|---|---|
-| 13 | T63, T64, T65, T66, T67 | Follow-ups from the owner's manual test of 2026-11-01; T64 and T67 both add settings fields (small merge conflict expected) |
-| 14 | T7 | Docs for the new behaviour (README, smoke-test), then the full smoke test including Windows Sandbox; #39 closes when it passes |
+| 14 | T7, T68 | T7: README and smoke-test checklist updated for wave 13, docs only (the smoke-test run was dropped, owner 2026-11-01). T68: joke preset voices (follow-up from T64) |
 
 Critical path: T1 → T2 → T3 → T11 → T12 → T20 → T21 → T26 → T7; for the follow-ups T47 → T51 → T52 → T53 → T40 → T7. The distribution chain is T24 → T6 → T31 → T32 → T33 → T7.
 
-**First public release** (`v0.1.0`) only after T47–T59, T61–T67 and T38–T40 are merged and T7's smoke test passes (the manual test of 2026-10-31 did not pass). A test tag in T31 is fine before that, but it must stay a draft. The release follows `docs/development.md` §5: `release/0.1.0` is cut from `develop`, merged into `main` and tagged there.
+**First public release** (`v0.1.0`) only after T47–T59, T61–T68, T38–T40 and T7 are merged (the owner's manual test of 2026-11-01 passed and replaces T7's smoke-test run). A test tag in T31 is fine before that, but it must stay a draft. The release follows `docs/development.md` §5: `release/0.1.0` is cut from `develop`, merged into `main` and tagged there.
 
 ## 7. Risks and open questions
 
@@ -1415,6 +1424,7 @@ Critical path: T1 → T2 → T3 → T11 → T12 → T20 → T21 → T26 → T7; 
 
 ## 8. Review notes
 
+- **Changed 2026-11-01 (wave 13):** T7 (#39) rescoped to docs only: the owner's manual test passed, so the smoke-test run before v0.1.0 is dropped. Follow-up T68 (#193, joke preset voices) added under S7.1 in wave 14. Wave 13 collapsed.
 - **Changed 2026-11-01 (owner's manual test):** follow-up tasks T63–T67 (#185–#189) added in milestone v0.1.0 as wave 13; T7 moved to wave 14. Owner decisions: compact mode 600×350 per tab with controls; Settings pair changes reset every tab's pair; popup runs not saved by default (`savePopupRuns`), per-preset `saveToHistory`, joke presets; language filter in History and Mistakes; popup mode runs queued instead of cancelled; multiline session sends pasted twice; theme and accent settings.
 - **Changed 2026-10-31 (owner's manual test of the v0.1.0 candidate):** follow-up tasks T47–T58 (#142–#153) added in milestone v0.1.0; decisions D43–D47 (Improve as a practice rewrite, language pair, popup starting mode and Enter-replace, local model memory, revised session delivery); D10, D31, D34, D38, D42 marked changed or superseded. E9 revived: T37 (#72) dropped, T38–T40 (#73–#75) rewritten for VS Code link / terminal focus-and-paste, new spike T58. Waves 9–14; T7 last.
 - **Changed 2026-10-30 (wave 7, part 2):** T31 (#66): real pubkey set, test tag checked. T32 (#67): updater commands, events and `AppInfo` as merged. T33 (#68): `store/update.ts`, banner rules. Follow-up T46 (#138, startup panic from the updater's rustls) added under S1.2, first in wave 8. Wave 7 collapsed.

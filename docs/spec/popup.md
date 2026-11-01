@@ -52,18 +52,18 @@ Whenever auto-copy gives nothing (a terminal, modifiers held, the clipboard busy
 Since: #59 · Changed: #128
 
 ### POPUP-009 Running and showing the result
-For a non-blank text the page runs `translate` (TRANS-008) at once with a new request id, the starting mode, and the provider and preset from the current settings (`defaultProvider`, `defaultPresetId`); a Translate run of a reverse translation (POPUP-003) also sends its `languagePair` as `nativeLanguage` and `targetLanguage`. While it runs the area shows a spinner and "Working... Esc to cancel".
+For a non-blank text the page runs `translate` (TRANS-008) at once with a new request id, the starting mode, and the provider and preset from the current settings (`defaultProvider`, `defaultPresetId`); a Translate run of a reverse translation (POPUP-003) also sends its `languagePair` as `nativeLanguage` and `targetLanguage`. While it runs, or waits in the queue below, the area shows a spinner and "Working... Esc to cancel". Results made in the popup are saved to history only when `savePopupRuns` is on (HISTORY-007); otherwise `historyId` is null and nothing is marked accepted.
 - Success: the output text (not editable), then the token-warning banner (Ignore hides it for this result, Retry runs again; TRANS-013) and, when the result has issues, a toggle "<n> fix" / "<n> fixes" that expands the issue list (APP-031, collapsed again on every new run).
 - Failure: an error banner (APP-022) with Retry but without "Open settings", and "Start Ollama" for `OllamaUnreachable` (SETUP-002). `Cancelled` is not shown as an error; the page returns to idle.
-- Changing the mode (switch or Tab) with a non-blank text saves it as `lastPopupMode`, except for a read-only source (POPUP-012), which never saves it (also not on Enter, POPUP-010). Each mode's finished result is kept for the current capture: switching to a mode that has one shows it without running (a run in progress is cancelled); switching to a mode without one runs it. A new capture clears the kept results; Ctrl+R reruns the current mode and replaces its result. A new run cancels the one in progress (its result is not kept), and an answer to a superseded or cancelled request is ignored.
-Since: #61 · Changed: #145, #152
+- Changing the mode (switch or Tab) with a non-blank text saves it as `lastPopupMode`, except for a read-only source (POPUP-012), which never saves it (also not on Enter, POPUP-010). Each mode's outcome, a result or an error, is kept for the current capture and shown when that mode is selected. Only one request runs at a time. Switching the mode never cancels the running request: a mode that has an outcome shows it without running; a mode without one is queued behind the running request (or starts at once when none runs) and shows the spinner until its turn; a mode already running or queued is not queued again. When a request finishes, the next queued mode starts, the one on screen first. A failure of one mode shows its error banner only in that mode, and the other modes are unaffected. A new capture and Esc cancel the running request and clear the queue; a new capture also clears the kept outcomes. Ctrl+R and the error banner's Retry rerun only the mode on screen: its kept outcome is dropped, a request of that mode in progress is cancelled and started again, and nothing happens if that mode is merely waiting in the queue. An answer to a cancelled request is ignored.
+Since: #61 · Changed: #145, #152, #187, #186
 
 ### POPUP-010 Popup keys
 - Enter (without Shift or Alt) after a successful run accepts the output. Plain Enter replaces the selection in the source app when the source kind is editable (POPUP-013) and otherwise copies the output with its `historyId` (TRANS-010). Ctrl+Enter always copies. Both mark the history entry accepted, save the mode as `lastPopupMode` (not for a read-only source) and hide the popup. If the copy (or, for a replace, the fallback copy) fails the popup stays open with the error banner; Enter does nothing in other states.
 - Esc cancels a running request and hides the popup.
-- Ctrl+R runs the same text and mode again (also while one runs); it does not reload the page.
+- Ctrl+R runs the same text and the mode on screen again (also while it runs; POPUP-009); it does not reload the page.
 - Tab and Shift+Tab move the mode forward and back through Translate, Improve, Correct, wrapping around.
-Since: #61 · Changed: #152, #153
+Since: #61 · Changed: #152, #153, #187
 
 ### POPUP-012 Source kind
 When `autoCopySelection` is on and the foreground window isn't a terminal (POPUP-007), pressing the hotkey asks UI Automation, before Ctrl+C is sent, for the focused element and classifies the capture:
