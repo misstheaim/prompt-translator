@@ -38,9 +38,13 @@ use crate::system::input::{
 
 use super::convert::{Direction, convert, detect_direction, is_wrong_layout};
 
-/// With no selection, the most words the selection grows to (Ctrl+Shift+Left presses, the first
-/// one included).
-pub const MAX_WORDS: usize = 15;
+/// With no selection, the most whitespace-separated words the selection grows to.
+pub const MAX_WORDS: usize = 30;
+
+/// The most Ctrl+Shift+Left presses a run makes, the first one included. Editors stop at `,` and
+/// `.` inside a word, so a word can take several presses; this only keeps a misbehaving editor
+/// from looping.
+const MAX_PRESSES: usize = 3 * MAX_WORDS;
 
 /// Nothing left of a line break joins the converted words.
 const LINE_BREAKS: [char; 2] = ['\n', '\r'];
@@ -263,7 +267,8 @@ struct Selection {
 }
 
 /// No selection: selects the word before the cursor, then keeps adding the word to its left
-/// while [`wrong_layout_tail`] asks for more, up to [`MAX_WORDS`] words. `Ok(None)` when even the
+/// while [`wrong_layout_tail`] asks for more, up to [`MAX_WORDS`] words of the selected text
+/// (and [`MAX_PRESSES`] key presses). `Ok(None)` when even the
 /// first word copied nothing.
 fn select_words<D: Desktop>(desktop: &D, window: WindowId) -> Result<Option<Selection>, Outcome> {
     if !desktop.ready_to_send(window) {
@@ -286,7 +291,7 @@ fn select_words<D: Desktop>(desktop: &D, window: WindowId) -> Result<Option<Sele
     }
 
     let mut tail = wrong_layout_tail(&text);
-    while tail.extend && words < MAX_WORDS {
+    while tail.extend && words < MAX_PRESSES && word_spans(&text).len() < MAX_WORDS {
         if !desktop.ready_to_send(window) {
             return Err(Outcome::FocusChanged);
         }
